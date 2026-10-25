@@ -33,7 +33,7 @@ jobs:
           cache-dependency-path: |
             apps/web/package-lock.json
             infra/agentsafe/package-lock.json
-      - name: Build and test the Java foundation
+      - name: Java invariants and PostgreSQL recovery tests
         run: ./gradlew verify --no-daemon --console=plain
       - name: Build the web application
         run: |
@@ -43,6 +43,7 @@ jobs:
       - name: Verify the published authority boundary
         run: |
           npm --prefix infra/agentsafe ci
+          npm --prefix infra/agentsafe test
           npm --prefix infra/agentsafe run verify-boundary
           npm --prefix infra/agentsafe audit --audit-level=high
       - name: Start an isolated synthetic demo
@@ -50,10 +51,18 @@ jobs:
           node demo/setup.mjs
           node demo/doctor.mjs
           docker compose up --build -d --wait --wait-timeout 240
-      - name: Exercise authenticated discovery and isolation
+      - name: Exercise REST, MCP, isolation and restart behavior
         run: |
-          node demo/check-foundation.mjs
+          node demo/smoke.mjs
           node demo/check-isolation.mjs
+          node demo/check-restart.mjs
+          docker compose exec -T agentsafe node node_modules/@decionis/agentsafe/dist/Cli.js verify chain /var/lib/agentsafe/evidence/evidence.jsonl
+      - name: Install the test browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Verify desktop and mobile journeys
+        working-directory: apps/web
+        run: npm run test:e2e
       - name: Retain test reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

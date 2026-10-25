@@ -3,7 +3,8 @@ FROM maven:3.9-eclipse-temurin-21@sha256:99e61abcff91a9b1333463bd8451fb18495d6eb
 WORKDIR /workspace
 COPY . .
 ARG APP
-RUN --mount=type=cache,target=/root/.gradle ./gradlew :${APP}:bootJar --no-daemon --console=plain
+# Parallel service builds must not write Gradle's journal from separate containers.
+RUN --mount=type=cache,id=swarm-pay-gradle,target=/root/.gradle,sharing=locked ./gradlew :${APP}:bootJar --no-daemon --console=plain
 RUN cp apps/${APP}/build/libs/*-SNAPSHOT.jar /tmp/app.jar
 
 FROM eclipse-temurin:21-jre@sha256:227118764cccd3c3294617061aaa93a08309c63a395eefa83e6b35032992ea99

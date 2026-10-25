@@ -2,6 +2,7 @@ package com.swarmpay.integrations;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 public final class RuntimeSettings {
     private RuntimeSettings() {}
@@ -21,5 +22,12 @@ public final class RuntimeSettings {
         if (file==null || file.isBlank()) return required(name);
         try { String value=Files.readString(Path.of(file)).strip(); if(value.isEmpty()) throw new IllegalStateException(name+" file is empty"); return value; }
         catch (java.io.IOException e) { throw new IllegalStateException("Cannot read "+name+"_FILE"); }
+    }
+    public static Map<String,PayPalPaymentProvider.MerchantAccount> merchants() {
+        return Map.of("tents",merchant("TENTS"),"catering",merchant("CATERING"));
+    }
+    private static PayPalPaymentProvider.MerchantAccount merchant(String key) {
+        String p="PAYPAL_"+key+"_";
+        return new PayPalPaymentProvider.MerchantAccount(required(p+"CLIENT_ID"),secret(p+"CLIENT_SECRET"),required(p+"MERCHANT_ID"),required(p+"WEBHOOK_ID"));
     }
 }

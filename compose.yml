@@ -1,0 +1,125 @@
+name: swarm-pay
+services:
+  postgres:
+    image: postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929
+    environment:
+      POSTGRES_DB: swarm
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?Run node demo/setup.mjs first}
+      PG_APP_PASSWORD: ${PG_APP_PASSWORD:?Required}
+      PG_EXECUTOR_PASSWORD: ${PG_EXECUTOR_PASSWORD:?Required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/01-roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
+    networks: [commerce-data, payment-data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d swarm"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  payment-executor:
+    build:
+      context: .
+      dockerfile: infra/java.Dockerfile
+      args: {APP: payment-executor}
+    environment:
+      SWARM_MODE: ${SWARM_MODE:?Required}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/swarm
+      DATABASE_USER: swarm_executor
+      DATABASE_PASSWORD: ${PG_EXECUTOR_PASSWORD}
+      EXECUTOR_TOKEN: ${EXECUTOR_TOKEN:?Required}
+      DECIONIS_POLICY_VERSION: ${DECIONIS_POLICY_VERSION:?Required}
+      VENUE_PUBLIC_KEY_FILE: /run/secrets/venue-public.pem
+      VENUE_ISSUER: ${VENUE_ISSUER:?Required}
+      PAYPAL_TENTS_CLIENT_ID: ${PAYPAL_TENTS_CLIENT_ID:-}
+      PAYPAL_TENTS_CLIENT_SECRET: ${PAYPAL_TENTS_CLIENT_SECRET:-}
+      PAYPAL_TENTS_MERCHANT_ID: ${PAYPAL_TENTS_MERCHANT_ID:-}
+      PAYPAL_TENTS_WEBHOOK_ID: ${PAYPAL_TENTS_WEBHOOK_ID:-}
+      PAYPAL_CATERING_CLIENT_ID: ${PAYPAL_CATERING_CLIENT_ID:-}
+      PAYPAL_CATERING_CLIENT_SECRET: ${PAYPAL_CATERING_CLIENT_SECRET:-}
+      PAYPAL_CATERING_MERCHANT_ID: ${PAYPAL_CATERING_MERCHANT_ID:-}
+      PAYPAL_CATERING_WEBHOOK_ID: ${PAYPAL_CATERING_WEBHOOK_ID:-}
+    volumes:
+      - ${VENUE_PUBLIC_KEY_HOST_FILE:-./.secrets/venue-public.pem}:/run/secrets/venue-public.pem:ro
+    networks: [execution, payment-data]
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8081/actuator/health]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+    mem_limit: 512m
+  agentsafe:
+    build: ./infra/agentsafe
+    environment:
+      SWARM_MODE: ${SWARM_MODE}
+      DECIONIS_API_KEY_FILE: /run/secrets/authority/decionis-api-key
+      DECIONIS_TENANT_ID: ${DECIONIS_TENANT_ID:-}
+      DECIONIS_POLICY_VERSION: ${DECIONIS_POLICY_VERSION}
+    volumes:
+      - authority-key:/run/secrets/authority:ro
+      - authority-evidence:/var/lib/agentsafe/evidence
+    networks: [workload, execution]
+    depends_on:
+      payment-executor: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:8082/_agentsafe/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  commerce-app:
+    build:
+      context: .
+      dockerfile: infra/java.Dockerfile
+      args: {APP: commerce-app}
+    environment:
+      SWARM_MODE: ${SWARM_MODE}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/swarm
+      DATABASE_USER: swarm_app
+      DATABASE_PASSWORD: ${PG_APP_PASSWORD}
+      AGENTSAFE_URL: http://agentsafe:8082
+      EXECUTOR_TOKEN: ${EXECUTOR_TOKEN}
+      DECIONIS_POLICY_VERSION: ${DECIONIS_POLICY_VERSION}
+      ORGANIZER_USERNAME: ${ORGANIZER_USERNAME:?Required}
+      ORGANIZER_PASSWORD: ${ORGANIZER_PASSWORD:?Required}
+      MCP_TOKEN: ${MCP_TOKEN:?Required}
+      SWARM_AI_PROVIDER: ${SWARM_AI_PROVIDER:-demo}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: gpt-6-astra
+      AZURE_OPENAI_API_KEY: ${AZURE_OPEANAI_KEY:-${AZURE_OPENAI_API_KEY:-}}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-${AZURE_OPENAI_URL:-}}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-${AZURE_OPENAI_LLM:-}}
+      VENUE_PUBLIC_KEY_FILE: /run/secrets/venue-public.pem
+      VENUE_ISSUER: ${VENUE_ISSUER}
+      PAYPAL_TENTS_CLIENT_ID: ${PAYPAL_TENTS_CLIENT_ID:-}
+      PAYPAL_CATERING_CLIENT_ID: ${PAYPAL_CATERING_CLIENT_ID:-}
+    volumes:
+      - ${VENUE_PUBLIC_KEY_HOST_FILE:-./.secrets/venue-public.pem}:/run/secrets/venue-public.pem:ro
+    networks: [workload, commerce-data]
+    depends_on:
+      postgres: {condition: service_healthy}
+      agentsafe: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8080/actuator/health]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+    mem_limit: 768m
+  web:
+    build: ./apps/web
+    ports: ["127.0.0.1:${WEB_PORT:-5173}:8080"]
+    networks: [workload, execution]
+    depends_on:
+      commerce-app: {condition: service_healthy}
+    # This ingress routes only the exact webhook path to the executor. It is
+    # not a generic proxy, and it has neither payment nor authority credentials.
+volumes:
+  postgres-data:
+  authority-evidence:
+  authority-key:
+networks:
+  workload:
+  execution:
+  commerce-data: {internal: true}
+  payment-data: {internal: true}

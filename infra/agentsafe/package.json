@@ -1,0 +1,10 @@
+{
+  "name": "swarm-pay-authority-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {"test": "node --test *.test.mjs", "verify-boundary": "agentsafe test"},
+  "dependencies": {"@decionis/agentsafe": "0.2.5", "@decionis/agent-safe-pipeline": "0.3.8"},
+  "overrides": {"@decionis/presence-types": "0.3.0"},
+  "engines": {"node": ">=22.14.0"}
+}

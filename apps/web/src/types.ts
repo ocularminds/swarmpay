@@ -1,0 +1,13 @@
+export type Intent={request:string;attendees:number;tents:number;budgetMinor:number;eventAt:string;timezone:string;venue:string;weather:string;tentMode:'RENT'};
+export type Offer={id:string;merchantId:string;merchantName:string;category:'TENTS'|'CATERING';title:string;description:string;unitMinor:number;capacity:number;badge:string};
+export type Line={id:string;offerId:string;merchantId:string;merchantName:string;category:'TENTS'|'CATERING';title:string;quantity:number;unitMinor:number;totalMinor:number;paymentIntent:'CAPTURE'|'AUTHORIZE'};
+export type Assessment={role:string;summary:string;facts:string[];source:string};
+export type Plan={id:string;version:number;intent:Intent;lines:Line[];assessments:Assessment[];totalMinor:number;expiresAt:string;status:string;createdAt:string};
+export type Order={id:string;merchantId:string;merchantName:string;title:string;category:'TENTS'|'CATERING';quantity:number;amountMinor:number;paymentIntent:string;status:string;providerOrderId:string|null;authorizationId:string|null;captureId:string|null};
+export type AuditEvent={sequence:number;type:string;message:string;source:string;at:string;previousHash:string;hash:string};
+export type Workflow={plan:Plan;orders:Order[];events:AuditEvent[];committedMinor:number;capturedMinor:number;mode:'demo'|'sandbox';receiptVerified:boolean;paymentFrozen:boolean};
+export type ProviderResult={status:string;providerOrderId:string;authorizationId:string|null;captureId:string|null;source:string};
+export type GateResult={state:string;execution:string;decisionId:string|null;dossierId:string|null;intentHash:string|null;intentId:string|null;message:string;result:ProviderResult|null};
+export type Command={command:{id:string;operation:string;merchantId:string;amountMinor:number};state:string;result:GateResult|null};
+export type Config={mode:'demo'|'sandbox';aiProvider:'demo'|'azure'|'openai';model:string;authority:string;catalogSource:string;receiptIssuer:string;clientIds:Record<string,string>;policyVersion:string};
+export type Session={authenticated:boolean;username:string;csrfToken:string;csrfHeader:string};

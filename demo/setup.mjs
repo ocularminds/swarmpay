@@ -1,0 +1,34 @@
+import { randomBytes, generateKeyPairSync } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+const root=fileURLToPath(new URL('../',import.meta.url));
+const option=process.argv[2];
+if(option&&option!=='--sandbox')throw new Error('Usage: node demo/setup.mjs [--sandbox]');
+const mode=option==='--sandbox'?'sandbox':'demo';
+const file=resolve(root,mode==='demo'?'.env':'.env.sandbox');
+if(existsSync(file)) {
+  if(!new RegExp(`^SWARM_MODE=${mode}$`,'m').test(readFileSync(file,'utf8'))) throw new Error('Existing configuration has a different mode. It was left unchanged.');
+  console.log(`Existing ${mode} configuration retained.`);
+  process.exit(0);
+}
+const secret=()=>randomBytes(32).toString('hex');
+mkdirSync(resolve(root,'.secrets'),{recursive:true,mode:0o700});
+const privatePath=resolve(root,'.secrets/venue-private.pem'),publicPath=resolve(root,'.secrets/venue-public.pem');
+if(existsSync(privatePath)!==existsSync(publicPath)) throw new Error('The existing venue fixture keypair is incomplete. It was left unchanged.');
+if(!existsSync(privatePath)) {
+  const pair=generateKeyPairSync('ed25519');
+  writeFileSync(privatePath,pair.privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600,flag:'wx'});
+  writeFileSync(publicPath,pair.publicKey.export({type:'spki',format:'pem'}),{mode:0o644,flag:'wx'});
+}
+if(!existsSync(resolve(root,'.secrets/decionis-api-key')))writeFileSync(resolve(root,'.secrets/decionis-api-key'),'',{mode:0o600,flag:'wx'});
+const config={ SWARM_MODE:mode,SWARM_AI_PROVIDER:mode==='demo'?'demo':'azure',WEB_PORT:mode==='demo'?'5173':'5175',PG_ADMIN_PASSWORD:secret(),PG_APP_PASSWORD:secret(),PG_EXECUTOR_PASSWORD:secret(),
+  EXECUTOR_TOKEN:secret(),MCP_TOKEN:secret(),ORGANIZER_USERNAME:'organizer',ORGANIZER_PASSWORD:secret(),
+  DECIONIS_POLICY_VERSION:mode==='demo'?'swarm-pay-demo-v1':'',DECIONIS_TENANT_ID:'',DECIONIS_KEY_HOST_FILE:'./.secrets/decionis-api-key',
+  VENUE_ISSUER:'demo-venue-fixture',VENUE_PUBLIC_KEY_HOST_FILE:'./.secrets/venue-public.pem',
+  AZURE_OPENAI_API_KEY:'',AZURE_OPENAI_ENDPOINT:'',AZURE_OPENAI_DEPLOYMENT:'gpt-6-astra',
+  OPENAI_API_KEY:'',OPENAI_MODEL:'gpt-6-astra',PAYPAL_TENTS_CLIENT_ID:'',PAYPAL_TENTS_CLIENT_SECRET:'',PAYPAL_TENTS_MERCHANT_ID:'',PAYPAL_TENTS_WEBHOOK_ID:'',
+  PAYPAL_CATERING_CLIENT_ID:'',PAYPAL_CATERING_CLIENT_SECRET:'',PAYPAL_CATERING_MERCHANT_ID:'',PAYPAL_CATERING_WEBHOOK_ID:'' };
+writeFileSync(file,Object.entries(config).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600,flag:'wx'});
+chmodSync(file,0o600);
+console.log(`Created private ${mode} settings and retained or generated the separate venue fixture key. External account credentials still need to be configured.`);

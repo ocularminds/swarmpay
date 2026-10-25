@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SwarmPay private payment command",
+  "description": "Only the authenticated AgentSafe path can submit this command. These fields alone do not grant authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "workflowId", "planVersion", "orderId", "operation", "merchantId", "amountMinor", "currency", "providerResourceId", "evidenceDigest", "reservationId", "policyVersion"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid", "description": "Stable business identity and PayPal-Request-Id."},
+    "workflowId": {"type": "string", "format": "uuid"},
+    "planVersion": {"type": "integer", "minimum": 1},
+    "orderId": {"type": "string", "format": "uuid"},
+    "operation": {"enum": ["CREATE_ORDER", "CAPTURE_ORDER", "AUTHORIZE_ORDER", "CAPTURE_AUTHORIZATION", "VOID_AUTHORIZATION"]},
+    "merchantId": {"enum": ["tents", "catering"]},
+    "amountMinor": {"type": "integer", "minimum": 1, "maximum": 100000000},
+    "currency": {"const": "USD"},
+    "providerResourceId": {"type": ["string", "null"], "description": "Null for create; order ID for buyer completion; authorization ID for capture or void."},
+    "evidenceDigest": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 of the exact base64 payload string for a milestone capture."},
+    "reservationId": {"type": "string", "format": "uuid", "description": "Must equal workflowId and reference its active whole-plan reservation."},
+    "policyVersion": {"type": "string", "minLength": 1}
+  }
+}

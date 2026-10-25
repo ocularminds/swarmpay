@@ -76,7 +76,7 @@ With Node 22 active, select deterministic AI for the fixture tests without chang
 ```sh
 SWARM_AI_PROVIDER=demo docker compose up -d --wait commerce-app
 node demo/verify-java.mjs
-node --test demo/check-paypal.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs
+node --test demo/check-paypal.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
 npm --prefix infra/agentsafe ci
 npm --prefix infra/agentsafe test
 npm --prefix infra/agentsafe run verify-boundary
@@ -95,11 +95,13 @@ If Chrome is already installed, `SWARM_TEST_BROWSER=chrome npm run test:e2e` can
 
 For native Java development, activate JDK 21 and run `./gradlew verify` (Docker is still needed by Testcontainers). `./gradlew webBuild` runs the pinned frontend build when Node 22 is on `PATH`. With the Compose API running, `npm --prefix apps/web run dev` opens Vite on port 5174.
 
-The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol, webhook verification, gateway, API/MCP, isolation, callback ingress, restart, deployment configuration and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
+The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol, webhook verification, gateway, API/MCP, isolation, callback ingress, restart, deployment configuration, source packaging and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
 
 **Prepare Azure hosting**
 
 The target is the existing `decionis-rg` / `decionis-aks` infrastructure in Central US, with `https://swarm.decionis.com` as the future hostname. See the [Azure runbook](docs/azure-hosting.md) for the access handoff, immutable images, separate credentials, network policies and staged ingress/DNS rollout. No hosted deployment or DNS change has been made; Kubernetes access and actual ingress/certificate details remain pending.
+
+`infra/azure/release.mjs` packages a merged commit directly from Git, requires successful CI for that commit and submits an AMD64 build to the existing Azure registry. It emits deployment image references only after the run and all four registry digests verify. This can proceed independently of AKS access; the runbook includes the commands and recovery limits.
 
 Hosted access requires `SWARM_PUBLIC_ORIGIN=https://swarm.decionis.com` and `SWARM_SESSION_COOKIE_SECURE=true`. The app validates Host/Origin, requires organizer sign-in and disables the one-click local demo session. The normal loopback demo keeps both settings at their generated defaults. An isolated HTTPS rehearsal runs without provider credentials or changes to `.env`:
 

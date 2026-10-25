@@ -1,0 +1,6 @@
+{
+  "web": "decionisacr.azurecr.io/swarm-pay/web@sha256:8d27a374fd7c79f8c6bb3b65cad8fff079de76c15bdd4e1be8ecda6e90b74a77",
+  "commerce-app": "decionisacr.azurecr.io/swarm-pay/commerce-app@sha256:7bd67d03677c858ea740dfdbc8efece0e721f5c528045e0b58e2b6c49c16f949",
+  "payment-executor": "decionisacr.azurecr.io/swarm-pay/payment-executor@sha256:f30e36ba37cfbdb9684e02c363f62dba229243ea307039f77b99d1c8f8bd156d",
+  "agentsafe": "decionisacr.azurecr.io/swarm-pay/agentsafe@sha256:c76ae2777f29c7b222aefa09d1dbf8e03a686693e0070b10c43e8cceae81e89f"
+}

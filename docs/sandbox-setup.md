@@ -99,9 +99,27 @@ Public tunneling remains pending local ngrok account setup. No public callback U
 
 Once the Azure deployment is ready, route the same paths at `https://swarm.decionis.com`, update each seller's webhook registration and saved ID if necessary, verify the subscriptions and signature delivery, then stop the local ngrok process. The hostname is the planned deployment target; DNS, TLS and Azure resources have not been provisioned by this phase.
 
+**The agent cannot reach PayPal**
+
+The commerce application, which runs the agents, sits on internal Docker networks with no route out. Its only egress is the `egress` service (`infra/egress`), an HTTPS CONNECT proxy that admits the configured model host (the Azure OpenAI endpoint, or `api.openai.com` when `OPENAI_API_KEY` is set) on port 443 and refuses everything else, PayPal by name. The application holds no PayPal secret either. Every payment command therefore goes through AgentSafe to the private executor, the only service with PayPal credentials and a route to `api-m.sandbox.paypal.com`.
+
+`node demo/check-isolation.mjs` proves it on a running stack: from the application container, `api-m.paypal.com` and `api-m.sandbox.paypal.com` are unreachable by name, at their resolved addresses, and through the proxy (`403`). The proxy logs each refusal as `EGRESS_REFUSED`.
+
 **Hosted Decionis enforcement**
 
-Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient. Set `DECIONIS_TENANT_ID` and the actual `DECIONIS_POLICY_VERSION` in `.env.sandbox`. Store the key in a private local file, normally `.secrets/decionis-api-key`, and set `DECIONIS_KEY_HOST_FILE` if using a different source path.
+Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient. Decionis evaluates a workspace against its newest active policy bundle only, so use a workspace dedicated to SwarmPay: publishing SwarmPay's policy into a workspace other products enforce in would replace their rules.
+
+The policy is [`infra/agentsafe/decionis-policy.json`](../infra/agentsafe/decionis-policy.json), version `swarm-pay-sandbox-v1`. It mirrors the local fixture: `payment.execute` for the two catalogue merchants in USD, up to $1,500, for the five known operations, bound to plan version 1, the policy version and the reserved workflow; a catering capture without a 64-hex receipt digest escalates; anything else is refused.
+
+Create a short-lived administrator key in that workspace, save it as `.secrets/decionis-admin-key`, set `DECIONIS_TENANT_ID` in `.env.sandbox`, and run:
+
+```sh
+node demo/connect-decionis.mjs .env.sandbox --admin-key-file .secrets/decionis-admin-key
+```
+
+It checks the key belongs to that workspace, refuses to publish over another product's active policy (`--replace-org-policy` overrides), publishes the bundle, mints the gateway's own key (role `MEMBER`, scope `decision:enforce` only, never `policy:write`), writes it to `.secrets/decionis-api-key` and installs it into the sandbox project's volume, then sets `DECIONIS_POLICY_VERSION`. It prints ids, scopes and versions, never a key. `--dry-run` shows what it would do. Revoke the administrator key in the workspace afterwards.
+
+To manage the key yourself instead, store it in a private local file, normally `.secrets/decionis-api-key`, and set `DECIONIS_KEY_HOST_FILE` if using a different source path.
 
 AgentSafe checks secret-file ownership in production. Install the source key into the sandbox project's dedicated volume rather than changing host file permissions:
 

@@ -51,10 +51,12 @@ jobs:
           node demo/setup.mjs
           node demo/doctor.mjs
           docker compose up --build -d --wait --wait-timeout 240
-      - name: Exercise REST, MCP and isolation
+      - name: Exercise REST, MCP, isolation and restart behavior
         run: |
           node demo/smoke.mjs
           node demo/check-isolation.mjs
+          node demo/check-restart.mjs
+          docker compose exec -T agentsafe node node_modules/@decionis/agentsafe/dist/Cli.js verify chain /var/lib/agentsafe/evidence/evidence.jsonl
       - name: Install the test browser
         working-directory: apps/web
         run: npx playwright install --with-deps chromium

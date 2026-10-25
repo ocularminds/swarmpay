@@ -1,0 +1,48 @@
+server:
+  port: 8080
+  servlet:
+    session:
+      timeout: 60m
+      cookie:
+        http-only: true
+        same-site: strict
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: swarm-pay-commerce
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+  flyway:
+    locations: classpath:db/commerce
+    schemas: commerce
+    default-schema: commerce
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  ai:
+    mcp:
+      server:
+        name: swarm-pay-commerce
+        version: 0.1.0
+        protocol: STREAMABLE
+        type: SYNC
+        streamable-http:
+          mcp-endpoint: /mcp
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

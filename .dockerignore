@@ -1,0 +1,13 @@
+.git
+.gradle
+**/build
+**/node_modules
+**/dist
+.env
+.env.*
+.secrets
+.local
+.tools
+test-results
+playwright-report
+*.log

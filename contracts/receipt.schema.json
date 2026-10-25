@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SwarmPay signed venue receipt envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["payload", "signature"],
+  "properties": {
+    "payload": {"type": "string", "contentEncoding": "base64", "contentMediaType": "application/json", "maxLength": 16000, "description": "Base64 of the original UTF-8 receipt bytes. Do not reserialize before signature verification."},
+    "signature": {"type": "string", "contentEncoding": "base64", "maxLength": 512, "description": "Ed25519 signature over the decoded payload bytes using the admitted issuer key."}
+  },
+  "$defs": {
+    "decodedPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issuer", "workflowId", "orderId", "merchantId", "venue", "quantity", "deliveredAt", "issuedAt", "nonce"],
+      "properties": {
+        "issuer": {"type": "string", "minLength": 1, "maxLength": 120},
+        "workflowId": {"type": "string", "format": "uuid"},
+        "orderId": {"type": "string", "format": "uuid"},
+        "merchantId": {"const": "catering"},
+        "venue": {"type": "string", "minLength": 1, "maxLength": 300},
+        "quantity": {"type": "integer", "minimum": 1, "maximum": 200},
+        "deliveredAt": {"type": "string", "format": "date-time"},
+        "issuedAt": {"type": "string", "format": "date-time"},
+        "nonce": {"type": "string", "pattern": "^[a-zA-Z0-9-]{16,100}$"}
+      }
+    }
+  }
+}

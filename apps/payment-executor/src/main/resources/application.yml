@@ -1,0 +1,29 @@
+server:
+  port: 8081
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: swarm-pay-executor
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    locations: classpath:db/payments
+    schemas: payments
+    default-schema: payments
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

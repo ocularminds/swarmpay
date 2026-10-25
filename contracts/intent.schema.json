@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SwarmPay confirmed event intent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request", "attendees", "tents", "budgetMinor", "eventAt", "timezone", "venue", "weather", "tentMode"],
+  "properties": {
+    "request": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "attendees": {"type": "integer", "minimum": 1, "maximum": 200},
+    "tents": {"type": "integer", "minimum": 1, "maximum": 20},
+    "budgetMinor": {"type": "integer", "minimum": 1, "maximum": 100000000, "description": "USD cents; the plan must fit this budget before approval."},
+    "eventAt": {"type": "string", "format": "date-time", "description": "Absolute timestamp. Must be in the future and within 28 days when the plan is created."},
+    "timezone": {"type": "string", "minLength": 1, "description": "Valid IANA zone ID, e.g. Europe/Stockholm."},
+    "venue": {"type": "string", "minLength": 1, "maxLength": 300},
+    "weather": {"type": "string", "maxLength": 200},
+    "tentMode": {"const": "RENT"}
+  }
+}

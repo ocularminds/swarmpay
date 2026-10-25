@@ -1,0 +1,11 @@
+SwarmPay
+Copyright 2026 SwarmPay contributors
+
+This project uses independent open-source dependencies under their respective
+licenses, including Spring, Gradle, PostgreSQL, React, Vite, the OpenAI Java SDK,
+the PayPal Java Server SDK, and Decionis AgentSafe / Agent Safe Pipeline.
+The project license does not replace their license terms or grant trademark rights.
+
+Dependency versions are recorded in Gradle manifests and npm lockfiles.
+AgentSafe's Presence types override is documented in docs/security-and-reliability.md.
+Product names identify integrations and do not imply endorsement.

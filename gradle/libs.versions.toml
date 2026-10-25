@@ -1,0 +1,12 @@
+[versions]
+spring-ai = "2.0.2"
+openai = "4.91.0"
+paypal = "2.4.0"
+testcontainers = "1.21.3"
+
+[libraries]
+spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
+openai = { module = "com.openai:openai-java", version.ref = "openai" }
+paypal = { module = "com.paypal.sdk:paypal-server-sdk", version.ref = "paypal" }
+testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }

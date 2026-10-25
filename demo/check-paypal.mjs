@@ -57,7 +57,7 @@ export async function checkPayPalSandbox(env,{fetchImpl=fetch,merchants=['tents'
         result.subscriptionMatches=events.has('*') || webhookEvents.every(event=>events.has(event));
         try {
           const url=new URL(hook.url);
-          result.callbackRouteMatches=url.protocol==='https:' && url.pathname===`/paypal/webhooks/${merchant}`
+          result.callbackRouteMatches=url.protocol==='https:' && url.pathname===`/webhooks/paypal/${merchant}`
             && !url.username && !url.password && !url.search && !url.hash;
           if(expectedOrigin!==null) result.callbackOriginMatches=url.origin===expectedOrigin;
         } catch { /* An invalid callback is reported without echoing its contents. */ }

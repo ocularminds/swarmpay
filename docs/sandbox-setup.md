@@ -50,9 +50,11 @@ The merchant ID is the seller account identifier, not its app client ID or email
 Use a publicly reachable HTTPS webhook endpoint for each seller, routed only to the corresponding path:
 
 ```text
-POST https://swarm.decionis.com/paypal/webhooks/tents
-POST https://swarm.decionis.com/paypal/webhooks/catering
+POST https://swarm.decionis.com/webhooks/paypal/tents
+POST https://swarm.decionis.com/webhooks/paypal/catering
 ```
+
+These are the current public routes. The legacy `/paypal/webhooks/*` paths and unknown merchant paths return 404. Edit an existing registration to change its URL while preserving its webhook ID.
 
 Configure those URLs on the matching sandbox app and save the webhook IDs. Select these event names:
 
@@ -89,11 +91,13 @@ The Azure hostname now serves the hosted demo; ngrok remains an optional route f
 After starting the sandbox stack with its completed configuration, run:
 
 ```sh
-SWARM_WEBHOOK_TEST_URL=http://127.0.0.1:5186 node demo/check-webhook-ingress.mjs
+SWARM_WEBHOOK_TEST_URL=http://127.0.0.1:5186 SWARM_WEBHOOK_PUBLIC_URL=http://127.0.0.1:5175 node demo/check-webhook-ingress.mjs
 ngrok http http://127.0.0.1:5186 --inspect=false
 ```
 
-Use the HTTPS forwarding URL printed by ngrok as the base for each seller's callback. For example, `https://YOUR-NGROK-HOST/paypal/webhooks/tents` goes on the tent app; the `/catering` URL goes on the catering app. Keep the process running during testing and update both app registrations if its URL changes. `--inspect=false` disables ngrok's local request-body inspection; ngrok still transports the sandbox webhook data. The existing `.env` demo stack can exercise the isolated listener on port 5184, but it deliberately rejects PayPal processing with `SANDBOX_ONLY`.
+Use the HTTPS forwarding URL printed by ngrok as the base for each seller's callback. For example, `https://YOUR-NGROK-HOST/webhooks/paypal/tents` goes on the tent app; the `/catering` URL goes on the catering app. Keep the process running during testing and update both app registrations if its URL changes. `--inspect=false` disables ngrok's local request-body inspection; ngrok still transports the sandbox webhook data. The existing `.env` demo stack can exercise the isolated listener on port 5184, but it deliberately rejects PayPal processing with `SANDBOX_ONLY`.
+
+The ingress check always tests isolation on `SWARM_WEBHOOK_TEST_URL`. Set `SWARM_WEBHOOK_PUBLIC_URL` to also verify the current routes, legacy/unknown-route rejection, POST-only access and payload limits on the organizer listener or public HTTPS host. These are malformed-request checks; they do not send a payment or prove a verified webhook delivery.
 
 Public tunneling remains pending local ngrok account setup. No ngrok callback URL has been created. Check access in the [ngrok dashboard](https://dashboard.ngrok.com/), or configure an active account locally before running the command. Do not commit the ngrok auth token.
 

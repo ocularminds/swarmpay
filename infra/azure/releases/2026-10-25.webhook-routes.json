@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "appliedAt": "2026-10-25T10:11:23.162275+00:00",
+  "namespace": "decionis",
+  "publicHost": "swarm.decionis.com",
+  "configuration": {
+    "sourcePath": "apps/web/nginx.conf",
+    "sourceSha256": "6b369a1fdd6360f200d41010a18be3f4c5462af56930be580ee02793c770e973",
+    "configMap": "swarm-pay-nginx-template",
+    "resourceVersion": "19239224",
+    "renderedTemplateSha256": "312f3d43328727c32e605c563f03bf54e3808228ec61276227b6abe52b50df6d",
+    "activeConfigurationSha256": "1e60ec15d27b86827619bc8a4788b5ac3ff6c07ce7211c984824a9b85747d3ee"
+  },
+  "deployment": {
+    "name": "swarm-pay-web",
+    "image": "decionisacr.azurecr.io/swarm-pay/web@sha256:8d27a374fd7c79f8c6bb3b65cad8fff079de76c15bdd4e1be8ecda6e90b74a77",
+    "gracefulReload": true,
+    "podRestarted": false,
+    "imageChanged": false,
+    "paymentMode": "demo"
+  },
+  "publicCallbacks": [
+    "https://swarm.decionis.com/webhooks/paypal/tents",
+    "https://swarm.decionis.com/webhooks/paypal/catering"
+  ],
+  "verification": {
+    "localNginxListeners": "PASS",
+    "publicHttpsRoutes": "PASS",
+    "oldCallbackPaths": "HTTP_404",
+    "postOnlyAndPayloadLimits": "PASS",
+    "sellerOAuthAndRegisteredCallbacks": "PASS",
+    "distinctSellers": true,
+    "webhooksPerSeller": 1,
+    "eventsPerWebhook": 8,
+    "publicSiteStatus": 200,
+    "malformedWebhookResponse": "HTTP_404_SANDBOX_ONLY",
+    "nativeWebhookDelivery": "NOT_TESTED",
+    "paymentRequestsSent": 0
+  },
+  "privateEvidenceDirectory": ".local/paypal-provisioning-20261025/"
+}

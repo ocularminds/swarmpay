@@ -57,7 +57,7 @@ jobs:
         run: |
           node demo/smoke.mjs
           node demo/check-isolation.mjs
-          node demo/check-webhook-ingress.mjs
+          SWARM_WEBHOOK_PUBLIC_URL=http://127.0.0.1:5173 node demo/check-webhook-ingress.mjs
           node demo/check-restart.mjs
           docker compose exec -T agentsafe node node_modules/@decionis/agentsafe/dist/Cli.js verify chain /var/lib/agentsafe/evidence/evidence.jsonl
       - name: Install the test browser

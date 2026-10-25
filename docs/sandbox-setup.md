@@ -99,6 +99,12 @@ Public tunneling remains pending local ngrok account setup. No public callback U
 
 Once the Azure deployment is ready, route the same paths at `https://swarm.decionis.com`, update each seller's webhook registration and saved ID if necessary, verify the subscriptions and signature delivery, then stop the local ngrok process. The hostname is the planned deployment target; DNS, TLS and Azure resources have not been provisioned by this phase.
 
+**The agent cannot reach PayPal**
+
+The commerce application, which runs the agents, sits on internal Docker networks with no route out. Its only egress is the `egress` service (`infra/egress`), an HTTPS CONNECT proxy that admits the configured model host (the Azure OpenAI endpoint, or `api.openai.com` when `OPENAI_API_KEY` is set) on port 443 and refuses everything else, PayPal by name. The application holds no PayPal secret either. Every payment command therefore goes through AgentSafe to the private executor, the only service with PayPal credentials and a route to `api-m.sandbox.paypal.com`.
+
+`node demo/check-isolation.mjs` proves it on a running stack: from the application container, `api-m.paypal.com` and `api-m.sandbox.paypal.com` are unreachable by name, at their resolved addresses, and through the proxy (`403`). The proxy logs each refusal as `EGRESS_REFUSED`.
+
 **Hosted Decionis enforcement**
 
 Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient. Set `DECIONIS_TENANT_ID` and the actual `DECIONIS_POLICY_VERSION` in `.env.sandbox`. Store the key in a private local file, normally `.secrets/decionis-api-key`, and set `DECIONIS_KEY_HOST_FILE` if using a different source path.

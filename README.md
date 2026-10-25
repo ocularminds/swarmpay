@@ -65,6 +65,7 @@ The demo shares one plan and budget but uses **two merchant approvals**. It does
 | `modules/persistence` | Atomic consent/reservations, outbox, attempt ledger and audit chain |
 | `modules/mcp-tools` | Seven typed tools; human plan approval is not an agent tool |
 | `infra/agentsafe` | Pinned published gateway, synthetic policy and adversarial boundary tests |
+| `infra/egress` | The agent's only route out: an HTTPS proxy that admits the configured model host and refuses PayPal |
 | `contracts`, `docs`, `demo` | Wire contracts, operating limits, setup and repeatable validation |
 
 Java 21, Spring Boot 4.1.2, Spring AI 2.0.2, Gradle 8.14.3, PayPal Java SDK 2.4.0, and OpenAI Java 4.91.0 are pinned. The requested model is `gpt-6-astra`; there is no model fallback. AgentSafe 0.2.5 and its pipeline 0.3.8 are locked. A reviewed Presence dependency override is explained in [security and reliability](docs/security-and-reliability.md).
@@ -76,7 +77,7 @@ With Node 22 active, select deterministic AI for the fixture tests without chang
 ```sh
 SWARM_AI_PROVIDER=demo docker compose up -d --wait commerce-app
 node demo/verify-java.mjs
-node --test demo/check-paypal.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
+node --test demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
 npm --prefix infra/agentsafe ci
 npm --prefix infra/agentsafe test
 npm --prefix infra/agentsafe run verify-boundary

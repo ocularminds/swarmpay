@@ -60,7 +60,7 @@ services:
     volumes:
       - authority-key:/run/secrets/authority:ro
       - authority-evidence:/var/lib/agentsafe/evidence
-    networks: [workload, execution]
+    networks: [agent, workload, execution]
     depends_on:
       payment-executor: {condition: service_healthy}
     healthcheck:
@@ -96,12 +96,17 @@ services:
       VENUE_ISSUER: ${VENUE_ISSUER}
       PAYPAL_TENTS_CLIENT_ID: ${PAYPAL_TENTS_CLIENT_ID:-}
       PAYPAL_CATERING_CLIENT_ID: ${PAYPAL_CATERING_CLIENT_ID:-}
+      # The agent's networks are internal: its only route out is the egress
+      # proxy, which admits the model endpoint alone. PayPal is unreachable
+      # from here, by name or by address; payments go through AgentSafe.
+      JAVA_TOOL_OPTIONS: -Dhttps.proxyHost=egress -Dhttps.proxyPort=3128 -Dhttp.nonProxyHosts=localhost|127.0.0.1|agentsafe|postgres
     volumes:
       - ${VENUE_PUBLIC_KEY_HOST_FILE:-./.secrets/venue-public.pem}:/run/secrets/venue-public.pem:ro
-    networks: [workload, commerce-data]
+    networks: [agent, commerce-data]
     depends_on:
       postgres: {condition: service_healthy}
       agentsafe: {condition: service_healthy}
+      egress: {condition: service_healthy}
     healthcheck:
       test: [CMD, curl, -fsS, http://localhost:8080/actuator/health]
       interval: 5s
@@ -113,16 +118,31 @@ services:
     ports:
       - "127.0.0.1:${WEB_PORT:-5173}:8080"
       - "127.0.0.1:${WEBHOOK_PORT:-5184}:8083"
-    networks: [workload, execution]
+    networks: [agent, workload, execution]
     depends_on:
       commerce-app: {condition: service_healthy}
     # This ingress routes only the exact webhook path to the executor. It is
     # not a generic proxy, and it has neither payment nor authority credentials.
+  egress:
+    build: ./infra/egress
+    environment:
+      # Hostnames only; the proxy derives the model host and never admits PayPal.
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-${AZURE_OPENAI_URL:-}}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    networks: [agent, egress]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3128/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 128m
 volumes:
   postgres-data:
   authority-evidence:
   authority-key:
 networks:
+  agent: {internal: true}
+  egress:
   workload:
   execution:
   commerce-data: {internal: true}

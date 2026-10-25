@@ -1,0 +1,69 @@
+{
+  "recordedAt": "2026-10-25T08:38:48.355Z",
+  "origin": "https://swarm.decionis.com",
+  "resourceGroup": "decionis-rg",
+  "cluster": "decionis-aks",
+  "namespace": "decionis",
+  "imageSourceCommit": "d3ea8602c903e799d4c9d05f15a5e90cdf0328ea",
+  "imageMap": "d3ea860.images.json",
+  "acrRun": "cj3k",
+  "modes": {
+    "ai": "azure",
+    "payments": "demo",
+    "authority": "local/demo"
+  },
+  "ingress": {
+    "name": "swarm-pay-ingress",
+    "class": "decionis-nginx",
+    "ip": "52.143.254.111",
+    "dnsTtlSeconds": 300,
+    "certificateIssuer": "Let's Encrypt YR2",
+    "certificateNotAfter": "2027-01-23T07:36:24Z",
+    "trustedTlsVerifiedBeforeDns": true
+  },
+  "resources": {
+    "deploymentsReady": 5,
+    "persistentClaimsBound": 2,
+    "networkPolicies": 6,
+    "preExistingDeployments": 21,
+    "preExistingDeploymentGenerationsUnchanged": true,
+    "preExistingDeploymentsAvailable": true
+  },
+  "manifestSha256": {
+    "networkPolicies": "8efe071ad0531ca03a6abad77b95220d5a9314b1380fc4f77e2b6cae8fdd324b",
+    "privateResources": "c5323309ca7d08ef87fa1b41165edfcd66d310b028ec8d10230dc2a9682d6720",
+    "ingress": "dbf31e20287995dde76dcea9ed16ca4fb39fae1143d3c90f30a5960fabb8112f"
+  },
+  "acceptance": {
+    "elapsedMs": 27459,
+    "publicTls": true,
+    "httpsRedirect": true,
+    "secureCookies": true,
+    "organizerLoginLogout": true,
+    "anonymousModelDenial": true,
+    "originRejection": true,
+    "privateRoutesRejected": true,
+    "azureSourcingAndRisk": true,
+    "photoOnlyHeld": true,
+    "signedFixtureCapture": true,
+    "applicationChainVerified": true,
+    "simulatedCommands": 5,
+    "mobileLayout": true,
+    "loginRateLimitVerified": true,
+    "browserErrors": 0
+  },
+  "nativeJournal": {
+    "records": 26,
+    "findings": 0
+  },
+  "pending": [
+    "Native two-seller PayPal sandbox and webhooks",
+    "Hosted Decionis enforcement and authenticated private execution route",
+    "Backup, restore and monitoring ownership"
+  ],
+  "hostedAgentSafeProbes": {
+    "swarm.decionisedge.com": "421 HOST_NOT_SERVED",
+    "dci.decionisedge.com": "401 TENANT_KEY_MISSING",
+    "configuration": "Key Vault read denied; upstream and enforcement mode unverified"
+  }
+}

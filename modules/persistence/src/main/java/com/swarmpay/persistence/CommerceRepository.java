@@ -1,0 +1,237 @@
+package com.swarmpay.persistence;
+
+import com.swarmpay.domain.Commerce.*;
+import com.swarmpay.domain.CommerceException;
+import com.swarmpay.domain.PlanFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import javax.sql.DataSource;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.*;
+import java.util.function.Supplier;
+
+public final class CommerceRepository {
+    private final JdbcTemplate db;
+    private final TransactionTemplate tx;
+    public CommerceRepository(DataSource dataSource) {
+        db = new JdbcTemplate(dataSource);
+        tx = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+    }
+    public <T> T transaction(Supplier<T> work) { return tx.execute(s -> work.get()); }
+    public void create(Plan plan) {
+        transaction(() -> {
+            db.update("INSERT INTO commerce.plans(id,owner_id,version,plan_json,status) VALUES (?,?,?,?,?)", plan.id(), plan.ownerId(), plan.version(), DbJson.write(plan), plan.status());
+            for (var line : plan.lines()) db.update("""
+                INSERT INTO commerce.orders(id,workflow_id,merchant_id,line_json,status) VALUES (?,?,?,?,'NEW')
+                """, line.id(), plan.id(), line.merchantId(), DbJson.write(line));
+            appendInside(plan.id(), "PLAN_CREATED", "A plan was prepared for your review.", "APPLICATION");
+            return null;
+        });
+    }
+    public Plan owned(UUID id, String owner) {
+        var plans = db.query("SELECT plan_json FROM commerce.plans WHERE id=? AND owner_id=?", (r,n) -> DbJson.read(r.getString(1), Plan.class), id, owner);
+        if (plans.isEmpty()) throw new CommerceException("NOT_FOUND", "Plan not found", 404);
+        return plans.getFirst();
+    }
+    public Plan approvedForExecution(UUID id) {
+        return approved(id,false);
+    }
+    public Plan approvedForVoid(UUID id) {
+        return approved(id,true);
+    }
+    private Plan approved(UUID id,boolean allowFrozen) {
+        var plans = db.query("SELECT plan_json FROM commerce.plans WHERE id=? AND status='APPROVED' AND consent_at IS NOT NULL AND (payment_frozen=false OR ?)", (r,n) -> DbJson.read(r.getString(1), Plan.class), id,allowFrozen);
+        if (plans.isEmpty()) throw CommerceException.held("The plan is frozen or has no recorded human consent");
+        return plans.getFirst();
+    }
+    public List<Plan> list(String owner) {
+        return db.query("SELECT plan_json FROM commerce.plans WHERE owner_id=? ORDER BY created_at DESC LIMIT 30", (r,n) -> DbJson.read(r.getString(1), Plan.class), owner);
+    }
+    public Plan approve(UUID id, String owner, int version, PlanFactory factory) {
+        return transaction(() -> {
+            lock(id);
+            var plan = owned(id, owner);
+            if (plan.version() != version) throw CommerceException.conflict("The reviewed plan version changed");
+            if (plan.status().equals("APPROVED")) return plan;
+            factory.checkApproval(plan);
+            var approved = plan.approved();
+            db.update("INSERT INTO commerce.reservations(workflow_id,amount_minor,budget_minor) VALUES (?,?,?)", id, plan.totalMinor(), plan.intent().budgetMinor());
+            db.update("UPDATE commerce.plans SET status='APPROVED',consent_at=now(),plan_json=? WHERE id=?", DbJson.write(approved), id);
+            appendInside(id, "PLAN_APPROVED", "You approved the merchants, amounts and delivery condition. The total budget is reserved.", "HUMAN");
+            return approved;
+        });
+    }
+    public List<OrderView> orders(Plan plan) {
+        return db.query("SELECT line_json,status,provider_order_id,authorization_id,capture_id FROM commerce.orders WHERE workflow_id=? ORDER BY merchant_id DESC", (r,n) -> {
+            var line = DbJson.read(r.getString("line_json"), Line.class);
+            return new OrderView(line.id(), line.merchantId(), line.merchantName(), line.title(), line.category(), line.quantity(),
+                line.totalMinor(), line.paymentIntent(), r.getString("status"), r.getString("provider_order_id"), r.getString("authorization_id"), r.getString("capture_id"));
+        }, plan.id());
+    }
+    public OrderView order(Plan plan, UUID orderId) {
+        return orders(plan).stream().filter(o -> o.id().equals(orderId)).findFirst().orElseThrow(() -> CommerceException.invalid("Order does not belong to the plan"));
+    }
+    public Line line(Plan plan, UUID orderId) {
+        return plan.lines().stream().filter(o -> o.id().equals(orderId)).findFirst().orElseThrow(() -> CommerceException.invalid("Order does not belong to the plan"));
+    }
+    public boolean reservationMatches(PaymentCommand command, Plan plan) {
+        Long amount = db.queryForObject("SELECT COALESCE(sum(amount_minor),0) FROM commerce.reservations WHERE workflow_id=? AND state='ACTIVE'", Long.class, command.workflowId());
+        return amount != null && amount == plan.totalMinor() && amount <= plan.intent().budgetMinor()
+            && command.reservationId().equals(plan.id().toString());
+    }
+    public PaymentCommand enqueue(PaymentCommand proposed) {
+        db.update("""
+            INSERT INTO commerce.commands(id,workflow_id,order_id,operation,command_json,state)
+            VALUES (?,?,?,?,?,'QUEUED') ON CONFLICT(order_id,operation) DO NOTHING
+            """, proposed.id(), proposed.workflowId(), proposed.orderId(), proposed.operation().name(), DbJson.write(proposed));
+        var existing = db.queryForObject("SELECT command_json FROM commerce.commands WHERE order_id=? AND operation=?", (r,n) -> DbJson.read(r.getString(1), PaymentCommand.class), proposed.orderId(), proposed.operation().name());
+        var normalized = new PaymentCommand(existing.id(),proposed.workflowId(),proposed.planVersion(),proposed.orderId(),proposed.operation(),
+            proposed.merchantId(),proposed.amountMinor(),proposed.currency(),proposed.providerResourceId(),proposed.evidenceDigest(),proposed.reservationId(),proposed.policyVersion());
+        if (!existing.equals(normalized)) throw CommerceException.conflict("An existing payment command is bound to different details");
+        return existing;
+    }
+    public List<PaymentCommand> queued() {
+        return db.query("SELECT command_json FROM commerce.commands WHERE state='QUEUED' ORDER BY created_at LIMIT 10", (r,n) -> DbJson.read(r.getString(1), PaymentCommand.class));
+    }
+    public boolean claim(UUID commandId) { return db.update("UPDATE commerce.commands SET state='DISPATCHING',updated_at=now() WHERE id=? AND state='QUEUED'", commandId) == 1; }
+    public List<PaymentCommand> needsReconciliation() {
+        return db.query("""
+            SELECT command_json FROM commerce.commands WHERE updated_at < now()-interval '60 seconds'
+            AND (state IN ('DISPATCHING','INDETERMINATE','EXECUTION_INDETERMINATE')
+                OR (state='SUCCEEDED' AND result_json::jsonb->'result'->>'status'='PENDING')) ORDER BY updated_at LIMIT 10
+            """, (r,n) -> DbJson.read(r.getString(1),PaymentCommand.class));
+    }
+    public void touch(UUID id) { db.update("UPDATE commerce.commands SET updated_at=now() WHERE id=?",id); }
+    public void retryNotForwarded(PaymentCommand command) {
+        transaction(() -> {
+            lock(command.workflowId());
+            var result=commandResult(command.id());
+            if(result==null || !"NOT_FORWARDED".equals(result.execution()) || !Set.of("AUTHORITY_UNAVAILABLE","NOT_EXECUTED").contains(result.state()))
+                throw CommerceException.held("Only a confirmed non-dispatch can be retried. Reconcile uncertain payments first.");
+            db.update("UPDATE commerce.commands SET state='QUEUED',result_json=NULL,updated_at=now() WHERE id=?",command.id());
+            appendInside(command.workflowId(),"PAYMENT_RETRY_REQUESTED","The same payment identity was queued for a fresh authority decision.","HUMAN");
+            return null;
+        });
+    }
+    public boolean recordedCommandMatches(PaymentCommand command) {
+        var rows=db.query("SELECT command_json FROM commerce.commands WHERE id=?",(r,n)->DbJson.read(r.getString(1),PaymentCommand.class),command.id());
+        return rows.size()==1 && rows.getFirst().equals(command);
+    }
+    public List<PaymentCommand> commandsFor(Plan plan) {
+        return db.query("SELECT command_json FROM commerce.commands WHERE workflow_id=? ORDER BY created_at",(r,n)->DbJson.read(r.getString(1),PaymentCommand.class),plan.id());
+    }
+    public List<Plan> readyMilestones() {
+        return db.query("""
+            SELECT p.plan_json FROM commerce.plans p JOIN commerce.orders o ON o.workflow_id=p.id
+            WHERE p.status='APPROVED' AND p.payment_frozen=false AND o.status='AUTHORIZED'
+              AND EXISTS (SELECT 1 FROM commerce.receipts r WHERE r.order_id=o.id)
+              AND NOT EXISTS (SELECT 1 FROM commerce.commands c WHERE c.order_id=o.id AND c.operation='CAPTURE_AUTHORIZATION') LIMIT 10
+            """,(r,n)->DbJson.read(r.getString(1),Plan.class));
+    }
+    public void freeze(Plan plan) {
+        transaction(() -> { lock(plan.id()); db.update("UPDATE commerce.plans SET payment_frozen=true WHERE id=?",plan.id());
+            appendInside(plan.id(),"PAYMENTS_FROZEN","Further automatic payments are frozen for a delivery dispute. Already dispatched payments need provider review.","HUMAN"); return null; });
+    }
+    public boolean frozen(UUID id) { return Boolean.TRUE.equals(db.queryForObject("SELECT payment_frozen FROM commerce.plans WHERE id=?",Boolean.class,id)); }
+    public String commandState(UUID id) { return db.queryForObject("SELECT state FROM commerce.commands WHERE id=?", String.class, id); }
+    public GateResult commandResult(UUID id) {
+        var result = db.queryForObject("SELECT result_json FROM commerce.commands WHERE id=?", String.class, id);
+        return result == null ? null : DbJson.read(result, GateResult.class);
+    }
+    public PaymentCommand command(UUID id, String owner) {
+        var results = db.query("SELECT c.command_json FROM commerce.commands c JOIN commerce.plans p ON p.id=c.workflow_id WHERE c.id=? AND p.owner_id=?", (r,n) -> DbJson.read(r.getString(1), PaymentCommand.class), id, owner);
+        if (results.isEmpty()) throw new CommerceException("NOT_FOUND", "Payment command not found", 404);
+        return results.getFirst();
+    }
+    public void finish(PaymentCommand command, GateResult result) {
+        transaction(() -> {
+            lock(command.workflowId());
+            var prior = commandResult(command.id());
+            if (prior != null && prior.equals(result)) { touch(command.id()); return null; }
+            db.update("UPDATE commerce.commands SET state=?,result_json=?,updated_at=now() WHERE id=?", result.state(), DbJson.write(result), command.id());
+            if (result.result() != null) {
+                var p = result.result();
+                int rank = switch (p.status()) {
+                    case "APPROVAL_REQUIRED" -> 1;
+                    case "PENDING" -> Set.of(Operation.CAPTURE_AUTHORIZATION,Operation.VOID_AUTHORIZATION).contains(command.operation()) ? 4 : 2;
+                    case "AUTHORIZED" -> 3;
+                    case "CAPTURED", "VOIDED", "DECLINED", "EXPIRED" -> 5;
+                    default -> throw new IllegalArgumentException("Unsupported provider payment status");
+                };
+                db.update("""
+                    UPDATE commerce.orders SET status=?,projection_rank=?,provider_order_id=COALESCE(?,provider_order_id),
+                    authorization_id=COALESCE(?,authorization_id),capture_id=COALESCE(?,capture_id) WHERE id=?
+                    AND projection_rank<=?
+                    AND (status NOT IN ('CAPTURED','VOIDED','DECLINED','EXPIRED') OR status=?)
+                    """, p.status(),rank,p.providerOrderId(),p.authorizationId(),p.captureId(),command.orderId(),rank,p.status());
+            }
+            appendInside(command.workflowId(), "PAYMENT_" + result.state(), result.message(), result.dossierId() == null ? "APPLICATION" : "AGENTSAFE");
+            return null;
+        });
+    }
+    public void evidence(UUID workflowId, String type, String message, String source) {
+        transaction(() -> { lock(workflowId); appendInside(workflowId,type,message,source); return null; });
+    }
+    public void saveReceipt(Plan plan, Receipt receipt, SignedReceipt signed, String digest) {
+        transaction(() -> {
+            lock(plan.id());
+            var same = db.query("SELECT digest FROM commerce.receipts WHERE issuer=? AND nonce=?", (r,n) -> r.getString(1), receipt.issuer(), receipt.nonce());
+            if (!same.isEmpty()) {
+                if (same.getFirst().equals(digest)) return null;
+                throw CommerceException.held("Receipt nonce has already been used");
+            }
+            db.update("INSERT INTO commerce.receipts(workflow_id,order_id,issuer,nonce,digest,envelope_json) VALUES (?,?,?,?,?,?)", plan.id(), receipt.orderId(), receipt.issuer(), receipt.nonce(), digest, DbJson.write(signed));
+            appendInside(plan.id(), "RECEIPT_VERIFIED", "The receipt matches the seller, venue, quantity and delivery window.", receipt.issuer());
+            return null;
+        });
+    }
+    public String receiptDigest(UUID orderId) {
+        var hashes = db.query("SELECT digest FROM commerce.receipts WHERE order_id=? ORDER BY created_at DESC LIMIT 1", (r,n) -> r.getString(1), orderId);
+        return hashes.isEmpty() ? null : hashes.getFirst();
+    }
+    public SignedReceipt signedReceipt(UUID orderId, String digest) {
+        var results = db.query("SELECT envelope_json FROM commerce.receipts WHERE order_id=? AND digest=?", (r,n) -> DbJson.read(r.getString(1), SignedReceipt.class), orderId, digest);
+        if (results.isEmpty()) throw CommerceException.held("No verified delivery receipt is attached");
+        return results.getFirst();
+    }
+    public void savePhoto(Plan plan, byte[] bytes, String mime, String digest) {
+        transaction(() -> {
+            lock(plan.id());
+            db.update("INSERT INTO commerce.photos(id,workflow_id,mime,digest,content) VALUES (?,?,?,?,?)", UUID.randomUUID(),plan.id(),mime,digest,bytes);
+            appendInside(plan.id(), "EVIDENCE_HELD", "Photo received. A trusted delivery receipt is still required before payment.", "PHOTO");
+            return null;
+        });
+    }
+    public List<Event> events(UUID id) {
+        return db.query("SELECT * FROM commerce.events WHERE workflow_id=? ORDER BY sequence", (r,n) ->
+            new Event(r.getLong("sequence"), r.getString("type"), r.getString("message"), r.getString("source"), r.getTimestamp("created_at").toInstant(),r.getString("previous_hash"),r.getString("hash")), id);
+    }
+    public boolean verifyChain(UUID id) {
+        String previous="GENESIS"; long next=1;
+        for (var event:events(id)) {
+            String hash=sha256(id+"\n"+event.sequence()+"\n"+event.type()+"\n"+event.message()+"\n"+event.source()+"\n"+event.at()+"\n"+previous);
+            if (event.sequence()!=next++ || !previous.equals(event.previousHash()) || !hash.equals(event.hash())) return false;
+            previous=hash;
+        }
+        return true;
+    }
+    private void lock(UUID id) {
+        var rows = db.query("SELECT id FROM commerce.plans WHERE id=? FOR UPDATE", (r,n) -> r.getObject(1), id);
+        if (rows.isEmpty()) throw new CommerceException("NOT_FOUND", "Plan not found", 404);
+    }
+    private void appendInside(UUID id, String type, String message, String source) {
+        var previous = db.query("SELECT sequence,hash FROM commerce.events WHERE workflow_id=? ORDER BY sequence DESC LIMIT 1", (r,n) -> Map.entry(r.getLong(1),r.getString(2)), id);
+        long sequence = previous.isEmpty() ? 1 : previous.getFirst().getKey()+1;
+        String last = previous.isEmpty() ? "GENESIS" : previous.getFirst().getValue();
+        Instant at = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        String hash = sha256(id+"\n"+sequence+"\n"+type+"\n"+message+"\n"+source+"\n"+at+"\n"+last);
+        db.update("INSERT INTO commerce.events(workflow_id,sequence,type,message,source,created_at,previous_hash,hash) VALUES (?,?,?,?,?,?,?,?)",id,sequence,type,message,source,java.sql.Timestamp.from(at),last,hash);
+    }
+    public static String sha256(String value) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
+        catch (Exception e) { throw new IllegalStateException(e); }
+    }
+}

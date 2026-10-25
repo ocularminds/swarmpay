@@ -6,7 +6,7 @@ SwarmPay turns an event request into a reviewed plan across two merchants. Tents
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/). The architecture was approved on October 25, 2026; see the [approved plan](docs/architecture-and-delivery-plan.md).
 
-**Current delivery:** a runnable local MVP, verified Azure OpenAI intent extraction and agent assessments, real AgentSafe enforcement against a local synthetic authority, Java REST/MCP services, persistent payment workflows and a responsive web UI. An isolated HTTPS rehearsal and Azure deployment handoff are ready; AKS access is pending. Native PayPal sandbox and hosted Decionis account validation remain incomplete. See the [capability matrix](docs/implementation-status.md).
+**Current delivery:** the demo is live at **[swarm.decionis.com](https://swarm.decionis.com)** with organizer sign-in, Azure OpenAI planning, simulated payments and AgentSafe enforcement against a local test authority. The public browser journey, signed fixture capture, evidence export and AKS isolation checks passed. Java REST/MCP services and persistent workflows also run locally. Native PayPal sandbox and hosted Decionis enforcement validation remain incomplete. See the [capability matrix](docs/implementation-status.md).
 
 **Run the local demo**
 
@@ -97,11 +97,11 @@ For native Java development, activate JDK 21 and run `./gradlew verify` (Docker 
 
 The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol, webhook verification, gateway, API/MCP, isolation, callback ingress, restart, deployment configuration, source packaging and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
 
-**Prepare Azure hosting**
+**Azure hosting**
 
-The target is the existing `decionis-rg` / `decionis-aks` infrastructure in Central US, with `https://swarm.decionis.com` as the future hostname. See the [Azure runbook](docs/azure-hosting.md) for the access handoff, immutable images, separate credentials, network policies and staged ingress/DNS rollout. No hosted deployment or DNS change has been made; Kubernetes access and actual ingress/certificate details remain pending.
+The demo runs in the user-approved existing `decionis` namespace of `decionis-rg` / `decionis-aks` in Central US. Its resources and policy selectors are dedicated to `swarm-pay`; the deployment does not change shared namespace labels or existing Decionis workloads. Five services are healthy, both volumes are bound, and public HTTPS uses a verified Let's Encrypt certificate. See the [Azure runbook](docs/azure-hosting.md) for the release record, separate credentials, network checks and rollout procedure.
 
-`infra/azure/release.mjs` packages a merged commit directly from Git, requires successful CI for that commit and submits an AMD64 build to the existing Azure registry. It emits deployment image references only after the run and all four registry digests verify. This can proceed independently of AKS access; the runbook includes the commands and recovery limits.
+`infra/azure/release.mjs` packages a merged commit directly from Git, requires successful CI for that commit and submits an AMD64 build to the existing Azure registry. It emits deployment image references only after the run and all four registry digests verify. The current deployment uses the [recorded immutable images](infra/azure/releases/d3ea860.images.json); the runbook includes the commands and recovery limits.
 
 Hosted access requires `SWARM_PUBLIC_ORIGIN=https://swarm.decionis.com` and `SWARM_SESSION_COOKIE_SECURE=true`. The app validates Host/Origin, requires organizer sign-in and disables the one-click local demo session. The normal loopback demo keeps both settings at their generated defaults. An isolated HTTPS rehearsal runs without provider credentials or changes to `.env`:
 
@@ -113,11 +113,15 @@ node demo/hosted/run.mjs down
 
 Use `SWARM_TEST_BROWSER=chrome` for the check if Chrome is installed. This separate stack exercises the full simulated payment journey, sign-in/sign-out, origin rejection, secure cookies and restricted container users/filesystems. It does not prove AKS network enforcement or replace native sandbox acceptance.
 
+The separate `demo/check-deployed.mjs` explicitly tests the public Azure demo with normal TLS verification, private organizer credentials and a host-only fixture signing key. It makes two real Azure model calls and one simulated workflow; it is never run by ordinary CI. The completed run verified the photo-only hold, receipt capture, evidence export and desktop/mobile views. Credentials remain in the private deployment bundle, not in this repository.
+
+The supplied hosted AgentSafe choices are recorded in the [hosting runbook](docs/azure-hosting.md#hosted-agentsafe-endpoints): `swarm.decionisedge.com` currently reports an unserved host; `dci.decionisedge.com` requires a tenant key. Neither has been verified as SwarmPay's enforcement gateway, so the demo continues to disclose its local test authority.
+
 **Connect real sandbox accounts**
 
 Follow [sandbox-setup.md](docs/sandbox-setup.md). It covers Azure OpenAI credentials and deployment, two PayPal seller apps plus a sandbox buyer, webhook verification, a Decionis tenant with enforcement access, and a separately identified test venue issuer. Use a separate Compose project and `.env.sandbox` for payment account tests; each database binds itself to its runtime mode and refuses relabeling demo payments as sandbox payments.
 
-`node demo/check-paypal.mjs` checks configured seller OAuth access and webhook subscriptions using PayPal's sandbox API. It prints no secrets, sends no payment requests, and writes a private readiness report. Missing account configuration produces a nonzero exit code. The [ngrok runbook](docs/sandbox-setup.md#temporary-ngrok-callbacks) exposes only the callback listener until the Azure deployment at `swarm.decionis.com` is ready.
+`node demo/check-paypal.mjs` checks configured seller OAuth access and webhook subscriptions using PayPal's sandbox API. It prints no secrets, sends no payment requests, and writes a private readiness report. Missing account configuration produces a nonzero exit code. The [ngrok runbook](docs/sandbox-setup.md#temporary-ngrok-callbacks) remains an optional callback path for local sandbox testing. The hosted Azure demo currently uses simulated payments; its public availability does not verify native PayPal callbacks.
 
 The [API and MCP reference](contracts/README.md), [security notes](docs/security-and-reliability.md), and [implementation status](docs/implementation-status.md) describe the supported behavior and outstanding integration work. A local file-presence check is not proof that an account or grant can execute.
 

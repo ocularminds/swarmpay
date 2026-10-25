@@ -29,7 +29,7 @@ const values={
   'commerce-secrets':{DATABASE_PASSWORD:application,EXECUTOR_TOKEN:service,ORGANIZER_PASSWORD:organizer,MCP_TOKEN:mcp,
     AZURE_OPENAI_API_KEY:key,AZURE_OPENAI_ENDPOINT:endpoint,AZURE_OPENAI_DEPLOYMENT:deployment}
 };
-const items=Object.entries(values).map(([name,data])=>({apiVersion:'v1',kind:'Secret',type:'Opaque',metadata:{name,namespace:'swarm-pay-demo',labels:{'app.kubernetes.io/part-of':'swarm-pay'}},
+const items=Object.entries(values).map(([name,data])=>({apiVersion:'v1',kind:'Secret',type:'Opaque',metadata:{name:`swarm-pay-${name}`,namespace:'decionis',labels:{'app.kubernetes.io/part-of':'swarm-pay'}},
   data:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,Buffer.from(v).toString('base64')]))}));
 mkdirSync(destination,{recursive:true,mode:0o700});
 writeFileSync(resolve(destination,'secrets.json'),JSON.stringify({apiVersion:'v1',kind:'List',items},null,2)+'\n',{mode:0o600,flag:'wx'});

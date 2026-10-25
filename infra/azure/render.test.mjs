@@ -5,17 +5,18 @@ import {readFileSync} from 'node:fs';
 import {render} from './render.mjs';
 
 const base=JSON.parse(readFileSync(new URL('./target.json',import.meta.url),'utf8'));
-const target={...base,ingressClass:'fixture-nginx',ingressController:'k8s.io/ingress-nginx',ingressNamespace:'fixture-ingress',
+const target={...base,ingressClass:'fixture-nginx',ingressNamespace:'fixture-ingress',
   ingressPodLabels:{'app.kubernetes.io/name':'ingress-nginx','app.kubernetes.io/component':'controller'},clusterIssuer:'fixture-dns01',certificateChallenge:'dns01'};
 const key=generateKeyPairSync('ed25519').publicKey.export({type:'spki',format:'pem'});
 const images=Object.fromEntries(['web','commerce-app','payment-executor','agentsafe'].map(component=>[component,`${target.registry}/swarm-pay/${component}@sha256:${'a'.repeat(64)}`]));
 
 test('unverified ingress and mutable images cannot produce a deployment',()=>{
-  assert.throws(()=>render(base,images,key),/verified/);
+  assert.throws(()=>render({...target,ingressClass:''},images,key),/verified/);
+  assert.throws(()=>render({...target,ingressProvider:'unverified'},images,key),/application-routing/);
   assert.throws(()=>render({...target,ingressPodLabels:{}},images,key),/pod selector/);
   assert.throws(()=>render({...target,certificateChallenge:'http01'},images,key),/DNS-01/);
   assert.throws(()=>render(target,{...images,web:`${target.registry}/swarm-pay/web:latest`},key),/immutable/);
-  assert.throws(()=>render({...target,namespace:'default'},images,key),/isolated/);
+  assert.throws(()=>render({...target,namespace:'default'},images,key),/existing decionis/);
   const privateKey=generateKeyPairSync('ed25519').privateKey.export({type:'pkcs8',format:'pem'});
   assert.throws(()=>render(target,images,privateKey),/public key/);
 });
@@ -23,16 +24,45 @@ test('unverified ingress and mutable images cannot produce a deployment',()=>{
 test('the public entry point and credentials remain separated from private execution',()=>{
   const bundle=render(target,images,key),items=bundle.privateResources.items;
   assert.ok(!items.some(item=>item.kind==='Ingress'||item.kind==='Secret'));
-  assert.deepEqual(bundle.ingress.spec.rules.map(r=>[r.host,r.http.paths[0].backend.service.name]),[['swarm.decionis.com','web']]);
+  assert.deepEqual(bundle.ingress.spec.rules.map(r=>[r.host,r.http.paths[0].backend.service.name]),[['swarm.decionis.com','swarm-pay-web']]);
   assert.equal(bundle.ingress.spec.tls[0].secretName,'swarm-pay-tls');
   for(const service of items.filter(i=>i.kind==='Service'))assert.equal(service.spec.type,'ClusterIP');
-  const app=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='commerce-app').spec.template.spec;
-  const executor=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='payment-executor').spec.template.spec;
+  const app=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-commerce-app').spec.template.spec;
+  const executor=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-payment-executor').spec.template.spec;
   assert.ok(app.containers[0].env.some(e=>e.name==='SWARM_SESSION_COOKIE_SECURE'&&e.value==='true'));
   assert.ok(app.containers[0].env.some(e=>e.name==='SWARM_PUBLIC_ORIGIN'&&e.value==='https://swarm.decionis.com'));
-  assert.deepEqual(app.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['commerce-secrets']);
-  assert.deepEqual(executor.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['payment-secrets']);
+  assert.deepEqual(app.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-commerce-secrets']);
+  assert.deepEqual(executor.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-payment-secrets']);
   assert.ok(!JSON.stringify(items).includes('venue-private'));
+});
+
+test('shared-namespace manifests own only prefixed resources and resolve every service, credential and volume reference',()=>{
+  const bundle=render(target,images,key),items=bundle.privateResources.items;
+  assert.equal('namespace' in bundle,false);
+  for(const item of [...items,...bundle.networkPolicies.items,bundle.ingress]) {
+    assert.equal(item.metadata.namespace,'decionis');assert.match(item.metadata.name,/^swarm-pay-/);
+    assert.equal(item.metadata.labels['app.kubernetes.io/part-of'],'swarm-pay');
+    assert.ok(!['Namespace','Role','RoleBinding','ClusterRole','ClusterRoleBinding'].includes(item.kind));
+  }
+  const exists=(kind,name)=>items.some(i=>i.kind===kind&&i.metadata.name===name);
+  for(const item of items.filter(i=>i.kind==='Deployment')) {
+    const pod=item.spec.template.spec;
+    assert.ok(exists('ServiceAccount',pod.serviceAccountName));
+    for(const ref of pod.volumes) {
+      if(ref.configMap)assert.ok(exists('ConfigMap',ref.configMap.name));
+      if(ref.persistentVolumeClaim)assert.ok(exists('PersistentVolumeClaim',ref.persistentVolumeClaim.claimName));
+    }
+    for(const ref of pod.containers[0].envFrom)if(ref.configMapRef)assert.ok(exists('ConfigMap',ref.configMapRef.name));
+    for(const setting of pod.containers[0].env.filter(e=>['DATABASE_URL','AGENTSAFE_URL','AGENTSAFE_UPSTREAM'].includes(e.name))) {
+      const hostname=new URL(setting.value.replace(/^jdbc:/,'')).hostname;
+      assert.ok(hostname.endsWith('.decionis.svc.cluster.local'));assert.ok(exists('Service',hostname.split('.')[0]));
+    }
+  }
+  for(const pvc of items.filter(i=>i.kind==='PersistentVolumeClaim'))assert.equal(pvc.spec.storageClassName,'decionis-zrs');
+  const nginx=items.find(i=>i.kind==='ConfigMap'&&i.metadata.name==='swarm-pay-nginx-template').data['default.conf.template'];
+  assert.ok(nginx.includes('server swarm-pay-commerce-app.decionis.svc.cluster.local:8080 resolve;'));
+  assert.ok(nginx.includes('server swarm-pay-payment-executor.decionis.svc.cluster.local:8081 resolve;'));
+  assert.ok(nginx.includes('location /internal/ { return 404; }'));
 });
 
 test('every runtime starts without root, Kubernetes credentials or a writable image filesystem',()=>{
@@ -49,7 +79,8 @@ test('every runtime starts without root, Kubernetes credentials or a writable im
 });
 
 test('the rendered policy permits the workflow and rejects private bypasses, cross-namespace traffic and metadata access',()=>{
-  const policies=render(target,images,key).privateResources.items.filter(i=>i.kind==='NetworkPolicy');
+  const policies=render(target,images,key).networkPolicies.items;
+  assert.equal(policies.length,6);
   const pod=(component,namespace=target.namespace,ip='10.48.1.2')=>({namespace,ip,labels:{'app.kubernetes.io/part-of':'swarm-pay','app.kubernetes.io/component':component}});
   const app=pod('commerce-app'),executor=pod('payment-executor'),gate=pod('agentsafe'),db=pod('postgres'),web=pod('web');
   const ingress={namespace:target.ingressNamespace,ip:'10.48.2.2',labels:target.ingressPodLabels};
@@ -66,6 +97,11 @@ test('the rendered policy permits the workflow and rejects private bypasses, cro
   assert.equal(allowed(web,db,5432,policies),false);
   assert.equal(allowed(pod('commerce-app','other-namespace'),gate,8082,policies),false);
   assert.equal(allowed(pod('unknown'),app,8080,policies),false);
+  const core={namespace:target.namespace,ip:'10.48.3.3',labels:{app:'decionis-api'}};
+  const coreWeb={namespace:target.namespace,ip:'10.48.3.4',labels:{app:'decionis-web'}};
+  assert.equal(policies.some(p=>matches(p.spec.podSelector,core.labels)),false,'SwarmPay must not select existing Decionis pods');
+  assert.ok(allowed(coreWeb,core,8080,policies),'Existing namespace traffic is unaffected');
+  assert.equal(allowed(core,executor,8081,policies),false);assert.equal(allowed(core,db,5432,policies),false);
   const internet={namespace:null,ip:'20.1.2.3',labels:{}};
   assert.ok(allowed(app,internet,443,policies));
   assert.equal(allowed(app,internet,80,policies),false);

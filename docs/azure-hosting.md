@@ -1,26 +1,33 @@
 **SwarmPay on the existing Azure infrastructure**
 
-The selected target is `decionis-rg` in Central US, using AKS `decionis-aks`, ACR `decionisacr.azurecr.io`, and the future hostname `https://swarm.decionis.com`. Azure management-plane reads confirmed these resources on October 25, 2026. The cluster runs Kubernetes 1.35 with IPv4 Azure CNI and Azure network policies; its DNS service address is `10.64.0.10`.
+The selected target is `decionis-rg` in Central US, using AKS `decionis-aks`, ACR `decionisacr.azurecr.io`, and hostname `https://swarm.decionis.com`. Azure reads confirmed these resources on October 25, 2026. The cluster runs Kubernetes 1.35 with IPv4 Azure CNI and Azure network policies; its DNS service address is `10.64.0.10`.
 
-Deployment is pending AKS access. The current CLI identity cannot create namespaces or deployments, or read the ingress classes and certificate issuers. The user is arranging access and explicitly selected Azure as the continuing target. No SwarmPay workloads, role assignments, DNS records or certificates have been created in Azure. The public hostname is not a verified running demo.
+Refreshing `az login` using the Decionis runbook established deployment access inside the existing `decionis` namespace. The user explicitly approved using that namespace. Namespace creation and cluster-wide ingress/issuer reads remain unavailable; no roles or access grants were changed. Five dedicated `swarm-pay-*` deployments are healthy, both persistent claims are bound, and private organizer access, Azure intent extraction and actual network/database isolation have passed. **[The public demo](https://swarm.decionis.com) passed HTTPS and browser acceptance on October 25.**
 
-The four application images were published and their registry digests verified on October 25. ACR run `cj3k` succeeded on `linux/amd64` from merged commit `d3ea8602c903e799d4c9d05f15a5e90cdf0328ea` (PR #7), whose [master verification run](https://github.com/ocularminds/swarmpay/actions/runs/40171279032) passed. The [recorded image map](../infra/azure/releases/d3ea860.images.json) can be supplied directly to the renderer for this release. The source/build record remains private under `.local/azure/releases/d3ea8602c903e799d4c9d05f15a5e90cdf0328ea-acr/`.
+The existing `decionis-nginx` ingress issued a trusted Let's Encrypt certificate for `swarm.decionis.com`, valid until January 23, 2027 at 07:36:24 UTC. TLS and HTTP 200 were verified against the ingress IP before creating the new `swarm` A record, which points to `52.143.254.111` with a 300-second TTL. The DNS write required the record not to exist. The 21 pre-existing deployments retained their generations and available replicas throughout the rollout.
 
-The initial hosted bundle uses **Azure AI with simulated payments and a local test authority**. It requires organizer sign-in and keeps those disclosures visible. Hosted Decionis and native PayPal sandbox acceptance remain separate gates in [implementation status](implementation-status.md). The bundle deliberately uses its own namespace, database, credentials and venue fixture key.
+The four application images were published and their registry digests verified on October 25. ACR run `cj3k` succeeded on `linux/amd64` from merged commit `d3ea8602c903e799d4c9d05f15a5e90cdf0328ea` (PR #7), whose [master verification run](https://github.com/ocularminds/swarmpay/actions/runs/40171279032) passed. The [recorded image map](../infra/azure/releases/d3ea860.images.json) can be supplied directly to the renderer for this release. The [deployment record](../infra/azure/releases/2026-10-25.deployment.json) binds the applied manifest hashes and acceptance results. The source/build record remains private under `.local/azure/releases/d3ea8602c903e799d4c9d05f15a5e90cdf0328ea-acr/`.
+
+The initial hosted bundle uses **Azure AI with simulated payments and a local test authority**. It requires organizer sign-in and keeps those disclosures visible. Hosted Decionis and native PayPal sandbox acceptance remain separate gates in [implementation status](implementation-status.md). The bundle uses dedicated names, selectors, database, credentials and a venue fixture key inside the approved existing namespace. It creates no Namespace object and changes no shared namespace labels.
 
 **What is ready**
 
 | File | Purpose |
 | --- | --- |
-| [`infra/azure/target.json`](../infra/azure/target.json) | Confirmed target and explicit empty fields for ingress facts that still need verification |
+| [`infra/azure/target.json`](../infra/azure/target.json) | Selected namespace, storage class, existing ingress class/controller peer and DNS-01 issuer |
 | [`infra/azure/prepare-secrets.mjs`](../infra/azure/prepare-secrets.mjs) | Owner-only local credential bundle, separate database roles and a host-only venue signing key |
 | [`infra/azure/release.mjs`](../infra/azure/release.mjs) | Committed source package, CI check, Azure registry build and verified image digests |
-| [`infra/azure/render.mjs`](../infra/azure/render.mjs) | Separate namespace, private workload and public ingress manifests; immutable ACR image digests required |
+| [`infra/azure/render.mjs`](../infra/azure/render.mjs) | Separate SwarmPay network-policy, private-workload and ingress manifests; immutable ACR image digests required |
 | [`demo/hosted/run.mjs`](../demo/hosted/run.mjs) | Isolated HTTPS rehearsal, also run by CI |
+| [`demo/check-deployed.mjs`](../demo/check-deployed.mjs) | Explicit public acceptance run with real Azure AI, simulated payments and normal TLS verification |
 
-The manifests use a single replica of each service, ClusterIP services, a restricted pod security namespace, non-root users, read-only image filesystems, dropped Linux capabilities and no mounted Kubernetes API credentials. PostgreSQL and the AgentSafe journal have separate persistent volumes. The network policy starts with ingress/egress denied, then admits the gateway/payment/database paths and the specifically identified ingress controller. The app cannot contact the executor directly. Webhook routing remains restricted by nginx and the executor's authentication rules; a network policy cannot distinguish HTTP paths.
+The manifests use a single replica of each service, ClusterIP services, non-root users, read-only image filesystems, dropped Linux capabilities, RuntimeDefault seccomp and no mounted Kubernetes API credentials. PostgreSQL and the AgentSafe journal have separate `decionis-zrs` volumes. Every resource is prefixed `swarm-pay-`. Even the default-deny policy selects only `app.kubernetes.io/part-of=swarm-pay`; component peers require that label as well. Existing Decionis workloads are outside these selectors. Sharing a namespace does not isolate SwarmPay from an administrator who can modify its resources.
 
-The Java services and gateway may reach external HTTPS addresses. Private/reserved IPv4 ranges and Azure metadata/platform addresses are excluded. This is not an FQDN allowlist. The policy includes an explicit CoreDNS path. These rules have local configuration tests; their enforcement on this AKS cluster still needs a live check.
+Apply network policies before creating pods. They admit the gateway/payment/database paths and the specifically identified ingress controller. The app cannot contact the executor directly. Webhook routing remains restricted by nginx and the executor's authentication rules; a network policy cannot distinguish HTTP paths. A mounted nginx template uses full Kubernetes service DNS names because nginx's explicit resolver does not apply the pod's search suffixes. The published images remain unchanged.
+
+The Java services and gateway may reach external HTTPS addresses. Private/reserved IPv4 ranges and Azure metadata/platform addresses are excluded. This is not an FQDN allowlist. The policy includes an explicit CoreDNS path. Live checks confirmed app-to-executor timeout by pod IP, gateway-to-executor HTTP 200, refusal of the application's database role at the payment schema, and the absence of PayPal secrets, a venue signing key and a Kubernetes API token in the application. Azure intent extraction succeeded from the AKS application in 5.6 seconds. The private check report is `.local/azure/private-acceptance.json`.
+
+The public acceptance run took 27.5 seconds and verified both Azure assessments, a $1,400 simulated workflow, two separate merchant checkouts, photo-only hold, signed fixture capture, five recorded commands and the application evidence chain. Sign-in/sign-out, anonymous model denial, secure cookies, Origin rejection, private-route rejection, desktop/mobile rendering and a bounded login-rate-limit check also passed. AgentSafe's native journal verified all 26 records with no findings. Private reports, screenshots and exported evidence are under `.local/azure/acceptance-20261025/`. This clean hosted journal does not repair the earlier interrupted local journal.
 
 **Rehearse HTTPS locally**
 
@@ -36,21 +43,20 @@ For an installed Chrome browser, prefix the check with `SWARM_TEST_BROWSER=chrom
 
 The check covers secure/HttpOnly/SameSite cookies, HTTPS headers, Host/Origin rejection, anonymous model denial, disabled one-click access, invalid and valid organizer passwords, sign-out, both simulated merchant checkouts, signed delivery capture, mobile layout, callback/network isolation and the native AgentSafe journal. All five application containers run with the same user IDs and filesystem restrictions as the planned Kubernetes deployment. This verifies container behavior, not AKS ingress, certificate issuance or CNI enforcement. `down` removes only the disposable rehearsal volumes; it preserves the ordinary local demo and its records.
 
-**Access handoff**
+**Access and existing infrastructure**
 
-An administrator needs to pre-create the `swarm-pay-demo` namespace with the renderer's restricted pod security labels. Namespace creation is a cluster-scoped action. [Azure Kubernetes Service RBAC Writer](https://learn.microsoft.com/en-us/azure/aks/manage-azure-rbac), scoped to this namespace, can then cover the workload, Secret and NetworkPolicy changes; it does not permit creating the namespace or assigning roles. Keep the application identity free of role-assignment permissions.
+Use the human Azure CLI login from the Decionis repository's deployment runbook, followed by `az aks get-credentials` into a private file and `kubelogin convert-kubeconfig -l azurecli`. Do not borrow the separate CI managed identity, change role assignments or request cluster-admin credentials. The approved namespace is `decionis`; the renderer refuses the previously proposed separate namespace.
 
-The administrator also needs to supply or verify the following existing infrastructure facts:
+The deployment inputs were established from namespaced live resources and the Decionis infrastructure manifests:
 
-- An ingress class whose controller is `k8s.io/ingress-nginx`, its controller namespace and exact pod labels, and whether its own egress policy permits the new service. A different ingress implementation needs a reviewed manifest adaptation.
-- A working cert-manager DNS-01 `ClusterIssuer` authorized for `decionis.com`. HTTP-01 is not accepted by this bundle because the default-deny policy would also need separately reviewed solver-pod access.
-- The ingress service actually bound to the existing public IP `52.143.254.111` (`decionis-ingress-pip`). Its association with this controller has not yet been verified.
-- A usable default storage class for the two ReadWriteOnce claims, available node capacity, and the expected CoreDNS labels `k8s-app=kube-dns` in `kube-system`.
-- The AKS kubelet's image-pull access to the four `swarm-pay/*` repositories in the existing ACR. Build-task submission and registry manifest reads are checked separately by the release tool. Use roles appropriate to the registry's permissions mode; registry admin credentials remain disabled.
+- Existing ingresses select `decionis-nginx` and report `52.143.254.111`. The Decionis manifest identifies AKS application routing; its existing error-service network policy corroborates namespace `app-routing-system` and controller pod selector `app=nginx-decionis-0`.
+- Existing ingresses use `letsencrypt-prod`. The Decionis issuer manifest configures Azure DNS-01 for `decionis.com`. Direct issuer/certificate CRD reads are unavailable to this identity; certificate readiness must be established by a trusted TLS handshake for the new hostname. HTTP-01 requires a separate review of solver access.
+- Existing PVCs use `decionis-zrs`, and both new SwarmPay claims bound successfully. This Premium ZRS class has a Retain policy; deleting application resources is not a storage cleanup or backup procedure.
+- All four immutable ACR images were pulled and became healthy. In-cluster DNS, the required service paths and real Azure AI connectivity passed. Registry admin credentials remain disabled.
 
-The existing user kubeconfig is kept privately at `.local/azure/kubeconfig`, converted to Azure CLI authentication. Always select it explicitly; do not change the user's global Kubernetes context. No `--admin`, AKS Run Command or self-assigned roles are needed. Resume denied Kubernetes checks only after access changes. Certificate and DNS changes remain confined to the new application hostname.
+The refreshed kubeconfig is `.local/azure/kubeconfig-decionis-login`, converted to Azure CLI authentication. Always select it explicitly; the prior `.local/azure/kubeconfig` and global Kubernetes context were preserved. No `--admin`, AKS Run Command or self-assigned roles are needed. Resume denied cluster-level checks only after access changes. Certificate and DNS changes remain confined to the new application hostname.
 
-**Build images while AKS access is pending**
+**Build images from a tested merged commit**
 
 From the repository root, use Node 22.23.2, Git, an authenticated `gh` CLI and an Azure CLI identity already authorized for this registry. ACR Tasks builds the images in Azure; no local Docker build or GitHub repository token is uploaded. The registry must retain its verified `LegacyRegistryPermissions` mode. [ACR quick tasks](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-overview) use Azure build compute and registry storage.
 
@@ -75,13 +81,13 @@ node infra/azure/release.mjs collect ".local/azure/releases/$swarm_release_commi
 
 The tool never automatically submits a second build from a release directory; an exclusive `submission.claim` also prevents concurrent callers from dispatching twice. If submission loses its response, retain that claim, the `SUBMISSION_UNKNOWN`/`SUBMITTING` record and private CLI output; inspect Azure's run history before deciding whether another build is appropriate. Azure CLI can suppress JSON with `--no-wait`, so the tool also accepts its exact queued-run receipt from captured stderr. Refused or failed builds need investigation, not repeated access attempts. Preserve failed records and use a new private directory only after the outcome is resolved and a correction is reviewed. Do not delete the record to bypass this check. Build logs may contain private source information and must remain outside Git.
 
-**Prepare the deployment after AKS access is available**
+**Deploy into the approved existing namespace**
 
-1. Verify the infrastructure facts above and fill the empty ingress/issuer fields in `infra/azure/target.json`. Keep the confirmed resource group, namespace, host and DNS resolver. The renderer refuses unverified fields, mutable image tags, or a private venue key.
+1. Recheck the target facts above if the cluster changes. Review the resource-name and network-policy selectors before applying to the shared namespace. The renderer refuses missing inputs, mutable image tags, the wrong namespace or a private venue key.
 2. Prepare the private credentials once from the configured Azure environment file:
 
    ```sh
-   node infra/azure/prepare-secrets.mjs .env .local/azure/bootstrap
+   node infra/azure/prepare-secrets.mjs .env .local/azure/bootstrap-decionis
    ```
 
    The source must have owner-only permissions. The script preserves it, copies only the Azure model settings, and generates distinct database passwords, executor/MCP tokens, organizer password and demo venue key. It refuses an existing output directory to avoid silently rotating database credentials. Keep `secrets.json`, `organizer.env` and `venue-private.pem` private and out of source, logs and build contexts. Only `venue-public.pem` is mounted by the application. Kubernetes Secret data is base64 encoding, not encryption; cluster access and storage controls remain required.
@@ -89,28 +95,46 @@ The tool never automatically submits a second build from a release directory; an
 4. Render the release using that verified map (adjust the private directory if a custom one was selected):
 
    ```sh
-   node infra/azure/render.mjs infra/azure/target.json ".local/azure/releases/$swarm_release_commit/images.json" .local/azure/bootstrap/venue-public.pem .local/azure/release
+   node infra/azure/render.mjs infra/azure/target.json ".local/azure/releases/$swarm_release_commit/images.json" .local/azure/bootstrap-decionis/venue-public.pem .local/azure/release
    ```
 
-5. Have the administrator create/review `namespace.json`. Once namespace-scoped access works, validate the actual resource manifests and credentials without printing Secret contents:
+   The published release also has a tracked image map at `infra/azure/releases/d3ea860.images.json`. Rendering refuses an existing output directory so old namespace manifests cannot mix with a new release. The initial applied manifests are preserved under `.local/azure/decionis-release-v2/`.
+5. Check for name collisions and validate the actual resource manifests and credentials without printing Secret contents. There is no namespace creation step:
 
    ```sh
-   kubectl --kubeconfig .local/azure/kubeconfig apply --dry-run=server -f .local/azure/bootstrap/secrets.json
-   kubectl --kubeconfig .local/azure/kubeconfig apply --dry-run=server -f .local/azure/release/privateResources.json
-   kubectl --kubeconfig .local/azure/kubeconfig apply --dry-run=server -f .local/azure/release/ingress.json
+   kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/release/networkPolicies.json
+   kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/bootstrap-decionis/secrets.json
+   kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/release/privateResources.json
+   kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/release/ingress.json
    ```
 
-6. Apply credentials and private workloads first, then wait for all five deployments and persistent claims. Before publishing ingress, verify actual pod-to-pod isolation, app-to-executor denial, database role separation, Azure model connectivity, and the sign-in flow through a controlled port-forward using the configured Host/Origin. Avoid printing runtime environments or Secret objects. Preserve this evidence separately from the local fixture results.
+6. Apply `networkPolicies.json` first, followed by credentials and private workloads, then wait for all five deployments and persistent claims. The initial rollout started PostgreSQL before the application deployments. Before publishing ingress, verify actual pod-to-pod isolation, app-to-executor denial, database role separation, Azure model connectivity, and the sign-in flow through a controlled port-forward using the configured Host/Origin. Avoid printing runtime environments or Secret objects. Preserve this evidence separately from the local fixture results.
 7. Review and apply `ingress.json`, wait for a valid certificate, then test the ingress IP with TLS SNI and Host `swarm.decionis.com` (for example, `curl --resolve` without `--insecure`). DNS-01 allows certificate issuance before the public A record. Only after this succeeds, create/update the **`swarm` A record** in the existing `decionis.com` zone to the verified ingress IP. Do not replace the zone, apex, wildcard or records used by other products.
 8. Verify public HTTPS, forced HTTP redirect, organizer sign-in/sign-out, anonymous denial, simulated-payment labels, one signed-receipt journey and an evidence export. Check actual ingress rate-limit behavior: the app proxy sees the ingress peer, so its limits are shared across clients; it does not trust arbitrary forwarded client addresses. Protect the Azure model budget operationally as well. Record the deployed commit, image digests, certificate expiry and verification results in the delivery record.
 
 Once the hosted fixture is live, its separate demo receipt can be signed locally using an exported workflow:
 
 ```sh
-SWARM_VENUE_PRIVATE_KEY_FILE=.local/azure/bootstrap/venue-private.pem node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json
+SWARM_VENUE_PRIVATE_KEY_FILE=.local/azure/bootstrap-decionis/venue-private.pem node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json
 ```
 
 The signer remains a demo venue fixture. Do not copy its private key into a pod or expose a signing API.
+
+For a full public acceptance run, install the web dependencies and a Playwright browser, then explicitly run:
+
+```sh
+SWARM_TEST_BROWSER=chrome node demo/check-deployed.mjs https://swarm.decionis.com .local/azure/bootstrap-decionis .local/azure/acceptance
+```
+
+Choose a new ignored report directory for each run. The script refuses any other host, disabled TLS verification, non-demo payments, a different authority/fixture issuer, exposed PayPal client IDs or one-click organizer access. It makes two real Azure model calls and creates one simulated workflow, checking separate merchant checkouts, photo-only hold, signed fixture capture, evidence export, secure sessions and mobile sign-out. Reports, screenshots and evidence stay private; it does not record a browser trace or print credentials. Ordinary CI continues to use only isolated fixtures. `SWARM_CHECK_LOGIN_LIMIT=1` additionally sends eight invalid sign-ins and requires HTTP 429; the proxy sees the ingress peer, so this optional check can briefly throttle other users' sign-ins too.
+
+## Hosted AgentSafe endpoints
+
+The user supplied `https://swarm.decionisedge.com` and the existing `https://dci.decionisedge.com`. Verified public TLS probes on October 25 returned `421 HOST_NOT_SERVED` for `swarm`, `401 TENANT_KEY_MISSING` on the `dci` root, and `401 UNAUTHORIZED` on its operator status route. This establishes routing/authentication behavior, not a working SwarmPay payment integration.
+
+The Decionis hosted-fleet runbook describes shadow-only HTTPS tenants in a separate, unpeered cluster, with public HTTPS upstreams. The current Azure login was denied read access to that fleet's Key Vault registry, so its actual tenant upstream and mode were not read or changed. No gateway key was copied. A shadow gateway cannot replace SwarmPay's enforcement boundary, and the private executor must not be exposed merely to make a hosted upstream reachable.
+
+Before selecting either endpoint for payment execution, obtain a tenant handoff through the normal hosted provisioning process, verify enforcement capability and the grant/claim contract, and review an authenticated private execution path. Keep the existing `dci` tenant's upstream unchanged unless its owner explicitly approves a move. The current deployment continues to identify its authority as `local/demo`; the hosted Decionis acceptance gate remains open.
 
 **Operating limits and rollback**
 

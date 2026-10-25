@@ -15,13 +15,14 @@ test('bootstrap limits each workload to its credentials, keeps the signer privat
   const result=run();assert.equal(result.status,0);
   assert.ok(!result.stdout.includes('fixture-azure-key'));assert.ok(!result.stderr.includes('fixture-azure-key'));
   const text=readFileSync(resolve(output,'secrets.json'),'utf8');
+  for(const secret of JSON.parse(text).items){assert.equal(secret.metadata.namespace,'decionis');assert.match(secret.metadata.name,/^swarm-pay-/);}
   const secrets=Object.fromEntries(JSON.parse(text).items.map(secret=>[secret.metadata.name,Object.fromEntries(Object.entries(secret.data).map(([k,v])=>[k,Buffer.from(v,'base64').toString()]))]));
-  assert.equal(secrets['commerce-secrets'].AZURE_OPENAI_API_KEY,'fixture-azure-key');
-  assert.equal(secrets['commerce-secrets'].DATABASE_PASSWORD,secrets['postgres-secrets'].PG_APP_PASSWORD);
-  assert.equal(secrets['payment-secrets'].DATABASE_PASSWORD,secrets['postgres-secrets'].PG_EXECUTOR_PASSWORD);
-  assert.notEqual(secrets['commerce-secrets'].DATABASE_PASSWORD,secrets['payment-secrets'].DATABASE_PASSWORD);
-  assert.equal(secrets['commerce-secrets'].EXECUTOR_TOKEN,secrets['payment-secrets'].EXECUTOR_TOKEN);
-  assert.ok(!JSON.stringify(secrets['payment-secrets']).includes('AZURE'));
+  assert.equal(secrets['swarm-pay-commerce-secrets'].AZURE_OPENAI_API_KEY,'fixture-azure-key');
+  assert.equal(secrets['swarm-pay-commerce-secrets'].DATABASE_PASSWORD,secrets['swarm-pay-postgres-secrets'].PG_APP_PASSWORD);
+  assert.equal(secrets['swarm-pay-payment-secrets'].DATABASE_PASSWORD,secrets['swarm-pay-postgres-secrets'].PG_EXECUTOR_PASSWORD);
+  assert.notEqual(secrets['swarm-pay-commerce-secrets'].DATABASE_PASSWORD,secrets['swarm-pay-payment-secrets'].DATABASE_PASSWORD);
+  assert.equal(secrets['swarm-pay-commerce-secrets'].EXECUTOR_TOKEN,secrets['swarm-pay-payment-secrets'].EXECUTOR_TOKEN);
+  assert.ok(!JSON.stringify(secrets['swarm-pay-payment-secrets']).includes('AZURE'));
   assert.ok(!JSON.stringify(secrets).includes('must-not-copy'));
   assert.ok(!text.includes('PRIVATE KEY'));
   for(const file of ['secrets.json','venue-private.pem','organizer.env'])assert.equal(statSync(resolve(output,file)).mode&0o077,0);

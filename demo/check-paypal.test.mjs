@@ -14,6 +14,8 @@ test('preflight only authenticates and reads sandbox webhooks, with no secrets i
   }});
   assert.equal(report.configurationReady,true);
   assert.equal(report.paymentLifecycle,'NOT_TESTED'); assert.equal(report.merchantOwnership,'NOT_VERIFIED');
+  assert.equal(report.webhookDelivery,'NOT_TESTED');assert.equal(report.callbackOriginChecked,false);
+  assert.equal(report.merchants[0].callbackOriginMatches,null);
   assert.equal(report.paymentRequestsSent,0);
   assert.deepEqual(requests.map(r=>[r.options.method,r.url]),[
     ['POST','https://api-m.sandbox.paypal.com/v1/oauth2/token'],['GET','https://api-m.sandbox.paypal.com/v1/notifications/webhooks']]);
@@ -41,6 +43,36 @@ test('a configured webhook ID must match the callback path and required events',
     const report=await checkPayPalSandbox(env,{merchants:['tents'],fetchImpl:async url=>url.endsWith('/token')?
       reply(200,{access_token:'token',token_type:'Bearer'}):reply(200,{webhooks:[changed]})});
     assert.equal(report.configurationReady,false);
+  }
+});
+
+test('a stale tunnel or different origin cannot pass the hosted registration check',async()=>{
+  for(const [url,ready] of [
+    ['https://swarm.decionis.com/paypal/webhooks/tents',true],
+    ['https://old-tunnel.ngrok.app/paypal/webhooks/tents',false],
+    ['https://swarm.decionis.com.evil.example/paypal/webhooks/tents',false],
+    ['https://swarm.decionis.com:8443/paypal/webhooks/tents',false],
+  ]) {
+    const report=await checkPayPalSandbox(env,{merchants:['tents'],callbackOrigin:'https://swarm.decionis.com/',
+      fetchImpl:async endpoint=>endpoint.endsWith('/token')?
+        reply(200,{access_token:'token',token_type:'Bearer'}):reply(200,{webhooks:[{...hook,url}]})});
+    assert.equal(report.callbackOriginChecked,true);
+    assert.equal(report.merchants[0].callbackRouteMatches,true);
+    assert.equal(report.merchants[0].callbackOriginMatches,ready);
+    assert.equal(report.configurationReady,ready);
+    assert.equal(report.webhookDelivery,'NOT_TESTED');
+    assert.ok(!JSON.stringify(report).includes(url));
+  }
+});
+
+test('an invalid expected origin stops before any PayPal request',async()=>{
+  for(const callbackOrigin of ['http://swarm.decionis.com','https://user:secret@swarm.decionis.com',
+    'https://swarm.decionis.com/paypal/webhooks/tents','https://swarm.decionis.com?secret=value',
+    'https://swarm.decionis.com#fragment','not-a-url']) {
+    let requests=0;
+    await assert.rejects(checkPayPalSandbox(env,{callbackOrigin,fetchImpl:async()=>{requests++;}}),
+      /expected callback origin must be an HTTPS origin/);
+    assert.equal(requests,0);
   }
 });
 

@@ -6,7 +6,7 @@ SwarmPay turns an event request into a reviewed plan across two merchants. Tents
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/). The architecture was approved on October 25, 2026; see the [approved plan](docs/architecture-and-delivery-plan.md).
 
-**Current delivery:** a runnable local MVP, verified Azure OpenAI intent extraction and agent assessments, real AgentSafe enforcement against a local synthetic authority, Java REST/MCP services, persistent payment workflows and a responsive web UI. Native PayPal sandbox and hosted Decionis account validation remain incomplete. See the [capability matrix](docs/implementation-status.md).
+**Current delivery:** a runnable local MVP, verified Azure OpenAI intent extraction and agent assessments, real AgentSafe enforcement against a local synthetic authority, Java REST/MCP services, persistent payment workflows and a responsive web UI. An isolated HTTPS rehearsal and Azure deployment handoff are ready; AKS access is pending. Native PayPal sandbox and hosted Decionis account validation remain incomplete. See the [capability matrix](docs/implementation-status.md).
 
 **Run the local demo**
 
@@ -76,7 +76,7 @@ With Node 22 active, select deterministic AI for the fixture tests without chang
 ```sh
 SWARM_AI_PROVIDER=demo docker compose up -d --wait commerce-app
 node demo/verify-java.mjs
-node --test demo/check-paypal.test.mjs
+node --test demo/check-paypal.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs
 npm --prefix infra/agentsafe ci
 npm --prefix infra/agentsafe test
 npm --prefix infra/agentsafe run verify-boundary
@@ -95,7 +95,21 @@ If Chrome is already installed, `SWARM_TEST_BROWSER=chrome npm run test:e2e` can
 
 For native Java development, activate JDK 21 and run `./gradlew verify` (Docker is still needed by Testcontainers). `./gradlew webBuild` runs the pinned frontend build when Node 22 is on `PATH`. With the Compose API running, `npm --prefix apps/web run dev` opens Vite on port 5174.
 
-The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol, webhook verification, gateway, API/MCP, isolation, callback ingress, restart and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
+The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol, webhook verification, gateway, API/MCP, isolation, callback ingress, restart, deployment configuration and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
+
+**Prepare Azure hosting**
+
+The target is the existing `decionis-rg` / `decionis-aks` infrastructure in Central US, with `https://swarm.decionis.com` as the future hostname. See the [Azure runbook](docs/azure-hosting.md) for the access handoff, immutable images, separate credentials, network policies and staged ingress/DNS rollout. No hosted deployment or DNS change has been made; Kubernetes access and actual ingress/certificate details remain pending.
+
+Hosted access requires `SWARM_PUBLIC_ORIGIN=https://swarm.decionis.com` and `SWARM_SESSION_COOKIE_SECURE=true`. The app validates Host/Origin, requires organizer sign-in and disables the one-click local demo session. The normal loopback demo keeps both settings at their generated defaults. An isolated HTTPS rehearsal runs without provider credentials or changes to `.env`:
+
+```sh
+node demo/hosted/run.mjs up
+node demo/hosted/run.mjs check
+node demo/hosted/run.mjs down
+```
+
+Use `SWARM_TEST_BROWSER=chrome` for the check if Chrome is installed. This separate stack exercises the full simulated payment journey, sign-in/sign-out, origin rejection, secure cookies and restricted container users/filesystems. It does not prove AKS network enforcement or replace native sandbox acceptance.
 
 **Connect real sandbox accounts**
 

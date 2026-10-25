@@ -1,14 +1,18 @@
 server:
   port: 8080
+  forward-headers-strategy: none
   servlet:
     session:
       timeout: 60m
       cookie:
         http-only: true
         same-site: strict
+        secure: ${SWARM_SESSION_COOKIE_SECURE:false}
   error:
     include-message: never
     include-stacktrace: never
+swarm:
+  public-origin: ${SWARM_PUBLIC_ORIGIN:}
 spring:
   application:
     name: swarm-pay-commerce

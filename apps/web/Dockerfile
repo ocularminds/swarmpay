@@ -5,6 +5,8 @@ RUN npm ci
 COPY . .
 RUN npm run build
 FROM nginx:1.29.1-alpine@sha256:42a516af16b852e33b7682d5ef8acbd5d13fe08fecadc7ed98605ba5e3b26ab8
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV SWARM_NGINX_RESOLVER=127.0.0.11 NGINX_ENVSUBST_FILTER=SWARM_NGINX_RESOLVER
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY webhook-proxy.conf /etc/nginx/snippets/webhook-proxy.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080 8083

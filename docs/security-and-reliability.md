@@ -42,4 +42,6 @@ AgentSafe 0.2.5 and agent-safe-pipeline 0.3.8 are the actual published Apache-2.
 
 NPM audits reported zero known vulnerabilities for the locked web and gateway trees at verification time. This is not a complete Java/container scan or a certification. Docker base manifests, the Gradle distribution checksum and GitHub Actions revisions are pinned. Environment files, keys, logs, build outputs and browser artifacts are excluded from source and Docker contexts.
 
+Parallel Docker service builds use a named Gradle cache with BuildKit `sharing=locked`. The lock covers each build's cache access, preventing two container-local Gradle processes from contending on the same journal. Both services still reuse the downloaded dependencies.
+
 The [CI workflow](../.github/workflows/verify.yml) uses generated local secrets, synthetic AI/payments/authority and real PostgreSQL. It tests concurrent reservation/command behavior, private executor binding, signed receipt rejection, gateway failure/forgery/replay, actual authenticated MCP calls, network isolation, service recreation and browser journeys. Live Azure checks are opt-in; native PayPal approvals and hosted Decionis proof remain separate acceptance gates.

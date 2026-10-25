@@ -35,8 +35,8 @@ jobs:
             infra/agentsafe/package-lock.json
       - name: Java invariants and PostgreSQL recovery tests
         run: ./gradlew verify --no-daemon --console=plain
-      - name: Verify preflight and deployment configuration without external services
-        run: node --test demo/check-paypal.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs
+      - name: Verify preflight, deployment configuration and release packaging without external services
+        run: node --test demo/check-paypal.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
       - name: Build the web application
         run: |
           npm --prefix apps/web ci

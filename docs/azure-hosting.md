@@ -4,6 +4,8 @@ The selected target is `decionis-rg` in Central US, using AKS `decionis-aks`, AC
 
 Deployment is pending AKS access. The current CLI identity cannot create namespaces or deployments, or read the ingress classes and certificate issuers. The user is arranging access and explicitly selected Azure as the continuing target. No SwarmPay workloads, role assignments, DNS records or certificates have been created in Azure. The public hostname is not a verified running demo.
 
+The four application images were published and their registry digests verified on October 25. ACR run `cj3k` succeeded on `linux/amd64` from merged commit `d3ea8602c903e799d4c9d05f15a5e90cdf0328ea` (PR #7), whose [master verification run](https://github.com/ocularminds/swarmpay/actions/runs/40171279032) passed. The [recorded image map](../infra/azure/releases/d3ea860.images.json) can be supplied directly to the renderer for this release. The source/build record remains private under `.local/azure/releases/d3ea8602c903e799d4c9d05f15a5e90cdf0328ea-acr/`.
+
 The initial hosted bundle uses **Azure AI with simulated payments and a local test authority**. It requires organizer sign-in and keeps those disclosures visible. Hosted Decionis and native PayPal sandbox acceptance remain separate gates in [implementation status](implementation-status.md). The bundle deliberately uses its own namespace, database, credentials and venue fixture key.
 
 **What is ready**
@@ -12,6 +14,7 @@ The initial hosted bundle uses **Azure AI with simulated payments and a local te
 | --- | --- |
 | [`infra/azure/target.json`](../infra/azure/target.json) | Confirmed target and explicit empty fields for ingress facts that still need verification |
 | [`infra/azure/prepare-secrets.mjs`](../infra/azure/prepare-secrets.mjs) | Owner-only local credential bundle, separate database roles and a host-only venue signing key |
+| [`infra/azure/release.mjs`](../infra/azure/release.mjs) | Committed source package, CI check, Azure registry build and verified image digests |
 | [`infra/azure/render.mjs`](../infra/azure/render.mjs) | Separate namespace, private workload and public ingress manifests; immutable ACR image digests required |
 | [`demo/hosted/run.mjs`](../demo/hosted/run.mjs) | Isolated HTTPS rehearsal, also run by CI |
 
@@ -43,11 +46,36 @@ The administrator also needs to supply or verify the following existing infrastr
 - A working cert-manager DNS-01 `ClusterIssuer` authorized for `decionis.com`. HTTP-01 is not accepted by this bundle because the default-deny policy would also need separately reviewed solver-pod access.
 - The ingress service actually bound to the existing public IP `52.143.254.111` (`decionis-ingress-pip`). Its association with this controller has not yet been verified.
 - A usable default storage class for the two ReadWriteOnce claims, available node capacity, and the expected CoreDNS labels `k8s-app=kube-dns` in `kube-system`.
-- Permission to publish the four `swarm-pay/*` repositories to the existing ACR, and the AKS kubelet's corresponding image-pull access. Use roles appropriate to the registry's permissions mode; registry admin credentials remain disabled.
+- The AKS kubelet's image-pull access to the four `swarm-pay/*` repositories in the existing ACR. Build-task submission and registry manifest reads are checked separately by the release tool. Use roles appropriate to the registry's permissions mode; registry admin credentials remain disabled.
 
 The existing user kubeconfig is kept privately at `.local/azure/kubeconfig`, converted to Azure CLI authentication. Always select it explicitly; do not change the user's global Kubernetes context. No `--admin`, AKS Run Command or self-assigned roles are needed. Resume denied Kubernetes checks only after access changes. Certificate and DNS changes remain confined to the new application hostname.
 
-**Prepare the release after access is available**
+**Build images while AKS access is pending**
+
+From the repository root, use Node 22.23.2, Git, an authenticated `gh` CLI and an Azure CLI identity already authorized for this registry. ACR Tasks builds the images in Azure; no local Docker build or GitHub repository token is uploaded. The registry must retain its verified `LegacyRegistryPermissions` mode. [ACR quick tasks](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-overview) use Azure build compute and registry storage.
+
+```sh
+git fetch origin master
+swarm_release_commit=$(git rev-parse origin/master)
+node infra/azure/release.mjs prepare "$swarm_release_commit"
+node infra/azure/release.mjs submit ".local/azure/releases/$swarm_release_commit"
+```
+
+`prepare` accepts a full SHA already merged into `origin/master`. It copies regular Git blobs with their executable modes, so local modifications, line-ending filters, `.env`, credentials, browser reports and database files cannot enter through a working-directory upload. It refuses tracked private paths, symlinks, submodules, known configured credential values and private-key material. This is a targeted safeguard, not a comprehensive secret scanner. The private release directory must be ignored by Git and cannot already exist.
+
+`submit` checks that the exact commit has a successful `master` push run of `verify.yml`, verifies the registry identity, then records submission before making the request. The generated task enables BuildKit and builds all four images for `linux/amd64` before its push step. Tags contain the full commit and a random suffix; the OCI labels record the source repository and revision. Dockerfile paths are relative to the uploaded task root, and the web/gateway build contexts remain scoped to their directories. The source package is reproducible from Git; package downloads during a build can still change the resulting image.
+
+Check the saved run later with a single read:
+
+```sh
+node infra/azure/release.mjs collect ".local/azure/releases/$swarm_release_commit"
+```
+
+`RUNNING` means no deployable image map is available yet. Only a successful AMD64 run reporting exactly the expected four repository/tag/digest bindings, followed by four matching registry manifest reads, produces `images.json`. It contains the immutable image references accepted by the manifest renderer. Keep `release.json`, the private submission response and `images.json` together: they record the Git tree, file hashes, recipe, CI run, build identity and registry digests. This is local release provenance, not a signed supply-chain attestation or a vulnerability scan. A successful build does not establish AKS pull access or runtime health.
+
+The tool never automatically submits a second build from a release directory; an exclusive `submission.claim` also prevents concurrent callers from dispatching twice. If submission loses its response, retain that claim, the `SUBMISSION_UNKNOWN`/`SUBMITTING` record and private CLI output; inspect Azure's run history before deciding whether another build is appropriate. Azure CLI can suppress JSON with `--no-wait`, so the tool also accepts its exact queued-run receipt from captured stderr. Refused or failed builds need investigation, not repeated access attempts. Preserve failed records and use a new private directory only after the outcome is resolved and a correction is reviewed. Do not delete the record to bypass this check. Build logs may contain private source information and must remain outside Git.
+
+**Prepare the deployment after AKS access is available**
 
 1. Verify the infrastructure facts above and fill the empty ingress/issuer fields in `infra/azure/target.json`. Keep the confirmed resource group, namespace, host and DNS resolver. The renderer refuses unverified fields, mutable image tags, or a private venue key.
 2. Prepare the private credentials once from the configured Azure environment file:
@@ -57,11 +85,11 @@ The existing user kubeconfig is kept privately at `.local/azure/kubeconfig`, con
    ```
 
    The source must have owner-only permissions. The script preserves it, copies only the Azure model settings, and generates distinct database passwords, executor/MCP tokens, organizer password and demo venue key. It refuses an existing output directory to avoid silently rotating database credentials. Keep `secrets.json`, `organizer.env` and `venue-private.pem` private and out of source, logs and build contexts. Only `venue-public.pem` is mounted by the application. Kubernetes Secret data is base64 encoding, not encryption; cluster access and storage controls remain required.
-3. Build from the reviewed commit for the cluster's node architecture and publish four images to the existing registry: `swarm-pay/web` from `apps/web/Dockerfile`, `swarm-pay/agentsafe` from `infra/agentsafe/Dockerfile`, and the two Java services from `infra/java.Dockerfile` with the appropriate `APP` build argument. The web and gateway build contexts are their respective directories; the Java context is the repository root. Use the deployed commit as the release tag and resolve the registry digests after publishing. Do not upload a source context containing private files. No images have been published by this phase.
-4. Write `.local/azure/images.json` as a JSON object with keys `web`, `commerce-app`, `payment-executor`, and `agentsafe`. Each value must be the corresponding `decionisacr.azurecr.io/swarm-pay/<component>@sha256:<actual registry digest>` reference. Render the release:
+3. Finish the source/build procedure above for the reviewed commit. The successful release's `images.json` must have keys `web`, `commerce-app`, `payment-executor`, and `agentsafe`, each bound to its actual `decionisacr.azurecr.io/swarm-pay/<component>@sha256:<digest>` manifest. Do not hand-fill placeholder digests or substitute mutable tags.
+4. Render the release using that verified map (adjust the private directory if a custom one was selected):
 
    ```sh
-   node infra/azure/render.mjs infra/azure/target.json .local/azure/images.json .local/azure/bootstrap/venue-public.pem .local/azure/release
+   node infra/azure/render.mjs infra/azure/target.json ".local/azure/releases/$swarm_release_commit/images.json" .local/azure/bootstrap/venue-public.pem .local/azure/release
    ```
 
 5. Have the administrator create/review `namespace.json`. Once namespace-scoped access works, validate the actual resource manifests and credentials without printing Secret contents:

@@ -43,6 +43,7 @@ jobs:
       - name: Verify the published authority boundary
         run: |
           npm --prefix infra/agentsafe ci
+          npm --prefix infra/agentsafe test
           npm --prefix infra/agentsafe run verify-boundary
           npm --prefix infra/agentsafe audit --audit-level=high
       - name: Start an isolated synthetic demo
@@ -53,6 +54,7 @@ jobs:
       - name: Exercise authenticated discovery and isolation
         run: |
           node demo/check-foundation.mjs
+          node demo/smoke.mjs
           node demo/check-isolation.mjs
       - name: Retain test reports
         if: always()

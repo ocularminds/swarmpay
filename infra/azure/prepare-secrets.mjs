@@ -27,7 +27,9 @@ const values={
   'postgres-secrets':{POSTGRES_PASSWORD:administrator,PG_APP_PASSWORD:application,PG_EXECUTOR_PASSWORD:executor},
   'payment-secrets':{DATABASE_PASSWORD:executor,EXECUTOR_TOKEN:service},
   'commerce-secrets':{DATABASE_PASSWORD:application,EXECUTOR_TOKEN:service,ORGANIZER_PASSWORD:organizer,MCP_TOKEN:mcp,
-    AZURE_OPENAI_API_KEY:key,AZURE_OPENAI_ENDPOINT:endpoint,AZURE_OPENAI_DEPLOYMENT:deployment}
+    AZURE_OPENAI_API_KEY:key,AZURE_OPENAI_ENDPOINT:endpoint,AZURE_OPENAI_DEPLOYMENT:deployment},
+  // The egress proxy admits the model host; it never holds the model key.
+  'egress-settings':{AZURE_OPENAI_ENDPOINT:endpoint}
 };
 const items=Object.entries(values).map(([name,data])=>({apiVersion:'v1',kind:'Secret',type:'Opaque',metadata:{name:`swarm-pay-${name}`,namespace:'decionis',labels:{'app.kubernetes.io/part-of':'swarm-pay'}},
   data:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,Buffer.from(v).toString('base64')]))}));

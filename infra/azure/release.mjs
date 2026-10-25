@@ -8,7 +8,7 @@ import {parseEnv} from 'node:util';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const registry='decionisacr',resourceGroup='decionis-rg',server=`${registry}.azurecr.io`;
 const repository='ocularminds/swarmpay',platform='linux/amd64';
-export const components=['web','commerce-app','payment-executor','agentsafe'];
+export const components=['web','commerce-app','payment-executor','agentsafe','egress'];
 const sha=value=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
 const digest=value=>typeof value==='string'&&/^sha256:[a-f0-9]{64}$/.test(value);
 const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -71,6 +71,7 @@ export function taskDefinition(commit,tag) {
     build('commerce-app','source/infra/java.Dockerfile','source','--build-arg APP=commerce-app'),
     build('payment-executor','source/infra/java.Dockerfile','source','--build-arg APP=payment-executor'),
     build('agentsafe','source/infra/agentsafe/Dockerfile','source/infra/agentsafe'),
+    build('egress','source/infra/egress/Dockerfile','source/infra/egress'),
     {push:components.map(component=>`${server}/swarm-pay/${component}:${tag}`)}
   ]};
 }

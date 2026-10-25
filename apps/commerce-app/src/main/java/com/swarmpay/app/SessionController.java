@@ -33,9 +33,15 @@ class SessionController {
         new HttpSessionCsrfTokenRepository().saveToken(null,request,response);
         return Map.of("mode","demo");
     }
+    /** Who decides: the shared hosted gateway answers with Decionis whatever the payment mode. */
+    static String authority(String agentSafeUrl,String mode) {
+        if (agentSafeUrl!=null && agentSafeUrl.startsWith("https://")) return "AgentSafe hosted gateway · Decionis";
+        return mode.equals("demo")?"AgentSafe · local test authority":"AgentSafe · Decionis";
+    }
+    private String authority() { return authority(RuntimeSettings.value("AGENTSAFE_URL",null),mode); }
     @GetMapping("/api/config") Map<String,Object> config() {
         return Map.of("mode",mode,"demoSessionEnabled",access.demoSessionEnabled(mode),"aiProvider",ai.provider(),"model",ai.source(),
-            "authority",mode.equals("demo")?"AgentSafe · local test authority":"AgentSafe · Decionis",
+            "authority",authority(),
             "catalogSource","Curated demo catalog","receiptIssuer",RuntimeSettings.required("VENUE_ISSUER"),
             "clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID","")),
             "policyVersion",RuntimeSettings.required("DECIONIS_POLICY_VERSION"));

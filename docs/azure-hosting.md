@@ -90,8 +90,8 @@ The tool never automatically submits a second build from a release directory; an
    node infra/azure/prepare-secrets.mjs .env .local/azure/bootstrap-decionis
    ```
 
-   The source must have owner-only permissions. The script preserves it, copies only the Azure model settings, and generates distinct database passwords, executor/MCP tokens, organizer password and demo venue key. It refuses an existing output directory to avoid silently rotating database credentials. Keep `secrets.json`, `organizer.env` and `venue-private.pem` private and out of source, logs and build contexts. Only `venue-public.pem` is mounted by the application. Kubernetes Secret data is base64 encoding, not encryption; cluster access and storage controls remain required.
-3. Finish the source/build procedure above for the reviewed commit. The successful release's `images.json` must have keys `web`, `commerce-app`, `payment-executor`, and `agentsafe`, each bound to its actual `decionisacr.azurecr.io/swarm-pay/<component>@sha256:<digest>` manifest. Do not hand-fill placeholder digests or substitute mutable tags.
+   The source must have owner-only permissions. The script preserves it, copies only the Azure model settings (the endpoint alone also goes to `swarm-pay-egress-settings`, the egress proxy's only setting), and generates distinct database passwords, executor/MCP tokens, organizer password and demo venue key. It refuses an existing output directory to avoid silently rotating database credentials. Keep `secrets.json`, `organizer.env` and `venue-private.pem` private and out of source, logs and build contexts. Only `venue-public.pem` is mounted by the application. Kubernetes Secret data is base64 encoding, not encryption; cluster access and storage controls remain required.
+3. Finish the source/build procedure above for the reviewed commit. The successful release's `images.json` must have keys `web`, `commerce-app`, `payment-executor`, `agentsafe` and `egress`, each bound to its actual `decionisacr.azurecr.io/swarm-pay/<component>@sha256:<digest>` manifest. Do not hand-fill placeholder digests or substitute mutable tags.
 4. Render the release using that verified map (adjust the private directory if a custom one was selected):
 
    ```sh
@@ -128,13 +128,48 @@ SWARM_TEST_BROWSER=chrome node demo/check-deployed.mjs https://swarm.decionis.co
 
 Choose a new ignored report directory for each run. The script refuses any other host, disabled TLS verification, non-demo payments, a different authority/fixture issuer, exposed PayPal client IDs or one-click organizer access. It makes two real Azure model calls and creates one simulated workflow, checking separate merchant checkouts, photo-only hold, signed fixture capture, evidence export, secure sessions and mobile sign-out. Reports, screenshots and evidence stay private; it does not record a browser trace or print credentials. Ordinary CI continues to use only isolated fixtures. `SWARM_CHECK_LOGIN_LIMIT=1` additionally sends eight invalid sign-ins and requires HTTP 429; the proxy sees the ingress peer, so this optional check can briefly throttle other users' sign-ins too.
 
+**The agent's only route out**
+
+The commerce application (the agents) reaches nothing outside the cluster directly: its NetworkPolicy admits DNS, PostgreSQL, its gateway and the `swarm-pay-egress` proxy on 3128, and nothing else, PayPal included. The JVM sends HTTPS through the proxy (`JAVA_TOOL_OPTIONS`); `java.net.http` and the OpenAI client both honour it. The proxy admits the Azure OpenAI host from `swarm-pay-egress-settings` and, on the hosted gateway, `swarm.decionisedge.com`; it refuses every other host, PayPal by name. A deployment prepared before this change lacks that secret; create it from the endpoint without printing anything:
+
+```sh
+node -e "const {parseEnv}=require('node:util');const e=parseEnv(require('node:fs').readFileSync('.env','utf8'));process.stdout.write(e.AZURE_OPENAI_ENDPOINT||e.AZURE_OPENAI_URL)" \
+  | kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis create secret generic swarm-pay-egress-settings --from-file=AZURE_OPENAI_ENDPOINT=/dev/stdin
+```
+
 ## Hosted AgentSafe endpoints
 
-The user supplied `https://swarm.decionisedge.com` and the existing `https://dci.decionisedge.com`. Verified public TLS probes on October 25 returned `421 HOST_NOT_SERVED` for `swarm`, `401 TENANT_KEY_MISSING` on the `dci` root, and `401 UNAUTHORIZED` on its operator status route. This establishes routing/authentication behavior, not a working SwarmPay payment integration.
+Decided October 25, 2026: SwarmPay uses the shared hosted AgentSafe gateway at `https://swarm.decionisedge.com` instead of a gateway of its own, in enforcement, under the named Decionis policy `swarm-pay-payments`. The fleet forwards to the executor at its own HTTPS host, admitted from the fleet's egress address only (`20.88.59.229`), and the executor still requires its token on every command. Once the gateway enforces, it holds that token in a key vault of the tenant's own and the application holds only the tenant key.
 
-The Decionis hosted-fleet runbook describes shadow-only HTTPS tenants in a separate, unpeered cluster, with public HTTPS upstreams. The current Azure login was denied read access to that fleet's Key Vault registry, so its actual tenant upstream and mode were not read or changed. No gateway key was copied. A shadow gateway cannot replace SwarmPay's enforcement boundary, and the private executor must not be exposed merely to make a hosted upstream reachable.
+It depends on two Decionis changes being live: named policies (a bundle's `policy_id`, resolved by id and newest version, and the gateway key bound to it) and the fleet rollout (the shared host on an AgentSafe build with hosted enforcement, the provisioner's enforcement switch on, and the operator's `swarm` tenant pieces: custody vault, address and pods). Until then the steps below stop at shadow.
 
-Before selecting either endpoint for payment execution, obtain a tenant handoff through the normal hosted provisioning process, verify enforcement capability and the grant/claim contract, and review an authenticated private execution path. Keep the existing `dci` tenant's upstream unchanged unless its owner explicitly approves a move. The current deployment continues to identify its authority as `local/demo`; the hosted Decionis acceptance gate remains open.
+1. **Executor host.** Pick the executor's hostname (for example `swarm-executor.decionis.com`), then render with `hostedGateway` in the target:
+
+   ```json
+   "hostedGateway": {"url": "https://swarm.decionisedge.com", "fleetEgressIp": "20.88.59.229",
+     "executorHost": "swarm-executor.decionis.com", "policyVersion": "swarm-pay-sandbox-v1"}
+   ```
+
+   The render then sets the app's `AGENTSAFE_URL` to the hosted gateway, runs no AgentSafe in the cluster, admits the ingress controller to the executor, and writes `executorIngress.json`: TLS through the existing ClusterIssuer, `whitelist-source-range` to the fleet address, and only `/internal/payments` and `/.well-known/agentsafe-upstream`. Apply it, wait for the certificate, then add the executor's A record to the ingress IP. Confirm the ingress controller sees client addresses (externalTrafficPolicy `Local`); otherwise the allowlist refuses the fleet too, which fails closed.
+2. **Policy.** Publish the named policy with a short-lived administrator key of the SwarmPay workspace, then revoke that key:
+
+   ```sh
+   node demo/connect-decionis.mjs .env --admin-key-file .secrets/decionis-admin-key --hosted
+   ```
+
+3. **Reserve and activate.** In the Decionis workspace's deployments view, reserve the gateway with the company name `Swarm` (the label becomes `swarm`), then activate it with the executor's origin (`https://swarm-executor.decionis.com`). Put the proof token the workspace shows into the executor's secret and restart it:
+
+   ```sh
+   kubectl -n decionis patch secret swarm-pay-payment-secrets --type merge -p "{\"stringData\":{\"AGENTSAFE_UPSTREAM_PROOF\":\"<token>\"}}"
+   kubectl -n decionis rollout restart deployment/swarm-pay-payment-executor
+   ```
+
+   `GET https://swarm-executor.decionis.com/.well-known/agentsafe-upstream` must return the token from the fleet's address and refuse every other address.
+4. **Shadow.** Reveal the tenant key once in the workspace, add it to `swarm-pay-commerce-secrets` as `AGENTSAFE_TENANT_KEY`, and restart the application. In shadow the app still sends the executor token; the executor refuses every command, because a shadow gateway never claims the authority binding the executor requires, so no payment runs. The workspace shows what the policy would have decided.
+5. **Enforcement.** Turn enforcement on in the workspace with header `authorization`, value `Bearer <EXECUTOR_TOKEN>` (the executor token from `swarm-pay-payment-secrets`), and policy id `swarm-pay-payments`. Once the workspace shows the gateway enforcing, remove `EXECUTOR_TOKEN` from `swarm-pay-commerce-secrets` and restart the application: it then sends only `AgentSafe-Tenant-Key`, and the gateway presents the executor token itself.
+6. **Verify** with `SWARM_EXPECTED_AUTHORITY='AgentSafe hosted gateway · Decionis' SWARM_EXPECTED_POLICY_VERSION=swarm-pay-sandbox-v1 node demo/check-deployed.mjs ...`: an allowed checkout returns `FORWARDED` with a dossier, a refused command never reaches the executor, and with the gateway unreachable nothing executes.
+
+Payments stay simulated (`SWARM_MODE=demo`) on this deployment; the authority is real. The PayPal sandbox remains the separate stack in [sandbox setup](sandbox-setup.md).
 
 **Operating limits and rollback**
 

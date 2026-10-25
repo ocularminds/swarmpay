@@ -1,5 +1,6 @@
 {
   "protocol_version": "1.0",
+  "policy_id": "swarm-pay-payments",
   "version": "swarm-pay-sandbox-v1",
   "rules": [
     {

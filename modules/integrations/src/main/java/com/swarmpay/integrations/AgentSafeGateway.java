@@ -11,8 +11,21 @@ public final class AgentSafeGateway implements AuthorityGateway {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).followRedirects(HttpClient.Redirect.NEVER).build();
     private final String base;
     private final String serviceToken;
-    public AgentSafeGateway(String base, String serviceToken) {
-        this.base = base; this.serviceToken = serviceToken;
+    private final String tenantKey;
+    public AgentSafeGateway(String base, String serviceToken) { this(base, serviceToken, null); }
+    /**
+     * A hosted gateway admits this workspace by its tenant key. Once it enforces,
+     * it holds the executor token itself, so the app sends none: a blank token
+     * omits the Authorization header.
+     */
+    public AgentSafeGateway(String base, String serviceToken, String tenantKey) {
+        this.base = base;
+        this.serviceToken = serviceToken == null || serviceToken.isBlank() ? null : serviceToken;
+        this.tenantKey = tenantKey == null || tenantKey.isBlank() ? null : tenantKey;
+        if (base.startsWith("https://") && this.tenantKey == null)
+            throw new IllegalStateException("AGENTSAFE_TENANT_KEY is required for a hosted gateway");
+        if (this.serviceToken == null && this.tenantKey == null)
+            throw new IllegalStateException("EXECUTOR_TOKEN or AGENTSAFE_TENANT_KEY is required");
     }
     @Override public GateResult execute(PaymentCommand command) {
         return exchange(HttpRequest.newBuilder(URI.create(base + "/internal/payments/commands"))
@@ -23,8 +36,10 @@ public final class AgentSafeGateway implements AuthorityGateway {
     }
     private GateResult exchange(HttpRequest.Builder builder, boolean read) {
         try {
-            var response = http.send(builder.timeout(Duration.ofSeconds(40)).header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + serviceToken).build(), HttpResponse.BodyHandlers.ofString());
+            builder.timeout(Duration.ofSeconds(40)).header("Content-Type", "application/json");
+            if (serviceToken != null) builder.header("Authorization", "Bearer " + serviceToken);
+            if (tenantKey != null) builder.header("AgentSafe-Tenant-Key", tenantKey);
+            var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             var h = response.headers();
             String decision = h.firstValue("agentsafe-decision").orElse(null);
             String dossier = h.firstValue("agentsafe-dossier-id").orElse(null);

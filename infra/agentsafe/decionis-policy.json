@@ -1,0 +1,85 @@
+{
+  "protocol_version": "1.0",
+  "version": "swarm-pay-sandbox-v1",
+  "rules": [
+    {
+      "rule_id": "swarm-pay-capture-with-receipt",
+      "name": "Catering capture with a verified receipt digest",
+      "decision_domain": "*",
+      "when": {
+        "all": [
+          { "field": "context.agent_safe.action.type", "operator": "EQ", "value": "payment.execute" },
+          { "field": "context.agent_safe.action.parameters.method", "operator": "EQ", "value": "POST" },
+          { "field": "context.agent_safe.action.parameters.path", "operator": "EQ", "value": "/internal/payments/commands" },
+          { "field": "context.agent_safe.action.parameters.body.merchantId", "operator": "IN", "values": ["tents", "catering"] },
+          { "field": "context.agent_safe.action.parameters.body.currency", "operator": "EQ", "value": "USD" },
+          { "field": "context.agent_safe.action.parameters.body.amountMinor", "operator": "GT", "value": 0 },
+          { "field": "context.agent_safe.action.parameters.body.amountMinor", "operator": "LTE", "value": 150000 },
+          { "field": "context.agent_safe.action.parameters.body.planVersion", "operator": "EQ", "value": 1 },
+          { "field": "context.agent_safe.action.parameters.body.policyVersion", "operator": "EQ", "value": "swarm-pay-sandbox-v1" },
+          { "field": "context.agent_safe.action.parameters.body.reservationId", "operator": "EQ_FACT", "value": "context.agent_safe.action.parameters.body.workflowId" },
+          { "field": "context.agent_safe.action.parameters.body.operation", "operator": "EQ", "value": "CAPTURE_AUTHORIZATION" },
+          { "field": "context.agent_safe.action.parameters.body.evidenceDigest", "operator": "MATCHES", "value": "^[0-9a-f]{64}$" }
+        ]
+      },
+      "then": { "action": "AUTO_APPROVE" },
+      "priority": 400,
+      "enabled": true,
+      "rationale": "A catering capture follows the venue receipt the executor verifies; the digest binds that receipt to the command."
+    },
+    {
+      "rule_id": "swarm-pay-capture-without-receipt",
+      "name": "Catering capture without a receipt digest waits for a person",
+      "decision_domain": "*",
+      "when": {
+        "all": [
+          { "field": "context.agent_safe.action.type", "operator": "EQ", "value": "payment.execute" },
+          { "field": "context.agent_safe.action.parameters.path", "operator": "EQ", "value": "/internal/payments/commands" },
+          { "field": "context.agent_safe.action.parameters.body.merchantId", "operator": "IN", "values": ["tents", "catering"] },
+          { "field": "context.agent_safe.action.parameters.body.currency", "operator": "EQ", "value": "USD" },
+          { "field": "context.agent_safe.action.parameters.body.amountMinor", "operator": "GT", "value": 0 },
+          { "field": "context.agent_safe.action.parameters.body.amountMinor", "operator": "LTE", "value": 150000 },
+          { "field": "context.agent_safe.action.parameters.body.operation", "operator": "EQ", "value": "CAPTURE_AUTHORIZATION" }
+        ]
+      },
+      "then": { "action": "ESCALATE" },
+      "priority": 300,
+      "enabled": true,
+      "rationale": "Releasing held catering funds without delivery evidence needs a person."
+    },
+    {
+      "rule_id": "swarm-pay-approved-payment",
+      "name": "Payment operations inside the approved plan and budget",
+      "decision_domain": "*",
+      "when": {
+        "all": [
+          { "field": "context.agent_safe.action.type", "operator": "EQ", "value": "payment.execute" },
+          { "field": "context.agent_safe.action.parameters.method", "operator": "EQ", "value": "POST" },
+          { "field": "context.agent_safe.action.parameters.path", "operator": "EQ", "value": "/internal/payments/commands" },
+          { "field": "context.agent_safe.action.parameters.body.merchantId", "operator": "IN", "values": ["tents", "catering"] },
+          { "field": "context.agent_safe.action.parameters.body.currency", "operator": "EQ", "value": "USD" },
+          { "field": "context.agent_safe.action.parameters.body.amountMinor", "operator": "GT", "value": 0 },
+          { "field": "context.agent_safe.action.parameters.body.amountMinor", "operator": "LTE", "value": 150000 },
+          { "field": "context.agent_safe.action.parameters.body.planVersion", "operator": "EQ", "value": 1 },
+          { "field": "context.agent_safe.action.parameters.body.policyVersion", "operator": "EQ", "value": "swarm-pay-sandbox-v1" },
+          { "field": "context.agent_safe.action.parameters.body.reservationId", "operator": "EQ_FACT", "value": "context.agent_safe.action.parameters.body.workflowId" },
+          { "field": "context.agent_safe.action.parameters.body.operation", "operator": "IN", "values": ["CREATE_ORDER", "CAPTURE_ORDER", "AUTHORIZE_ORDER", "VOID_AUTHORIZATION"] }
+        ]
+      },
+      "then": { "action": "AUTO_APPROVE" },
+      "priority": 200,
+      "enabled": true,
+      "rationale": "Orders, captures and voids for the two catalogue merchants, in USD, up to the $1,500 plan budget, bound to the reserved workflow."
+    },
+    {
+      "rule_id": "swarm-pay-refuse-everything-else",
+      "name": "Any other payment command is refused",
+      "decision_domain": "*",
+      "when": { "all": [{ "field": "decision_type", "operator": "EXISTS" }] },
+      "then": { "action": "AUTO_REJECT" },
+      "priority": 0,
+      "enabled": true,
+      "rationale": "No rule above matched: another merchant, currency, operation, amount or path never executes."
+    }
+  ]
+}

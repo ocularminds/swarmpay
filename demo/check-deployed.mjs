@@ -30,9 +30,10 @@ const config=await response.json();
 assert.equal(config.mode,'demo','This run must never create a real or PayPal sandbox payment');
 assert.equal(config.aiProvider,'azure');
 assert.equal(config.demoSessionEnabled,false);
-assert.equal(config.authority,'AgentSafe · local test authority');
+// A deployment on the shared hosted gateway asks Decionis while payments stay simulated.
+assert.equal(config.authority,process.env.SWARM_EXPECTED_AUTHORITY??'AgentSafe · local test authority');
 assert.equal(config.receiptIssuer,'demo-venue-fixture');
-assert.equal(config.policyVersion,'swarm-pay-demo-v1');
+assert.equal(config.policyVersion,process.env.SWARM_EXPECTED_POLICY_VERSION??'swarm-pay-demo-v1');
 assert.ok(Object.values(config.clientIds).every(id=>id===''),'No PayPal client should be configured in this demo');
 assert.match(response.headers.get('strict-transport-security')??'',/max-age=[1-9][0-9]+/);
 for(const [header,value] of [['x-content-type-options','nosniff'],['x-frame-options','DENY']]) {

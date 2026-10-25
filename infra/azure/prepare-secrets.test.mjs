@@ -23,6 +23,7 @@ test('bootstrap limits each workload to its credentials, keeps the signer privat
   assert.notEqual(secrets['swarm-pay-commerce-secrets'].DATABASE_PASSWORD,secrets['swarm-pay-payment-secrets'].DATABASE_PASSWORD);
   assert.equal(secrets['swarm-pay-commerce-secrets'].EXECUTOR_TOKEN,secrets['swarm-pay-payment-secrets'].EXECUTOR_TOKEN);
   assert.ok(!JSON.stringify(secrets['swarm-pay-payment-secrets']).includes('AZURE'));
+  assert.deepEqual(secrets['swarm-pay-egress-settings'],{AZURE_OPENAI_ENDPOINT:'https://fixture.openai.azure.com/openai/v1'});
   assert.ok(!JSON.stringify(secrets).includes('must-not-copy'));
   assert.ok(!text.includes('PRIVATE KEY'));
   for(const file of ['secrets.json','venue-private.pem','organizer.env'])assert.equal(statSync(resolve(output,file)).mode&0o077,0);

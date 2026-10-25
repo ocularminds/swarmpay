@@ -23,6 +23,12 @@ public final class RuntimeSettings {
         try { String value=Files.readString(Path.of(file)).strip(); if(value.isEmpty()) throw new IllegalStateException(name+" file is empty"); return value; }
         catch (java.io.IOException e) { throw new IllegalStateException("Cannot read "+name+"_FILE"); }
     }
+    /** A secret that may be absent: null when neither the variable nor its _FILE is set. */
+    public static String optionalSecret(String name) {
+        String direct=System.getenv(name), file=System.getenv(name+"_FILE");
+        if ((direct==null || direct.isBlank()) && (file==null || file.isBlank())) return null;
+        return secret(name);
+    }
     public static Map<String,PayPalPaymentProvider.MerchantAccount> merchants() {
         return Map.of("tents",merchant("TENTS"),"catering",merchant("CATERING"));
     }

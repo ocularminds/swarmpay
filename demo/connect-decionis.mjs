@@ -1,7 +1,15 @@
-// Connects a SwarmPay sandbox stack to Decionis enforcement in one run, with an
-// administrator key the organizer created for this and revokes afterwards:
+// Connects SwarmPay to Decionis enforcement in one run, with an administrator
+// key the organizer created for this and revokes afterwards:
 //
 //   node demo/connect-decionis.mjs .env.sandbox --admin-key-file .secrets/decionis-admin-key
+//   node demo/connect-decionis.mjs .env.sandbox --admin-key-file .secrets/decionis-admin-key --hosted
+//
+// The policy is a named one (`policy_id`), so publishing it never replaces
+// another product's policy in the workspace: Decionis resolves a named policy
+// by its id and newest version, and keeps the workspace default for every
+// request that names none. With --hosted only the policy is published: the
+// shared gateway's key is minted by Decionis, bound to the policy, when the
+// workspace turns enforcement on for swarm.decionisedge.com.
 //
 // 1. Checks the administrator key belongs to DECIONIS_TENANT_ID.
 // 2. Refuses to publish over another product's active policy in that
@@ -29,12 +37,13 @@ const flag = (name) => args.includes(name);
 const adminKeyFile = option('--admin-key-file');
 const project = option('--project') ?? 'swarm-pay-sandbox';
 if (!envFile || !adminKeyFile) {
-  throw new Error('Usage: node demo/connect-decionis.mjs ENV_FILE --admin-key-file FILE [--project NAME] [--replace-org-policy] [--replace-key] [--dry-run]');
+  throw new Error('Usage: node demo/connect-decionis.mjs ENV_FILE --admin-key-file FILE [--hosted] [--project NAME] [--replace-org-policy] [--replace-key] [--dry-run]');
 }
 
 const envText = readFileSync(envFile, 'utf8');
 const env = Object.fromEntries(envText.split('\n').map((line) => /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line)).filter(Boolean).map((m) => [m[1], m[2]]));
-if (env.SWARM_MODE !== 'sandbox') throw new Error(`${envFile} is not a sandbox configuration (SWARM_MODE=sandbox)`);
+const hosted = flag('--hosted');
+if (!hosted && env.SWARM_MODE !== 'sandbox') throw new Error(`${envFile} is not a sandbox configuration (SWARM_MODE=sandbox)`);
 const org = env.DECIONIS_TENANT_ID;
 if (!/^[0-9a-f-]{36}$/i.test(org ?? '')) throw new Error('DECIONIS_TENANT_ID must be the workspace id');
 const adminKey = readFileSync(adminKeyFile, 'utf8').trim();
@@ -64,22 +73,33 @@ const bundles = Array.isArray(listed?.bundles) ? listed.bundles : [];
 const now = Date.now();
 const active = bundles.filter((bundle) => (bundle.lifecycle_state ?? 'ACTIVE') === 'ACTIVE'
   && (!bundle.effective_to || Date.parse(bundle.effective_to) > now));
-const foreign = active.filter((bundle) => !String(bundle.version ?? '').startsWith('swarm-pay-'));
-report.active_bundles_before = active.map((bundle) => bundle.version);
+const named = typeof template.policy_id === 'string' && template.policy_id !== '';
+const policyOf = (bundle) => bundle.policy_id ?? bundle.payload?.policy_id ?? null;
+// A named policy sits beside the workspace default; only an unnamed one would replace it.
+const foreign = named ? [] : active.filter((bundle) => !policyOf(bundle) && !String(bundle.version ?? '').startsWith('swarm-pay-'));
+report.active_bundles_before = active.map((bundle) => (policyOf(bundle) ? `${policyOf(bundle)}@${bundle.version}` : bundle.version));
 if (foreign.length > 0 && !flag('--replace-org-policy')) {
   throw new Error(`This workspace already enforces ${foreign.map((b) => b.version).join(', ')}. Publishing SwarmPay's policy would replace it for every product here. Use a dedicated workspace, or pass --replace-org-policy if that is intended.`);
 }
-const published = active.find((bundle) => bundle.version === template.version);
+const published = active.find((bundle) => bundle.version === template.version && policyOf(bundle) === (template.policy_id ?? null));
 if (flag('--dry-run')) {
-  console.log(JSON.stringify({ ...report, would_publish: published ? null : template.version, would_mint: 'MEMBER decision:enforce' }, null, 1));
+  console.log(JSON.stringify({ ...report, would_publish: published ? null : `${template.policy_id ?? '(default)'}@${template.version}`,
+    would_mint: hosted ? 'nothing: Decionis mints the hosted gateway key' : `MEMBER decision:enforce bound to ${template.policy_id ?? 'the default policy'}` }, null, 1));
   process.exit(0);
 }
 if (published) {
-  report.policy = { version: template.version, bundle_id: published.bundle_id, published: 'already active' };
+  report.policy = { policy_id: template.policy_id ?? null, version: template.version, bundle_id: published.bundle_id, published: 'already active' };
 } else {
   const bundle = { ...template, bundle_id: randomUUID(), org_id: org, effective_from: new Date(Date.now() - 60_000).toISOString() };
   await call('POST', '/v1/protocol/policies/bundles', adminKey, bundle);
-  report.policy = { version: template.version, bundle_id: bundle.bundle_id, published: 'now' };
+  report.policy = { policy_id: template.policy_id ?? null, version: template.version, bundle_id: bundle.bundle_id, published: 'now' };
+}
+
+if (hosted) {
+  report.next = 'Turn enforcement on for swarm.decionisedge.com in the workspace with policy id ' +
+    `${template.policy_id} and header authorization; then revoke the administrator key.`;
+  console.log(JSON.stringify(report, null, 1));
+  process.exit(0);
 }
 
 const keyPath = resolve(root, '.secrets/decionis-api-key');
@@ -90,11 +110,14 @@ if (existsSync(keyPath) && readFileSync(keyPath, 'utf8').trim() && !flag('--repl
     name: `${project}-gateway`,
     description: 'SwarmPay sandbox AgentSafe gateway: enforcement evaluations and grant claims only',
     role: 'MEMBER', scopes: ['decision:enforce'], provision_default_policy: false,
+    ...(named ? { policy_id: template.policy_id } : {}),
   });
   writeFileSync(keyPath, `${minted.raw_key}\n`, { mode: 0o600 });
   const check = await call('POST', '/v1/auth/credential-context', minted.raw_key, {});
   if (check.org_id !== org || check.scopes.join() !== 'decision:enforce') throw new Error('The minted gateway key is not the narrow enforcement key; revoke it in the workspace');
-  report.gateway_key = { id: minted.api_key?.id, role: check.role, scopes: check.scopes };
+  // A key Decionis did not bind to the named policy would decide under the workspace default.
+  if (named && check.policy_id !== template.policy_id) throw new Error(`The minted gateway key is not bound to ${template.policy_id}; this Decionis does not support named policies yet. Revoke the key in the workspace`);
+  report.gateway_key = { id: minted.api_key?.id, role: check.role, scopes: check.scopes, policy_id: check.policy_id ?? null };
   const installed = spawnSync(process.execPath, [resolve(root, 'demo/install-authority-key.mjs'), keyPath, project, '--replace'], { encoding: 'utf8' });
   if (installed.status !== 0) throw new Error(`Installing the gateway key failed: ${installed.stderr.trim()}`);
   report.installed_into = `${project}_authority-key`;

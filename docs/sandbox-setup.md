@@ -107,9 +107,9 @@ The commerce application, which runs the agents, sits on internal Docker network
 
 **Hosted Decionis enforcement**
 
-Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient. Decionis evaluates a workspace against its newest active policy bundle only, so use a workspace dedicated to SwarmPay: publishing SwarmPay's policy into a workspace other products enforce in would replace their rules.
+Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient.
 
-The policy is [`infra/agentsafe/decionis-policy.json`](../infra/agentsafe/decionis-policy.json), version `swarm-pay-sandbox-v1`. It mirrors the local fixture: `payment.execute` for the two catalogue merchants in USD, up to $1,500, for the five known operations, bound to plan version 1, the policy version and the reserved workflow; a catering capture without a 64-hex receipt digest escalates; anything else is refused.
+The policy is [`infra/agentsafe/decionis-policy.json`](../infra/agentsafe/decionis-policy.json), named `swarm-pay-payments`, version `swarm-pay-sandbox-v1`. A named policy sits beside any other policy in the workspace: Decionis resolves it by its id and newest version for a request (or a gateway key) that names it, and keeps the workspace default for everything else, so publishing it replaces nobody's rules. Decionis accepts `policy_id` once its named-policies change is live; until then the publish is refused, and nothing changes. It mirrors the local fixture: `payment.execute` for the two catalogue merchants in USD, up to $1,500, for the five known operations, bound to plan version 1, the policy version and the reserved workflow; a catering capture without a 64-hex receipt digest escalates; anything else is refused.
 
 Create a short-lived administrator key in that workspace, save it as `.secrets/decionis-admin-key`, set `DECIONIS_TENANT_ID` in `.env.sandbox`, and run:
 
@@ -117,7 +117,9 @@ Create a short-lived administrator key in that workspace, save it as `.secrets/d
 node demo/connect-decionis.mjs .env.sandbox --admin-key-file .secrets/decionis-admin-key
 ```
 
-It checks the key belongs to that workspace, refuses to publish over another product's active policy (`--replace-org-policy` overrides), publishes the bundle, mints the gateway's own key (role `MEMBER`, scope `decision:enforce` only, never `policy:write`), writes it to `.secrets/decionis-api-key` and installs it into the sandbox project's volume, then sets `DECIONIS_POLICY_VERSION`. It prints ids, scopes and versions, never a key. `--dry-run` shows what it would do. Revoke the administrator key in the workspace afterwards.
+It checks the key belongs to that workspace, publishes the bundle (an unnamed one only after confirming it replaces no other product's policy; `--replace-org-policy` overrides), mints the gateway's own key (role `MEMBER`, scope `decision:enforce` only, never `policy:write`, bound to `swarm-pay-payments`), refuses a key Decionis did not bind, writes it to `.secrets/decionis-api-key` and installs it into the sandbox project's volume, then sets `DECIONIS_POLICY_VERSION`.
+
+For the shared hosted gateway at `swarm.decionisedge.com`, add `--hosted`: it publishes the policy only, because Decionis mints the hosted gateway's key, bound to the policy, when the workspace turns enforcement on. The hosted steps are in [Azure hosting](azure-hosting.md#hosted-agentsafe-endpoints). It prints ids, scopes and versions, never a key. `--dry-run` shows what it would do. Revoke the administrator key in the workspace afterwards.
 
 To manage the key yourself instead, store it in a private local file, normally `.secrets/decionis-api-key`, and set `DECIONIS_KEY_HOST_FILE` if using a different source path.
 

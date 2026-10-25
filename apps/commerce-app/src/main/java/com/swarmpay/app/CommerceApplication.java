@@ -37,7 +37,10 @@ public class CommerceApplication {
     @Bean ReceiptVerifier receiptVerifier(Clock clock) throws Exception {
         return new ReceiptVerifier(ReceiptVerifier.publicKey(Files.readString(Path.of(RuntimeSettings.required("VENUE_PUBLIC_KEY_FILE")))),RuntimeSettings.required("VENUE_ISSUER"),clock);
     }
-    @Bean AuthorityGateway authority() { return new AgentSafeGateway(RuntimeSettings.required("AGENTSAFE_URL"),RuntimeSettings.secret("EXECUTOR_TOKEN")); }
+    @Bean AuthorityGateway authority() {
+        return new AgentSafeGateway(RuntimeSettings.required("AGENTSAFE_URL"),RuntimeSettings.optionalSecret("EXECUTOR_TOKEN"),
+            RuntimeSettings.optionalSecret("AGENTSAFE_TENANT_KEY"));
+    }
     @Bean ToolCallbackProvider commerceTools(WorkflowService workflows) {
         return MethodToolCallbackProvider.builder().toolObjects(new CommerceTools(workflows.forAgent(RuntimeSettings.required("ORGANIZER_USERNAME")))).build();
     }

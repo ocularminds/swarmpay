@@ -8,7 +8,7 @@ const base=JSON.parse(readFileSync(new URL('./target.json',import.meta.url),'utf
 const target={...base,ingressClass:'fixture-nginx',ingressNamespace:'fixture-ingress',
   ingressPodLabels:{'app.kubernetes.io/name':'ingress-nginx','app.kubernetes.io/component':'controller'},clusterIssuer:'fixture-dns01',certificateChallenge:'dns01'};
 const key=generateKeyPairSync('ed25519').publicKey.export({type:'spki',format:'pem'});
-const images=Object.fromEntries(['web','commerce-app','payment-executor','agentsafe'].map(component=>[component,`${target.registry}/swarm-pay/${component}@sha256:${'a'.repeat(64)}`]));
+const images=Object.fromEntries(['web','commerce-app','payment-executor','agentsafe','egress'].map(component=>[component,`${target.registry}/swarm-pay/${component}@sha256:${'a'.repeat(64)}`]));
 
 test('unverified ingress and mutable images cannot produce a deployment',()=>{
   assert.throws(()=>render({...target,ingressClass:''},images,key),/verified/);
@@ -80,9 +80,9 @@ test('every runtime starts without root, Kubernetes credentials or a writable im
 
 test('the rendered policy permits the workflow and rejects private bypasses, cross-namespace traffic and metadata access',()=>{
   const policies=render(target,images,key).networkPolicies.items;
-  assert.equal(policies.length,6);
+  assert.equal(policies.length,7);
   const pod=(component,namespace=target.namespace,ip='10.48.1.2')=>({namespace,ip,labels:{'app.kubernetes.io/part-of':'swarm-pay','app.kubernetes.io/component':component}});
-  const app=pod('commerce-app'),executor=pod('payment-executor'),gate=pod('agentsafe'),db=pod('postgres'),web=pod('web');
+  const app=pod('commerce-app'),executor=pod('payment-executor'),gate=pod('agentsafe'),db=pod('postgres'),web=pod('web'),egress=pod('egress');
   const ingress={namespace:target.ingressNamespace,ip:'10.48.2.2',labels:target.ingressPodLabels};
   assert.ok(allowed(ingress,web,8080,policies));
   assert.ok(allowed(web,app,8080,policies));
@@ -103,11 +103,62 @@ test('the rendered policy permits the workflow and rejects private bypasses, cro
   assert.ok(allowed(coreWeb,core,8080,policies),'Existing namespace traffic is unaffected');
   assert.equal(allowed(core,executor,8081,policies),false);assert.equal(allowed(core,db,5432,policies),false);
   const internet={namespace:null,ip:'20.1.2.3',labels:{}};
-  assert.ok(allowed(app,internet,443,policies));
+  // The agent reaches nothing outside the cluster directly, PayPal included;
+  // its HTTPS goes through the egress proxy, which alone reaches the internet.
+  assert.equal(allowed(app,internet,443,policies),false);
+  assert.equal(allowed(app,{namespace:null,ip:'151.101.1.21',labels:{}},443,policies),false,'api-m.paypal.com and every public host');
+  assert.ok(allowed(app,egress,3128,policies));
+  assert.ok(allowed(egress,internet,443,policies));
+  assert.equal(allowed(egress,internet,80,policies),false);
+  assert.equal(allowed(web,egress,3128,policies),false);
+  assert.equal(allowed(executor,egress,3128,policies),false);
   assert.equal(allowed(app,internet,80,policies),false);
   assert.equal(allowed(web,internet,443,policies),false);
   for(const ip of ['169.254.169.254','168.63.129.16','10.64.0.1','172.16.0.2','192.168.0.2'])
-    assert.equal(allowed(app,{namespace:null,ip,labels:{}},443,policies),false);
+    for(const from of [app,egress])assert.equal(allowed(from,{namespace:null,ip,labels:{}},443,policies),false);
+});
+
+test('the egress proxy gets its model host from its own secret and the app sends HTTPS through it',()=>{
+  const items=render(target,images,key).privateResources.items;
+  const pod=name=>items.find(i=>i.kind==='Deployment'&&i.metadata.name===name).spec.template.spec.containers[0];
+  const proxy=pod('swarm-pay-egress');
+  assert.deepEqual(proxy.envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-egress-settings']);
+  assert.equal(proxy.image,images.egress);
+  const tool=pod('swarm-pay-commerce-app').env.find(e=>e.name==='JAVA_TOOL_OPTIONS').value;
+  assert.match(tool,/-Dhttps\.proxyHost=swarm-pay-egress\.decionis\.svc\.cluster\.local -Dhttps\.proxyPort=3128/);
+  assert.match(tool,/\*\.svc\.cluster\.local/);
+  assert.ok(items.some(i=>i.kind==='Service'&&i.metadata.name==='swarm-pay-egress'&&i.spec.ports[0].port===3128));
+});
+
+test('hosted mode fronts the executor for the fleet alone and runs no gateway in the cluster',()=>{
+  const hostedGateway={url:'https://swarm.decionisedge.com',fleetEgressIp:'20.88.59.229',executorHost:'swarm-executor.decionis.com',policyVersion:'swarm-pay-sandbox-v1'};
+  const {agentsafe:_unused,...withoutGateway}=images;
+  const bundle=render({...target,hostedGateway},withoutGateway,key),items=bundle.privateResources.items,policies=bundle.networkPolicies.items;
+  assert.ok(!items.some(i=>i.metadata.name==='swarm-pay-agentsafe'||i.metadata.name==='swarm-pay-authority-evidence'));
+  assert.ok(!policies.some(p=>p.metadata.name==='swarm-pay-agentsafe'));
+  const env=name=>items.find(i=>i.kind==='Deployment'&&i.metadata.name===name).spec.template.spec.containers[0].env;
+  assert.equal(env('swarm-pay-commerce-app').find(e=>e.name==='AGENTSAFE_URL').value,'https://swarm.decionisedge.com');
+  assert.deepEqual(env('swarm-pay-egress'),[{name:'EGRESS_ALLOW_HOSTS',value:'swarm.decionisedge.com'}]);
+  assert.equal(items.find(i=>i.kind==='ConfigMap'&&i.metadata.name==='swarm-pay-runtime').data.DECIONIS_POLICY_VERSION,'swarm-pay-sandbox-v1');
+  const ingress=bundle.executorIngress;
+  assert.equal(ingress.metadata.name,'swarm-pay-executor');
+  assert.equal(ingress.metadata.annotations['nginx.ingress.kubernetes.io/whitelist-source-range'],'20.88.59.229/32');
+  assert.deepEqual(ingress.spec.tls,[{hosts:['swarm-executor.decionis.com'],secretName:'swarm-pay-executor-tls'}]);
+  assert.deepEqual(ingress.spec.rules[0].http.paths.map(p=>[p.path,p.pathType,p.backend.service.name]),
+    [['/internal/payments','Prefix','swarm-pay-payment-executor'],['/.well-known/agentsafe-upstream','Exact','swarm-pay-payment-executor']]);
+  const pod=(component)=>({namespace:target.namespace,ip:'10.48.1.2',labels:{'app.kubernetes.io/part-of':'swarm-pay','app.kubernetes.io/component':component}});
+  const controller={namespace:target.ingressNamespace,ip:'10.48.2.2',labels:target.ingressPodLabels};
+  assert.ok(allowed(controller,pod('payment-executor'),8081,policies));
+  assert.equal(allowed(pod('commerce-app'),pod('payment-executor'),8081,policies),false);
+  assert.ok(allowed(pod('commerce-app'),pod('egress'),3128,policies));
+  assert.equal(allowed(pod('commerce-app'),{namespace:null,ip:'20.98.51.136',labels:{}},443,policies),false,'the gateway is reached through the proxy only');
+  // The public site is unchanged, and the executor host is not the public host.
+  assert.deepEqual(bundle.ingress.spec.rules.map(r=>r.host),['swarm.decionis.com']);
+  for(const invalid of [{...hostedGateway,url:'http://swarm.decionisedge.com'},{...hostedGateway,url:'https://swarm.example.com'},
+    {...hostedGateway,fleetEgressIp:'10.0.0.1/8'},{...hostedGateway,executorHost:'swarm.decionis.com'},{...hostedGateway,executorHost:'bad host'},{...hostedGateway,policyVersion:''}])
+    assert.throws(()=>render({...target,hostedGateway:invalid},withoutGateway,key),/hosted gateway|fleet egress|executor hostname|policyVersion/);
+  // Without hostedGateway the in-cluster gateway is still required.
+  assert.throws(()=>render(target,withoutGateway,key),/agentsafe/);
 });
 
 // Evaluate the standard pod-selector, namespace-selector and IPv4 peer rules

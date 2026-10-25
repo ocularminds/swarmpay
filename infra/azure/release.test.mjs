@@ -21,7 +21,7 @@ function fixture(t) {
   const write=(file,text)=>{mkdirSync(resolve(repo,file,'..'),{recursive:true});writeFileSync(resolve(repo,file),text);};
   write('.gitignore','.local/\n.env\n');
   write('.gitattributes','* text=auto eol=lf\n*.bat text eol=crlf\n');
-  for(const file of ['apps/web/Dockerfile','infra/java.Dockerfile','infra/agentsafe/Dockerfile'])write(file,'FROM scratch\n');
+  for(const file of ['apps/web/Dockerfile','infra/java.Dockerfile','infra/agentsafe/Dockerfile','infra/egress/Dockerfile'])write(file,'FROM scratch\n');
   write('gradlew','#!/bin/sh\nexit 0\n');chmodSync(resolve(repo,'gradlew'),0o755);
   write('gradlew.bat','@rem Committed with LF\nexit 0\n');
   write('fixture.bin',Buffer.from([0,255,128,10,13,0]));
@@ -54,8 +54,8 @@ test('the uploaded context comes from Git, preserves executable files, and exclu
   assert.ok(!existsSync(resolve(f.output,'context/source/.env')));assert.ok(!existsSync(resolve(f.output,'context/source/.local')));
   assert.equal(release.files.find(file=>file.path==='source/gradlew').mode,0o755);
   const task=JSON.parse(readFileSync(resolve(f.output,'context/task.yaml'),'utf8'));
-  assert.ok(task.env.includes('DOCKER_BUILDKIT=1'));assert.equal(task.steps.length,5);
-  assert.equal(task.steps[4].push.length,4);assert.ok(task.steps[0].build.includes(`org.opencontainers.image.revision=${f.sha}`));
+  assert.ok(task.env.includes('DOCKER_BUILDKIT=1'));assert.equal(task.steps.length,6);
+  assert.equal(task.steps[5].push.length,5);assert.ok(task.steps[0].build.includes(`org.opencontainers.image.revision=${f.sha}`));
   for(const step of task.steps.filter(s=>s.build))assert.ok(existsSync(resolve(f.output,'context',step.build.split(' -f ')[1].split(' ')[0])));
   assert.throws(()=>prepareRelease(f.sha,f.output,{repo:f.repo}),/preserved/);
 });
@@ -118,12 +118,12 @@ test('an explicit Azure authorization refusal remains rejected without resubmiss
   assert.equal(adapter.calls.filter(c=>c.args[1]==='run').length,1);assert.equal(existsSync(resolve(f.output,'images.json')),false);
 });
 
-test('a build only yields deployable images when all four run identities and registry digests agree',t=>{
+test('a build only yields deployable images when all five run identities and registry digests agree',t=>{
   const f=fixture(t);prepareRelease(f.sha,f.output,{repo:f.repo});const release=submitRelease(f.output,cloud(f));
   const result=complete(release),adapter=cloud(f,{result});
   const completeRelease=collectRelease(f.output,adapter);assert.equal(completeRelease.state,'PUBLISHED');
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(resolve(f.output,'images.json')))),components);
-  assert.equal(adapter.calls.filter(c=>c.args[1]==='repository').length,4);
+  assert.equal(adapter.calls.filter(c=>c.args[1]==='repository').length,5);
   const wrong=cloud(f,{result,registryDigest:`sha256:${'f'.repeat(64)}`});assert.throws(()=>collectRelease(f.output,wrong),/Registry manifest/);
   for(const change of [
     r=>r.status='Running',r=>r.platform.architecture='arm64',r=>r.outputImages.pop(),

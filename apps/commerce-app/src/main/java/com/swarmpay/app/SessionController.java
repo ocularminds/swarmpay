@@ -1,6 +1,7 @@
 package com.swarmpay.app;
 
 import com.swarmpay.domain.CommerceException;
+import com.swarmpay.agents.AstraSettings;
 import com.swarmpay.integrations.RuntimeSettings;
 import jakarta.servlet.http.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -15,7 +16,8 @@ import java.util.*;
 @RestController
 class SessionController {
     private final String mode;
-    SessionController(String runtimeMode) { mode=runtimeMode; }
+    private final AstraSettings ai;
+    SessionController(String runtimeMode,AstraSettings ai) { mode=runtimeMode;this.ai=ai; }
     @GetMapping("/api/session") Map<String,Object> session(Authentication auth,CsrfToken csrf) {
         boolean signed=auth!=null && auth.isAuthenticated() && auth.getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_HUMAN"));
         return Map.of("authenticated",signed,"username",signed?auth.getName():"","csrfToken",csrf.getToken(),"csrfHeader",csrf.getHeaderName());
@@ -31,7 +33,7 @@ class SessionController {
         return Map.of("mode","demo");
     }
     @GetMapping("/api/config") Map<String,Object> config() {
-        return Map.of("mode",mode,"aiProvider","demo","model","Simulated agent roles",
+        return Map.of("mode",mode,"aiProvider",ai.provider(),"model",ai.source(),
             "authority",mode.equals("demo")?"AgentSafe · local test authority":"AgentSafe · Decionis",
             "catalogSource","Curated demo catalog","receiptIssuer",RuntimeSettings.required("VENUE_ISSUER"),
             "clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID","")),

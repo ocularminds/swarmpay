@@ -2,7 +2,7 @@
 
 Give agents a budget. Pay merchants only on agreed terms.
 
-Phase 2 adds guarded payment use cases to the authenticated foundation. A reviewed plan reserves its whole budget, creates separate tent/catering orders, captures tents, authorizes catering, and captures catering after an admitted Ed25519 receipt. Every payment command passes through the published AgentSafe gateway and the private Java executor. Durable identities, provider binding, outbox/reconciliation, dispute freeze and gated void behavior are included.
+Phase 3 adds Azure OpenAI intent extraction, sourcing/risk roles and the responsive organizer journey. The configured GPT-6 Astra deployment completed three real Responses calls in 18.1 seconds: typed intent and two assessments. The live check created only a draft and no payment command. Strict wire schemas and local validation avoid the OpenAI/Spring AI schema-generator conflict; regression tests use the full application classpath.
 
 Use Node.js 22.23.2 and Docker Compose:
 
@@ -10,13 +10,12 @@ Use Node.js 22.23.2 and Docker Compose:
 node demo/setup.mjs
 node demo/doctor.mjs
 docker compose up --build -d --wait
-node demo/smoke.mjs
-node demo/check-isolation.mjs
-node demo/verify-java.mjs
 ```
 
-The smoke test exercises the full REST/MCP payment lifecycle, concurrent retries, a photo-only hold, altered receipt rejection and a single milestone capture. The web remains the foundation catalog shell until Phase 3. [Wire contracts and endpoints](contracts/README.md) describe the workflow API and seven MCP tools. Human approval is not an agent tool.
+Open [localhost:5173](http://localhost:5173). Describe the event, confirm rentals, review the two merchants and budget, approve the exact plan, complete two simulated checkouts, then upload a signed venue receipt. Tents are paid at checkout; catering is authorized until the receipt passes. A photo alone stays held. The UI identifies synthetic payments and the actual AI source independently.
 
-The local authority, payment responses, catalog and advisory roles are explicitly synthetic. PayPal Java SDK and webhook adapters compile and are covered by binding tests, but real two-seller sandbox approvals and hosted Decionis enforcement/signature/Presence validation remain outstanding. This phase's PR stays draft until those external acceptance gates pass. Azure and the complete organizer UI arrive in the next stacked PR.
+The default fresh configuration uses synthetic AI as well. For Azure, set the private Azure key, HTTPS resource/v1 endpoint, deployment and `SWARM_AI_PROVIDER=azure` as described in [account setup](docs/sandbox-setup.md). `node demo/check-azure.mjs` makes three bounded live calls with simulated payments. It never approves funds. There is no model/provider fallback.
 
-Credentials, logs and generated evidence stay outside Git. `docker compose down` stops the stack without deleting records. Apache-2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+For fixture verification, use `SWARM_AI_PROVIDER=demo docker compose up -d --wait commerce-app`, then `node demo/smoke.mjs`, `node demo/verify-java.mjs` and the Playwright suite in `apps/web`. Use `docker compose up -d --wait commerce-app` afterward to restore the configured AI provider. Local verification includes 34 Java tests and two desktop/mobile browser journeys.
+
+Native PayPal sandbox and hosted Decionis acceptance checks remain incomplete. This stacked PR is draft until the payment phase supplies that account-backed organizer journey. [API/MCP reference](contracts/README.md). Apache-2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE).

@@ -33,7 +33,7 @@ jobs:
           cache-dependency-path: |
             apps/web/package-lock.json
             infra/agentsafe/package-lock.json
-      - name: Build and test the Java foundation
+      - name: Java invariants and PostgreSQL recovery tests
         run: ./gradlew verify --no-daemon --console=plain
       - name: Build the web application
         run: |
@@ -51,11 +51,16 @@ jobs:
           node demo/setup.mjs
           node demo/doctor.mjs
           docker compose up --build -d --wait --wait-timeout 240
-      - name: Exercise authenticated discovery and isolation
+      - name: Exercise REST, MCP and isolation
         run: |
-          node demo/check-foundation.mjs
           node demo/smoke.mjs
           node demo/check-isolation.mjs
+      - name: Install the test browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Verify desktop and mobile journeys
+        working-directory: apps/web
+        run: npm run test:e2e
       - name: Retain test reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

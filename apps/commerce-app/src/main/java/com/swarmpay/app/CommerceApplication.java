@@ -29,7 +29,10 @@ public class CommerceApplication {
     @Bean org.springframework.boot.ApplicationRunner bindMode(DataSource db,String runtimeMode) {
         return args -> RuntimeBinding.verify(db,"commerce",runtimeMode);
     }
-    @Bean AgentPlanner planner() { return new DemoPlanner(); }
+    @Bean AstraSettings aiSettings() { return AstraSettings.fromEnvironment(System.getenv()); }
+    @Bean AgentPlanner planner(AstraSettings settings,Clock clock) {
+        return settings.provider().equals("demo")?new DemoPlanner():new AstraPlanner(settings,clock);
+    }
     @Bean IntentInterpreter interpreter(AgentPlanner planner) { return planner instanceof IntentInterpreter interpreter?interpreter:new DemoInterpreter(); }
     @Bean ReceiptVerifier receiptVerifier(Clock clock) throws Exception {
         return new ReceiptVerifier(ReceiptVerifier.publicKey(Files.readString(Path.of(RuntimeSettings.required("VENUE_PUBLIC_KEY_FILE")))),RuntimeSettings.required("VENUE_ISSUER"),clock);

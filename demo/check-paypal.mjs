@@ -12,14 +12,24 @@ export const webhookEvents=Object.freeze([
 ]);
 
 // No payment endpoints, redirects, callback probes or credential values in the report.
-export async function checkPayPalSandbox(env,{fetchImpl=fetch,merchants=['tents','catering']}={}) {
+export async function checkPayPalSandbox(env,{fetchImpl=fetch,merchants=['tents','catering'],callbackOrigin}={}) {
   if(!merchants.length || merchants.some(name=>!['tents','catering'].includes(name)) || new Set(merchants).size!==merchants.length)
     throw new Error('Select tents, catering, or both merchants.');
+  let expectedOrigin=null;
+  if(callbackOrigin!==undefined) {
+    try {
+      const url=new URL(callbackOrigin);
+      if(url.protocol!=='https:' || url.username || url.password || url.pathname!=='/' || url.search || url.hash)
+        throw new Error();
+      expectedOrigin=url.origin;
+    } catch { throw new Error('The expected callback origin must be an HTTPS origin without credentials, a path, query or fragment.'); }
+  }
   const results=await Promise.all(merchants.map(async merchant=>{
     const prefix=`PAYPAL_${merchant.toUpperCase()}_`;
     const value=suffix=>env[prefix+suffix]?.trim()??'';
     const result={merchant,missingFields:['CLIENT_ID','CLIENT_SECRET','MERCHANT_ID','WEBHOOK_ID'].filter(name=>!value(name)).map(name=>prefix+name),
-      authentication:'NOT_CHECKED',webhooks:'NOT_CHECKED',webhookCount:null,subscriptionMatches:false,callbackRouteMatches:false,configurationReady:false};
+      authentication:'NOT_CHECKED',webhooks:'NOT_CHECKED',webhookCount:null,subscriptionMatches:false,callbackRouteMatches:false,
+      callbackOriginMatches:expectedOrigin===null?null:false,configurationReady:false};
     if(!value('CLIENT_ID') || !value('CLIENT_SECRET')) return result;
     const options={redirect:'error'};
     try {
@@ -47,11 +57,13 @@ export async function checkPayPalSandbox(env,{fetchImpl=fetch,merchants=['tents'
         result.subscriptionMatches=events.has('*') || webhookEvents.every(event=>events.has(event));
         try {
           const url=new URL(hook.url);
-          result.callbackRouteMatches=url.protocol==='https:' && url.pathname===`/paypal/webhooks/${merchant}`
+          result.callbackRouteMatches=url.protocol==='https:' && url.pathname===`/webhooks/paypal/${merchant}`
             && !url.username && !url.password && !url.search && !url.hash;
+          if(expectedOrigin!==null) result.callbackOriginMatches=url.origin===expectedOrigin;
         } catch { /* An invalid callback is reported without echoing its contents. */ }
       }
-      result.configurationReady=!result.missingFields.length && result.subscriptionMatches && result.callbackRouteMatches;
+      result.configurationReady=!result.missingFields.length && result.subscriptionMatches && result.callbackRouteMatches
+        && result.callbackOriginMatches!==false;
     } catch {
       if(result.authentication!=='VERIFIED') result.authentication='UNAVAILABLE';
       else result.webhooks='UNAVAILABLE';
@@ -61,25 +73,28 @@ export async function checkPayPalSandbox(env,{fetchImpl=fetch,merchants=['tents'
   const tentId=env.PAYPAL_TENTS_MERCHANT_ID?.trim(), cateringId=env.PAYPAL_CATERING_MERCHANT_ID?.trim();
   const distinctMerchants=merchants.length===2 ? !!tentId && !!cateringId && tentId!==cateringId
     && env.PAYPAL_TENTS_CLIENT_ID?.trim()!==env.PAYPAL_CATERING_CLIENT_ID?.trim() : null;
-  return {at:new Date().toISOString(),environment:'PAYPAL_SANDBOX',readOnly:true,merchants:results,distinctMerchants,
+  return {at:new Date().toISOString(),environment:'PAYPAL_SANDBOX',readOnly:true,merchants:results,distinctMerchants,callbackOriginChecked:expectedOrigin!==null,
     configurationReady:results.every(r=>r.configurationReady) && distinctMerchants!==false,
-    merchantOwnership:'NOT_VERIFIED',paymentLifecycle:'NOT_TESTED',hostedAuthority:'NOT_TESTED',paymentRequestsSent:0};
+    merchantOwnership:'NOT_VERIFIED',paymentLifecycle:'NOT_TESTED',webhookDelivery:'NOT_TESTED',hostedAuthority:'NOT_TESTED',paymentRequestsSent:0};
 }
 
+const usage='Usage: node demo/check-paypal.mjs [environment-file] [--merchant tents|catering] [--callback-origin https://host]';
 async function main() {
   const args=process.argv.slice(2);
   const envPath=resolve(root,args[0]&&!args[0].startsWith('--')?args.shift():'.env');
-  let merchants;
-  if(args.length) {
-    if(args.length!==2 || args[0]!=='--merchant' || !['tents','catering'].includes(args[1]))
-      throw new Error('Usage: node demo/check-paypal.mjs [environment-file] [--merchant tents|catering]');
-    merchants=[args[1]];
+  let merchants,callbackOrigin;
+  while(args.length) {
+    const option=args.shift(),value=args.shift();
+    if(option==='--merchant' && merchants===undefined && ['tents','catering'].includes(value)) merchants=[value];
+    else if(option==='--callback-origin' && callbackOrigin===undefined && value && !value.startsWith('--')) callbackOrigin=value;
+    else throw new Error(usage);
   }
-  const report=await checkPayPalSandbox(parseEnv(readFileSync(envPath,'utf8')),{merchants});
+  const report=await checkPayPalSandbox(parseEnv(readFileSync(envPath,'utf8')),{merchants,callbackOrigin});
   for(const merchant of report.merchants) {
     console.log(`${merchant.authentication==='VERIFIED'?'PASS':'PENDING'}: ${merchant.merchant} sandbox authentication (${merchant.authentication})`);
     if(merchant.missingFields.length) console.log(`PENDING: configure ${merchant.missingFields.join(', ')}`);
-    console.log(`${merchant.subscriptionMatches && merchant.callbackRouteMatches?'PASS':'PENDING'}: ${merchant.merchant} callback subscription (${merchant.webhookCount??'unknown'} webhooks registered)`);
+    console.log(`${merchant.subscriptionMatches && merchant.callbackRouteMatches && merchant.callbackOriginMatches!==false?'PASS':'PENDING'}: ${merchant.merchant} callback subscription (${merchant.webhookCount??'unknown'} webhooks registered)`);
+    if(report.callbackOriginChecked) console.log(`${merchant.callbackOriginMatches?'PASS':'PENDING'}: ${merchant.merchant} callback origin matches the requested host`);
   }
   if(report.distinctMerchants===false) console.log('PENDING: two distinct seller accounts and apps are required.');
   const path=resolve(root,'.local/paypal-preflight.json');
@@ -91,5 +106,5 @@ async function main() {
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   try { await main(); }
-  catch { console.error('PayPal preflight could not run. Check the local file path and usage: node demo/check-paypal.mjs [environment-file] [--merchant tents|catering]'); process.exitCode=1; }
+  catch { console.error(`PayPal preflight could not run. Check the local file path and arguments. ${usage}`); process.exitCode=1; }
 }

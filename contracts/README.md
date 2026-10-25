@@ -52,7 +52,7 @@ The decoded payload schema is `receipt.schema.json#/$defs/decodedPayload`. Sign 
 
 `POST /internal/payments/commands` and `GET /internal/payments/commands/{id}` exist only on the private executor. Requests need its service bearer credential; payment POSTs also require the proof metadata injected by AgentSafe. The public nginx ingress returns 404 for `/internal/` and `/_agentsafe/`. The application network has no direct route to the executor network.
 
-The only public executor routes are `POST /paypal/webhooks/tents` and `POST /paypal/webhooks/catering`, rewritten to the matching private webhook handler. Those are enabled only for PayPal sandbox and require provider signature verification, the correct app/webhook configuration and a known merchant resource. They trigger reconciliation reads, not autonomous commands based on an unverified event body.
+The only public executor routes are `POST /webhooks/paypal/tents` and `POST /webhooks/paypal/catering`, rewritten to the matching private webhook handler. Those are enabled only for PayPal sandbox and require provider signature verification, the correct app/webhook configuration and a known merchant resource. They trigger reconciliation reads, not autonomous commands based on an unverified event body.
 
 **MCP**
 

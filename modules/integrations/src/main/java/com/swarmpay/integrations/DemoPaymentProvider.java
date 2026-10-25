@@ -14,7 +14,7 @@ public final class DemoPaymentProvider implements PaymentProvider {
             case VOID_AUTHORIZATION -> result(c, "VOIDED", "DEMO-ORDER-"+id, c.providerResourceId(), null);
         };
     }
-    @Override public ProviderResult reconcile(PaymentCommand c) { return null; }
+    @Override public ProviderResult reconcile(PaymentCommand c, ProviderResult lastKnownResult) { return null; }
     private ProviderResult result(PaymentCommand c, String status, String order, String authorization, String capture) {
         return new ProviderResult(status,order,authorization,capture,null,c.amountMinor(),c.currency(),c.merchantId(),"SIMULATED_PAYPAL");
     }

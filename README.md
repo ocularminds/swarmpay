@@ -18,7 +18,7 @@ node demo/doctor.mjs
 docker compose up --build -d --wait
 ```
 
-Open **[http://localhost:5173](http://localhost:5173)** and choose **Explore the local demo**. Only this loopback port is published. The setup script generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and does not configure external accounts.
+Open **[http://localhost:5173](http://localhost:5173)** and choose **Explore the local demo**. The UI and a separate webhook listener on port 5184 bind only to loopback. The setup script generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and does not configure external accounts.
 
 1. Keep the event about an hour ahead, confirm tent rentals, and prepare a plan for 30 guests and five tents.
 2. Review the $500 tent rental and $900 catering quote against a $1,500 budget. Approve the $1,400 plan.
@@ -76,11 +76,13 @@ With Node 22 active, select deterministic AI for the fixture tests without chang
 ```sh
 SWARM_AI_PROVIDER=demo docker compose up -d --wait commerce-app
 node demo/verify-java.mjs
+node --test demo/check-paypal.test.mjs
 npm --prefix infra/agentsafe ci
 npm --prefix infra/agentsafe test
 npm --prefix infra/agentsafe run verify-boundary
 node demo/smoke.mjs
 node demo/check-isolation.mjs
+node demo/check-webhook-ingress.mjs
 node demo/check-restart.mjs
 npm --prefix apps/web ci
 npm --prefix apps/web run build
@@ -93,11 +95,13 @@ If Chrome is already installed, `SWARM_TEST_BROWSER=chrome npm run test:e2e` can
 
 For native Java development, activate JDK 21 and run `./gradlew verify` (Docker is still needed by Testcontainers). `./gradlew webBuild` runs the pinned frontend build when Node 22 is on `PATH`. With the Compose API running, `npm --prefix apps/web run dev` opens Vite on port 5174.
 
-The [CI workflow](.github/workflows/verify.yml) runs the Java, gateway, API/MCP, isolation, restart and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
+The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol, webhook verification, gateway, API/MCP, isolation, callback ingress, restart and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
 
 **Connect real sandbox accounts**
 
 Follow [sandbox-setup.md](docs/sandbox-setup.md). It covers Azure OpenAI credentials and deployment, two PayPal seller apps plus a sandbox buyer, webhook verification, a Decionis tenant with enforcement access, and a separately identified test venue issuer. Use a separate Compose project and `.env.sandbox` for payment account tests; each database binds itself to its runtime mode and refuses relabeling demo payments as sandbox payments.
+
+`node demo/check-paypal.mjs` checks configured seller OAuth access and webhook subscriptions using PayPal's sandbox API. It prints no secrets, sends no payment requests, and writes a private readiness report. Missing account configuration produces a nonzero exit code. The [ngrok runbook](docs/sandbox-setup.md#temporary-ngrok-callbacks) exposes only the callback listener until the Azure deployment at `swarm.decionis.com` is ready.
 
 The [API and MCP reference](contracts/README.md), [security notes](docs/security-and-reliability.md), and [implementation status](docs/implementation-status.md) describe the supported behavior and outstanding integration work. A local file-presence check is not proof that an account or grant can execute.
 

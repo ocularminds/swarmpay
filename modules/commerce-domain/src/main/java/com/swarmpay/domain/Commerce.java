@@ -91,7 +91,7 @@ public final class Commerce {
     }
     public interface PaymentProvider {
         ProviderResult execute(PaymentCommand command, Plan plan, Line line);
-        ProviderResult reconcile(PaymentCommand command);
+        ProviderResult reconcile(PaymentCommand command, ProviderResult lastKnownResult);
     }
     public interface AuthorityGateway {
         GateResult execute(PaymentCommand command);

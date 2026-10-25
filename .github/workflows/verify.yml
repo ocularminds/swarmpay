@@ -35,6 +35,8 @@ jobs:
             infra/agentsafe/package-lock.json
       - name: Java invariants and PostgreSQL recovery tests
         run: ./gradlew verify --no-daemon --console=plain
+      - name: Verify sandbox preflight without external services
+        run: node --test demo/check-paypal.test.mjs
       - name: Build the web application
         run: |
           npm --prefix apps/web ci
@@ -55,6 +57,7 @@ jobs:
         run: |
           node demo/smoke.mjs
           node demo/check-isolation.mjs
+          node demo/check-webhook-ingress.mjs
           node demo/check-restart.mjs
           docker compose exec -T agentsafe node node_modules/@decionis/agentsafe/dist/Cli.js verify chain /var/lib/agentsafe/evidence/evidence.jsonl
       - name: Install the test browser

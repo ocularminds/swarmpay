@@ -34,7 +34,7 @@ public final class PaymentService {
         try {
             var plan=executionPlan(c);
             var result=provider.execute(c,plan,commerce.line(plan,c.orderId()));
-            if (!c.merchantId().equals(result.merchantId()) || c.amountMinor()!=result.amountMinor() || !c.currency().equals(result.currency()))
+            if (!matches(c,result,null))
                 throw new PayPalPaymentProvider.ProviderUncertainException();
             payments.complete(c.id(),result);
             return result;
@@ -86,10 +86,23 @@ public final class PaymentService {
         var binding=payments.evidence(id);
         var result=payments.result(id);
         if (result==null || result.status().equals("PENDING")) {
-            var observed=provider.reconcile(command);
-            if (observed!=null) { payments.complete(id,observed); result=observed; }
+            var observed=provider.reconcile(command,result);
+            if (matches(command,observed,result)) {
+                payments.complete(id,observed); result=observed;
+            }
         }
         if (result!=null) return new GateResult("SUCCEEDED","FORWARDED",null,binding.dossierId(),binding.intentHash(),null,AgentSafeGateway.describe(result),result);
         return new GateResult("INDETERMINATE","INDETERMINATE",null,binding.dossierId(),binding.intentHash(),null,"Provider outcome is still unconfirmed. No new payment was sent.",null);
     }
+    private static boolean matches(PaymentCommand c,ProviderResult observed,ProviderResult known) {
+        if(observed==null || !c.merchantId().equals(observed.merchantId()) || c.amountMinor()!=observed.amountMinor()
+            || !c.currency().equals(observed.currency()) || observed.providerOrderId()==null || observed.providerOrderId().isBlank()) return false;
+        if((c.operation()==Operation.CAPTURE_ORDER || c.operation()==Operation.AUTHORIZE_ORDER)
+            && !Objects.equals(c.providerResourceId(),observed.providerOrderId())) return false;
+        if((c.operation()==Operation.CAPTURE_AUTHORIZATION || c.operation()==Operation.VOID_AUTHORIZATION)
+            && !Objects.equals(c.providerResourceId(),observed.authorizationId())) return false;
+        return known==null || (sameIfKnown(known.providerOrderId(),observed.providerOrderId())
+            && sameIfKnown(known.authorizationId(),observed.authorizationId()) && sameIfKnown(known.captureId(),observed.captureId()));
+    }
+    private static boolean sameIfKnown(String known,String observed) { return known==null || known.equals(observed); }
 }

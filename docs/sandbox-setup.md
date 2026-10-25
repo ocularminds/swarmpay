@@ -36,7 +36,7 @@ Create a new configuration and separate data volumes:
 node demo/setup.mjs --sandbox
 ```
 
-This creates `.env.sandbox` with distinct local passwords/tokens and port 5175, preserving the existing `.env` and venue fixture keys. Complete the Azure values in that file locally. Never change an existing demo database to sandbox mode; both Java services persist a mode binding and reject that change.
+This creates `.env.sandbox` with distinct local passwords/tokens, UI port 5175 and webhook port 5186, preserving the existing `.env` and venue fixture keys. Complete the Azure values in that file locally. If the file was created before the callback listener was added, set `WEBHOOK_PORT=5186` in it. Never change an existing demo database to sandbox mode; both Java services persist a mode binding and reject that change.
 
 In the [PayPal developer dashboard](https://developer.paypal.com/dashboard/), create two controlled sandbox business sellers and one sandbox personal buyer. Create a sandbox REST app for each seller and record the following locally:
 
@@ -54,9 +54,50 @@ POST /paypal/webhooks/tents
 POST /paypal/webhooks/catering
 ```
 
-Configure those URLs on the matching sandbox app and save the webhook IDs. Subscribe to the applicable order-approval, authorization, capture-completed, capture-pending and capture-denied events. SwarmPay calls PayPal's signature-verification API with that app's credentials and webhook ID, associates the resource with recorded payments, and uses the notification to reconcile provider state. A generic test notification with an unrelated resource is refused. The current handler does not implement a complete refund or dispute lifecycle.
+Configure those URLs on the matching sandbox app and save the webhook IDs. Select these event names:
+
+```text
+CHECKOUT.ORDER.APPROVED
+CHECKOUT.ORDER.COMPLETED
+PAYMENT.AUTHORIZATION.CREATED
+PAYMENT.AUTHORIZATION.VOIDED
+PAYMENT.CAPTURE.COMPLETED
+PAYMENT.CAPTURE.PENDING
+PAYMENT.CAPTURE.DENIED
+PAYMENT.CAPTURE.DECLINED
+```
+
+SwarmPay calls PayPal's signature-verification API with that app's credentials and webhook ID, associates the resource with recorded payments, and uses the notification to reconcile provider state. Malformed events stop before OAuth. An unavailable verifier returns 503 for retry; an explicit failed signature returns 400. A generic test notification with an unrelated resource is refused. The current handler does not implement a complete refund or dispute lifecycle.
 
 The local organizer UI can remain on loopback while an HTTPS ingress forwards only the webhook routes. A public deployment also needs its own TLS/session, rate-limit and access-control configuration; it has not been provisioned by this project.
+
+**Check seller readiness**
+
+```sh
+node demo/check-paypal.mjs .env.sandbox
+# A partially configured seller can be checked independently:
+node demo/check-paypal.mjs .env --merchant tents
+```
+
+This opt-in command only requests an OAuth token and reads registered webhooks at the fixed PayPal sandbox host. It disables redirects, compares the configured webhook ID, HTTPS callback path and event subscriptions, and writes `.local/paypal-preflight.json` with no credential values. It never creates an order or changes a webhook. A nonzero exit code means configuration or access is still incomplete. Successful OAuth does not prove merchant ownership, buyer approval, capture capability, delivery of webhooks or hosted authority access. Those require the account-backed journey below.
+
+<a id="temporary-ngrok-callbacks"></a>
+**Temporary ngrok callbacks**
+
+The user selected ngrok until Azure serves `https://swarm.decionis.com`. The web container has two listeners: the organizer UI on `WEB_PORT` and a callback-only listener on `WEBHOOK_PORT`. Defaults are 5173/5184 for the local demo and 5175/5186 for the separate sandbox. These ports bind to `127.0.0.1`; the callback listener serves only POST requests to the two webhook paths. It limits request size/rate, drops incoming organizer cookies and authorization headers, and returns 404 for UI, REST, MCP and internal command routes.
+
+After starting the sandbox stack with its completed configuration, run:
+
+```sh
+SWARM_WEBHOOK_TEST_URL=http://127.0.0.1:5186 node demo/check-webhook-ingress.mjs
+ngrok http http://127.0.0.1:5186 --inspect=false
+```
+
+Use the HTTPS forwarding URL printed by ngrok as the base for each seller's callback. For example, `https://YOUR-NGROK-HOST/paypal/webhooks/tents` goes on the tent app; the `/catering` URL goes on the catering app. Keep the process running during testing and update both app registrations if its URL changes. `--inspect=false` disables ngrok's local request-body inspection; ngrok still transports the sandbox webhook data. The existing `.env` demo stack can exercise the isolated listener on port 5184, but it deliberately rejects PayPal processing with `SANDBOX_ONLY`.
+
+Public tunneling remains pending local ngrok account setup. No public callback URL or webhook registration has been created. Check access in the [ngrok dashboard](https://dashboard.ngrok.com/), or configure an active account locally before running the command. Do not commit the ngrok auth token.
+
+Once the Azure deployment is ready, route the same paths at `https://swarm.decionis.com`, update each seller's webhook registration and saved ID if necessary, verify the subscriptions and signature delivery, then stop the local ngrok process. The hostname is the planned deployment target; DNS, TLS and Azure resources have not been provisioned by this phase.
 
 **Hosted Decionis enforcement**
 

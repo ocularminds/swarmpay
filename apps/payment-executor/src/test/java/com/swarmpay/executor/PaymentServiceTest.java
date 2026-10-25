@@ -66,5 +66,34 @@ class PaymentServiceTest {
         var later=new PaymentService(commerce,payments,provider,receipts,Clock.fixed(now.plusSeconds(1801),ZoneOffset.UTC),"test-v1","demo");
         assertThrows(CommerceException.class,()->later.execute(command,"hash","dossier"));verifyNoInteractions(provider);
     }
+    @Test void reconciliationRetainsPendingResourceIdentityAndNeverDispatches() {
+        var c=command(tent,50000,Operation.CAPTURE_ORDER,"order");
+        var pending=new ProviderResult("PENDING","order",null,"capture",null,50000,"USD","tents","TEST");
+        var captured=new ProviderResult("CAPTURED","order",null,"capture",null,50000,"USD","tents","TEST");
+        when(payments.command(c.id())).thenReturn(c);
+        when(payments.result(c.id())).thenReturn(pending);
+        when(payments.evidence(c.id())).thenReturn(new GateResult("COMPLETED","FORWARDED",null,"dossier","hash",null,"",pending));
+        when(provider.reconcile(c,pending)).thenReturn(captured);
+        assertSame(captured,service.reconcile(c.id()).result());
+        verify(payments).complete(c.id(),captured);
+        verify(provider,never()).execute(any(),any(),any());
+    }
+    @Test void contradictoryReconciliationCannotReplaceTheRecordedCapture() {
+        var c=command(tent,50000,Operation.CAPTURE_ORDER,"order");
+        var pending=new ProviderResult("PENDING","order",null,"original-capture",null,50000,"USD","tents","TEST");
+        when(payments.command(c.id())).thenReturn(c);
+        when(payments.result(c.id())).thenReturn(pending);
+        when(payments.evidence(c.id())).thenReturn(new GateResult("COMPLETED","FORWARDED",null,"dossier","hash",null,"",pending));
+        for(var changed:List.of(
+            new ProviderResult("CAPTURED","order",null,"other-capture",null,50000,"USD","tents","TEST"),
+            new ProviderResult("CAPTURED","other-order",null,"original-capture",null,50000,"USD","tents","TEST"),
+            new ProviderResult("CAPTURED","order",null,"original-capture",null,50001,"USD","tents","TEST"),
+            new ProviderResult("CAPTURED","order",null,"original-capture",null,50000,"USD","other-merchant","TEST"))) {
+            when(provider.reconcile(c,pending)).thenReturn(changed);
+            assertSame(pending,service.reconcile(c.id()).result());
+        }
+        verify(payments,never()).complete(any(),any());
+        verify(provider,never()).execute(any(),any(),any());
+    }
     PaymentCommand command(Line line,long amount,Operation operation,String resource){return new PaymentCommand(UUID.randomUUID(),plan.id(),1,line.id(),operation,line.merchantId(),amount,"USD",resource,null,plan.id().toString(),"test-v1");}
 }

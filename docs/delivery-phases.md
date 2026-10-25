@@ -1,6 +1,6 @@
 **Delivery phases and pull requests**
 
-The user approved the [architecture](architecture-and-delivery-plan.md) and requested a PR for each completed phase. Work is packaged as a stack so each review shows only that phase's changes. Merge order is foundation → guarded payments → Azure/product → verification. No automatic merges are configured.
+The user approved the [architecture](architecture-and-delivery-plan.md) and requested a PR for each completed phase. Work is packaged as a stack so each review shows only that phase's changes. Merge order is [foundation #1](https://github.com/ocularminds/swarmpay/pull/1) → [guarded payments #2](https://github.com/ocularminds/swarmpay/pull/2) → [Azure/product #3](https://github.com/ocularminds/swarmpay/pull/3) → [verification #4](https://github.com/ocularminds/swarmpay/pull/4). No automatic merges are configured. The repository remains private; public release is part of the submission phase.
 
 | Approved phase | Implementation and review status | Remaining exit gate |
 | --- | --- | --- |

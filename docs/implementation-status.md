@@ -15,7 +15,7 @@ The user approved the architecture, then configured local credentials and select
 | Webhooks | Compiled signature-verification API adapter, merchant/resource association, inbox deduplication and replayable reconciliation | Live signature/header fixtures and lifecycle coverage. Settled captures are not continually refreshed for later refunds/disputes |
 | MCP | Seven real Spring AI tools over authenticated Streamable HTTP; initialized, listed and invoked by smoke test; bearer credential cannot record human plan approval | Multi-user scoped credentials, OAuth, and deployment-specific client configuration |
 | Evidence | Application SHA-256 chain detects alteration; AgentSafe's own journal verifier succeeds; original command/provider/authority correlation identifiers retained | Hosted Decionis proof bundle verification. A local hash chain is not an externally witnessed ledger |
-| Delivery | Local setup, environment doctor, isolated authority-key installation, API/MCP reference, CI definition, walkthrough and submission draft | CI execution on GitHub, public repository publication, optional hosted demo, final video and Devpost submission |
+| Delivery | Local setup, environment doctor, isolated authority-key installation, API/MCP reference, phase PRs with GitHub CI, walkthrough and submission draft | Public repository publication, optional hosted demo, final video and Devpost submission |
 
 **Observed validation**
 
@@ -25,7 +25,7 @@ The opt-in Azure check passed on October 25, 2026. It extracted 30 guests, five 
 
 The network check verifies that the commerce application cannot connect to the private executor even by container IP, cannot read its payment tables, and has no PayPal client secrets or venue signing key. A fresh disposable database was initialized from the SQL bootstrap; service recreation checks preserve completed payment identities. Native AgentSafe journal verification and its supplied adversarial suite were also run.
 
-NPM audits of the web and gateway dependency trees reported no known vulnerabilities at implementation time. This is a point-in-time package audit, not a security certification or a complete Java/container vulnerability scan. CI has been authored but has not been run remotely.
+NPM audits of the web and gateway dependency trees reported no known vulnerabilities at implementation time. This is a point-in-time package audit, not a security certification or a complete Java/container vulnerability scan. Each [phase PR](delivery-phases.md) runs verification in GitHub Actions; its checks show the latest remote result. Live model/payment/hosted-authority acceptance tests remain separate from that fixture CI.
 
 **Deliberate scope limits**
 

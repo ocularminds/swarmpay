@@ -14,6 +14,6 @@ const now=new Date().toISOString();
 const body={issuer:'demo-venue-fixture',workflowId:workflow.plan.id,orderId:line.id,merchantId:line.merchantId,
   venue:workflow.plan.intent.venue,quantity:line.quantity,deliveredAt:now,issuedAt:now,nonce:randomUUID()};
 const bytes=Buffer.from(JSON.stringify(body));
-const key=readFileSync(resolve(root,'.secrets/venue-private.pem'));
+const key=readFileSync(resolve(root,process.env.SWARM_VENUE_PRIVATE_KEY_FILE??'.secrets/venue-private.pem'));
 writeFileSync(output,JSON.stringify({payload:bytes.toString('base64'),signature:sign(null,bytes,key).toString('base64')},null,2)+'\n',{mode:0o600});
 console.log(`Created a simulated delivery receipt. Upload it through the evidence panel within 15 minutes.${workflow.mode==='sandbox'?' It can trigger a PayPal sandbox capture; the venue must be configured as demo-venue-fixture.':''}`);

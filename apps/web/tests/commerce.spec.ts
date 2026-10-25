@@ -2,12 +2,10 @@ import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import {randomUUID,sign} from 'node:crypto';
 import {resolve} from 'node:path';
+import {signIntoWorkspace} from './login';
 
 test.beforeEach(async({page,request})=>{
-  const config=await (await request.get('/api/config')).json();expect(config.mode).toBe('demo');
-  expect(config.aiProvider).toBe('demo');
-  await page.goto('/');await page.getByRole('button',{name:'Explore the local demo'}).click();
-  await expect(page.getByRole('heading',{name:'What are we planning?'})).toBeVisible();
+  await signIntoWorkspace(page,request);
 });
 test('review, separate checkouts, photo hold, signed delivery and proof export',async({page},info)=>{
   await page.setViewportSize({width:1366,height:950});
@@ -31,7 +29,7 @@ test('review, separate checkouts, photo hold, signed delivery and proof export',
   await page.getByRole('button',{name:'Request milestone payment'}).click();await expect(page.getByRole('alert')).toContainText('A photo alone cannot release payment');
   const line=plan.lines.find((l:{category:string})=>l.category==='CATERING'),now=new Date().toISOString();
   const data={issuer:'demo-venue-fixture',workflowId:plan.id,orderId:line.id,merchantId:'catering',venue:plan.intent.venue,quantity:30,deliveredAt:now,issuedAt:now,nonce:randomUUID()};
-  const bytes=Buffer.from(JSON.stringify(data)),key=readFileSync(resolve('../../.secrets/venue-private.pem'));
+  const bytes=Buffer.from(JSON.stringify(data)),key=readFileSync(process.env.SWARM_TEST_VENUE_KEY_PATH??resolve('../../.secrets/venue-private.pem'));
   const receipt={payload:bytes.toString('base64'),signature:sign(null,bytes,key).toString('base64')};
   await page.getByLabel('Upload venue receipt').setInputFiles({name:'receipt.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(receipt))});
   await expect(page.getByText('Both payments confirmed',{exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Venue receipt verified'})).toBeVisible();

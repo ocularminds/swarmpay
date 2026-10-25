@@ -9,5 +9,5 @@ export type Workflow={plan:Plan;orders:Order[];events:AuditEvent[];committedMino
 export type ProviderResult={status:string;providerOrderId:string;authorizationId:string|null;captureId:string|null;source:string};
 export type GateResult={state:string;execution:string;decisionId:string|null;dossierId:string|null;intentHash:string|null;intentId:string|null;message:string;result:ProviderResult|null};
 export type Command={command:{id:string;operation:string;merchantId:string;amountMinor:number};state:string;result:GateResult|null};
-export type Config={mode:'demo'|'sandbox';aiProvider:'demo'|'azure'|'openai';model:string;authority:string;catalogSource:string;receiptIssuer:string;clientIds:Record<string,string>;policyVersion:string};
+export type Config={mode:'demo'|'sandbox';demoSessionEnabled:boolean;aiProvider:'demo'|'azure'|'openai';model:string;authority:string;catalogSource:string;receiptIssuer:string;clientIds:Record<string,string>;policyVersion:string};
 export type Session={authenticated:boolean;username:string;csrfToken:string;csrfHeader:string};

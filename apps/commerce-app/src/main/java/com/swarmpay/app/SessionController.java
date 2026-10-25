@@ -17,13 +17,14 @@ import java.util.*;
 class SessionController {
     private final String mode;
     private final AstraSettings ai;
-    SessionController(String runtimeMode,AstraSettings ai) { mode=runtimeMode;this.ai=ai; }
+    private final WebAccessPolicy access;
+    SessionController(String runtimeMode,AstraSettings ai,WebAccessPolicy access) { mode=runtimeMode;this.ai=ai;this.access=access; }
     @GetMapping("/api/session") Map<String,Object> session(Authentication auth,CsrfToken csrf) {
         boolean signed=auth!=null && auth.isAuthenticated() && auth.getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_HUMAN"));
         return Map.of("authenticated",signed,"username",signed?auth.getName():"","csrfToken",csrf.getToken(),"csrfHeader",csrf.getHeaderName());
     }
     @PostMapping("/api/demo-session") Map<String,String> demo(HttpServletRequest request,HttpServletResponse response) {
-        if(!mode.equals("demo")) throw new CommerceException("DEMO_DISABLED","Use your organizer account for sandbox mode",404);
+        if(!access.demoSessionEnabled(mode)) throw new CommerceException("DEMO_DISABLED","Sign in with your organizer account",404);
         request.getSession(); request.changeSessionId();
         var context=SecurityContextHolder.createEmptyContext();
         context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(RuntimeSettings.required("ORGANIZER_USERNAME"),null,List.of(new SimpleGrantedAuthority("ROLE_HUMAN"))));
@@ -33,7 +34,7 @@ class SessionController {
         return Map.of("mode","demo");
     }
     @GetMapping("/api/config") Map<String,Object> config() {
-        return Map.of("mode",mode,"aiProvider",ai.provider(),"model",ai.source(),
+        return Map.of("mode",mode,"demoSessionEnabled",access.demoSessionEnabled(mode),"aiProvider",ai.provider(),"model",ai.source(),
             "authority",mode.equals("demo")?"AgentSafe · local test authority":"AgentSafe · Decionis",
             "catalogSource","Curated demo catalog","receiptIssuer",RuntimeSettings.required("VENUE_ISSUER"),
             "clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID","")),

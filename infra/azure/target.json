@@ -1,0 +1,14 @@
+{
+  "resourceGroup": "decionis-rg",
+  "cluster": "decionis-aks",
+  "registry": "decionisacr.azurecr.io",
+  "namespace": "swarm-pay-demo",
+  "publicHost": "swarm.decionis.com",
+  "dnsResolver": "10.64.0.10",
+  "ingressClass": "",
+  "ingressController": "",
+  "ingressNamespace": "",
+  "ingressPodLabels": {},
+  "clusterIssuer": "",
+  "certificateChallenge": ""
+}

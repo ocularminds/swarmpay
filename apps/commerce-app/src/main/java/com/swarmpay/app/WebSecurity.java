@@ -11,7 +11,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.*;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -24,8 +25,8 @@ import java.util.List;
 
 @Configuration
 class WebSecurity {
-    @Bean UserDetailsService organizer() {
-        var encoder=new BCryptPasswordEncoder();
+    @Bean PasswordEncoder passwordEncoder() { return PasswordEncoderFactories.createDelegatingPasswordEncoder(); }
+    @Bean UserDetailsService organizer(PasswordEncoder encoder) {
         return new InMemoryUserDetailsManager(User.withUsername(RuntimeSettings.required("ORGANIZER_USERNAME"))
             .password(encoder.encode(RuntimeSettings.secret("ORGANIZER_PASSWORD"))).roles("HUMAN").build());
     }

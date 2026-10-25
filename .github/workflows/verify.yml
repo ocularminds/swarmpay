@@ -35,8 +35,8 @@ jobs:
             infra/agentsafe/package-lock.json
       - name: Java invariants and PostgreSQL recovery tests
         run: ./gradlew verify --no-daemon --console=plain
-      - name: Verify sandbox preflight without external services
-        run: node --test demo/check-paypal.test.mjs
+      - name: Verify preflight and deployment configuration without external services
+        run: node --test demo/check-paypal.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs
       - name: Build the web application
         run: |
           npm --prefix apps/web ci
@@ -66,6 +66,10 @@ jobs:
       - name: Verify desktop and mobile journeys
         working-directory: apps/web
         run: npm run test:e2e
+      - name: Verify hosted HTTPS sessions and payment isolation
+        run: |
+          node demo/hosted/run.mjs up
+          node demo/hosted/run.mjs check
       - name: Retain test reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -80,4 +84,6 @@ jobs:
             apps/web/playwright-report/
       - name: Stop the test stack
         if: always()
-        run: docker compose down --remove-orphans
+        run: |
+          node demo/hosted/run.mjs down
+          docker compose down --remove-orphans

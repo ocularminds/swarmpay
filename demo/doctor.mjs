@@ -16,6 +16,13 @@ function file(label,name,fallback) {
   check(ok,label,ok?'nonempty file present':`${name} or its default file`);
 }
 check(['demo','sandbox'].includes(env.SWARM_MODE),'Explicit demo or sandbox mode');
+if(env.SWARM_PUBLIC_ORIGIN?.trim()) {
+  let valid=false;
+  try {const origin=new URL(env.SWARM_PUBLIC_ORIGIN);valid=origin.protocol==='https:'&&!origin.username&&!origin.password&&!origin.search&&!origin.hash&&origin.pathname==='/';} catch {}
+  check(valid,'Hosted origin is one HTTPS origin');
+  check(env.SWARM_SESSION_COOKIE_SECURE==='true','Hosted sessions require secure cookies');
+  console.log('INFO: Hosted mode requires organizer sign-in, including when payments are simulated.');
+}
 check((statSync(path).mode&0o077)===0,'Environment file is private to its owner');
 fields('Local database, service and organizer settings',['PG_ADMIN_PASSWORD','PG_APP_PASSWORD','PG_EXECUTOR_PASSWORD','EXECUTOR_TOKEN','MCP_TOKEN','ORGANIZER_USERNAME','ORGANIZER_PASSWORD','DECIONIS_POLICY_VERSION','VENUE_ISSUER']);
 check(new Set([env.PG_ADMIN_PASSWORD,env.PG_APP_PASSWORD,env.PG_EXECUTOR_PASSWORD,env.EXECUTOR_TOKEN,env.MCP_TOKEN]).size===5,'Database passwords and service tokens are distinct');

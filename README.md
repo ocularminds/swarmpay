@@ -44,7 +44,7 @@ node demo/doctor.mjs
 docker compose up --build -d --wait
 ```
 
-Open <http://localhost:5173> and choose **Explore the local demo**. Let the Sourcing Agent choose the offers, approve the $1,400 plan and pay both merchants. Then watch AgentSafe hold the agent's early request to pay catering, and release catering only when the simulated venue confirms delivery with a signed receipt. The [walkthrough](demo/walkthrough.md) has the full script.
+Open <http://localhost:5173> and choose **Plan my event**. Let the Sourcing Agent choose the offers, approve the $1,400 plan and pay both merchants. Then watch AgentSafe hold the agent's early request to pay catering, and release catering only when the simulated venue confirms delivery with a signed receipt. The [walkthrough](demo/walkthrough.md) has the full script.
 
 ## Architecture
 

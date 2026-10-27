@@ -5,8 +5,8 @@ test('hosted access requires sign-in, uses a secure session, and signs out compl
   await page.setViewportSize({width:390,height:844});
   await page.goto('/');
   await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Explore the local demo'})).toHaveCount(0);
-  await expect(page.getByText('Payments, catalog and venue issuer are simulated.')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Plan my event'})).toHaveCount(0);
+  await expect(page.getByText(/Payments, catalog and venue are simulated in this demo\./)).toBeVisible();
   const cookie=(await context.cookies()).find(c=>c.name==='JSESSIONID');
   expect(cookie?.secure).toBe(true);expect(cookie?.httpOnly).toBe(true);expect(cookie?.sameSite).toBe('Strict');
   await page.getByLabel('Password',{exact:true}).fill('incorrect-fixture-password');

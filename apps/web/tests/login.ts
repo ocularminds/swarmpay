@@ -6,7 +6,7 @@ export async function signIntoWorkspace(page:Page,request:APIRequestContext) {
   const config=await (await request.get('/api/config')).json();
   expect(config.mode).toBe('demo');expect(config.aiProvider).toBe('demo');
   await page.goto('/');
-  if(config.demoSessionEnabled)await page.getByRole('button',{name:'Explore the local demo'}).click();
+  if(config.demoSessionEnabled)await page.getByRole('button',{name:'Plan my event'}).click();
   else {
     if(!process.env.SWARM_TEST_ENV)throw new Error('Hosted tests require their isolated fixture environment file');
     const env=parseEnv(readFileSync(process.env.SWARM_TEST_ENV,'utf8'));

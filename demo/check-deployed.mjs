@@ -60,8 +60,8 @@ const started=Date.now();
 try {
   await page.goto('/');
   await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Explore the local demo'})).toHaveCount(0);
-  await expect(page.getByText('Payments, catalog and venue issuer are simulated.')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Plan my event'})).toHaveCount(0);
+  await expect(page.getByText(/Payments, catalog and venue are simulated in this demo\./)).toBeVisible();
   const cookie=(await context.cookies()).find(c=>c.name==='JSESSIONID');
   assert.ok(cookie?.secure&&cookie?.httpOnly&&cookie?.sameSite==='Strict','A secure, HttpOnly, SameSite=Strict session is required');
   const anonymous=await page.evaluate(async()=>{

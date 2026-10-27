@@ -54,6 +54,7 @@ services:
     build: ./infra/agentsafe
     environment:
       SWARM_MODE: ${SWARM_MODE}
+      SWARM_AUTHORITY: ${SWARM_AUTHORITY:-}
       DECIONIS_API_KEY_FILE: /run/secrets/authority/decionis-api-key
       DECIONIS_TENANT_ID: ${DECIONIS_TENANT_ID:-}
       DECIONIS_POLICY_VERSION: ${DECIONIS_POLICY_VERSION}
@@ -75,6 +76,7 @@ services:
       args: {APP: commerce-app}
     environment:
       SWARM_MODE: ${SWARM_MODE}
+      SWARM_AUTHORITY: ${SWARM_AUTHORITY:-}
       DATABASE_URL: jdbc:postgresql://postgres:5432/swarm
       DATABASE_USER: swarm_app
       DATABASE_PASSWORD: ${PG_APP_PASSWORD}

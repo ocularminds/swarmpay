@@ -38,6 +38,16 @@ class AgentSafeGatewayTest {
         assertEquals("tenant-key",request.header("AgentSafe-Tenant-Key"));
     }
 
+    @Test void anExecutorReportOfNoPaymentEffectBecomesARetryableNonDispatch() {
+        gateway.handler=r->new Response(424,Map.of("code","PAYPAL_UNAVAILABLE","state","NOT_EXECUTED","execution","NOT_FORWARDED","message","PayPal was unavailable and no payment was taken."),
+            Map.of("agentsafe-execution","FAILED","agentsafe-decision","ALLOW","agentsafe-dossier-id","dossier","agentsafe-intent-hash","hash"));
+        var result=new AgentSafeGateway(gateway.base().toString(),"executor-token").execute(command);
+        assertEquals("NOT_EXECUTED",result.state());
+        assertEquals("NOT_FORWARDED",result.execution());
+        assertEquals("PayPal was unavailable and no payment was taken.",result.message());
+        assertEquals("dossier",result.dossierId());
+    }
+
     @Test void aHostedGatewayWithoutTheTenantKeyOrAGatewayWithNoCredentialIsRefusedAtStart() {
         assertThrows(IllegalStateException.class,()->new AgentSafeGateway("https://swarm.decionisedge.com","executor-token"));
         assertThrows(IllegalStateException.class,()->new AgentSafeGateway("https://swarm.decionisedge.com","executor-token","  "));

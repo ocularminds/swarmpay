@@ -161,6 +161,30 @@ class PayPalProtocolTest {
         assertEquals(1,http.paymentPosts().size());
     }
 
+    @ParameterizedTest @ValueSource(ints={500,503})
+    void aFailedOrderReadBeforeTheCaptureSendsNoPaymentAndIsRetrySafe(int status) {
+        route(r->error(status,"INTERNAL_SERVICE_ERROR"));
+        assertThrows(PayPalPaymentProvider.ProviderNotDispatchedException.class,()->provider.execute(command(tents,Operation.CAPTURE_ORDER),plan,tents));
+        assertEquals(0,http.paymentPosts().size());
+    }
+
+    @Test void anUnavailableOAuthServerSendsNoPaymentAndIsRetrySafe() {
+        http.handler=r->r.path().equals("/v1/oauth2/token") ? error(503,"SERVICE_UNAVAILABLE") : new Response(200,order(catering,"COMPLETED",authorized()));
+        assertThrows(PayPalPaymentProvider.ProviderNotDispatchedException.class,()->provider.execute(command(catering,Operation.CAPTURE_AUTHORIZATION),plan,catering));
+        assertThrows(PayPalPaymentProvider.ProviderNotDispatchedException.class,()->provider.execute(command(tents,Operation.CREATE_ORDER),plan,tents));
+        assertEquals(0,http.paymentPosts().size());
+    }
+
+    @Test void aLostCreateOrderResponseIsReplayedUnderTheSameRequestId() {
+        var attempts=new java.util.concurrent.atomic.AtomicInteger();
+        route(r->attempts.incrementAndGet()==1 ? error(503,"INTERNAL_SERVICE_ERROR") : new Response(201,order(tents,"CREATED",Map.of())));
+        var c=command(tents,Operation.CREATE_ORDER);
+        assertThrows(PayPalPaymentProvider.ProviderNotDispatchedException.class,()->provider.execute(c,plan,tents));
+        assertEquals("APPROVAL_REQUIRED",provider.execute(c,plan,tents).status());
+        assertEquals(2,http.paymentPosts().size());
+        assertTrue(http.paymentPosts().stream().allMatch(r->c.requestId().equals(r.header("PayPal-Request-Id"))));
+    }
+
     @Test void alreadyCapturedErrorNeedsReconciliationRatherThanARefusal() {
         route(r->r.method().equals("GET")?new Response(200,order(tents,"APPROVED",Map.of())):error(422,"ORDER_ALREADY_CAPTURED"));
         assertThrows(PayPalPaymentProvider.ProviderUncertainException.class,()->provider.execute(command(tents,Operation.CAPTURE_ORDER),plan,tents));

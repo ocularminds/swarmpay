@@ -23,6 +23,9 @@ class PaymentController {
 @RestControllerAdvice
 class ExecutorErrors {
     @ExceptionHandler(CommerceException.class) ResponseEntity<Map<String,String>> commerce(CommerceException e) { return ResponseEntity.status(e.status()).body(Map.of("code",e.code(),"message",e.getMessage())); }
+    @ExceptionHandler(NotDispatchedException.class) ResponseEntity<Map<String,String>> notDispatched(NotDispatchedException e) {
+        return ResponseEntity.status(424).body(Map.of("code","PAYPAL_UNAVAILABLE","state","NOT_EXECUTED","execution","NOT_FORWARDED","message",e.getMessage()));
+    }
     @ExceptionHandler({IllegalArgumentException.class,org.springframework.http.converter.HttpMessageNotReadableException.class})
     ResponseEntity<Map<String,String>> invalid(Exception e) { return ResponseEntity.badRequest().body(Map.of("code","INVALID_REQUEST","message","Invalid payment command")); }
 }

@@ -21,10 +21,13 @@ public final class PaymentRepository {
     public boolean hasUnresolved(UUID order) {
         return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM payments.attempts WHERE order_id=? AND state IN ('DISPATCHING','INDETERMINATE'))",Boolean.class,order));
     }
+    /** Records a new attempt, or re-admits one that never reached a payment effect under its fresh authority decision. */
     public boolean begin(PaymentCommand command, String intentHash, String dossierId) {
         return db.update("""
             INSERT INTO payments.attempts(id,workflow_id,order_id,operation,command_json,command_hash,intent_hash,dossier_id,state)
-            VALUES (?,?,?,?,?,?,?,?,'DISPATCHING') ON CONFLICT(id) DO NOTHING
+            VALUES (?,?,?,?,?,?,?,?,'DISPATCHING') ON CONFLICT(id) DO UPDATE
+              SET state='DISPATCHING',intent_hash=EXCLUDED.intent_hash,dossier_id=EXCLUDED.dossier_id,updated_at=now()
+              WHERE attempts.state='NOT_DISPATCHED' AND attempts.command_hash=EXCLUDED.command_hash
             """,command.id(),command.workflowId(),command.orderId(),command.operation().name(),DbJson.write(command),
             CommerceRepository.sha256(DbJson.write(command)),intentHash,dossierId) == 1;
     }
@@ -37,6 +40,7 @@ public final class PaymentRepository {
     }
     public void uncertain(UUID id) { db.update("UPDATE payments.attempts SET state='INDETERMINATE',updated_at=now() WHERE id=?",id); }
     public void fail(UUID id) { db.update("UPDATE payments.attempts SET state='FAILED',updated_at=now() WHERE id=?",id); }
+    public void notDispatched(UUID id) { db.update("UPDATE payments.attempts SET state='NOT_DISPATCHED',updated_at=now() WHERE id=?",id); }
     public ProviderResult result(UUID id) {
         var results = db.query("SELECT result_json FROM payments.attempts WHERE id=? AND state='COMPLETED'",(r,n) -> DbJson.read(r.getString(1),ProviderResult.class),id);
         return results.isEmpty() ? null : results.getFirst();

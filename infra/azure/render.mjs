@@ -105,7 +105,10 @@ export function render(target,images,venuePublicKey) {
     JAVA_TOOL_OPTIONS:`-Dhttps.proxyHost=${host('egress')} -Dhttps.proxyPort=3128 -Dhttp.nonProxyHosts=localhost|127.0.0.1|*.svc.cluster.local`,
     ORGANIZER_USERNAME:'organizer',SWARM_AI_PROVIDER:'azure',SWARM_PUBLIC_ORIGIN:`https://${target.publicHost}`,SWARM_SESSION_COOKIE_SECURE:'true',
     VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem'},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080));
-  deployment('web',images.web,101,{SWARM_NGINX_RESOLVER:target.dnsResolver},null,
+  // The web policy admits only the ingress controller, which sets X-Forwarded-For from its own
+  // client connection, so per-client login and planning limits can trust any peer here.
+  deployment('web',images.web,101,{SWARM_NGINX_RESOLVER:target.dnsResolver,SWARM_TRUSTED_PROXY:'0.0.0.0/0',
+    NGINX_ENVSUBST_FILTER:'^SWARM_'},null,
     [temporary('nginx-cache'),temporary('nginx-run'),temporary('nginx-config'),{name:'nginx-template',configMap:{name:resourceName('nginx-template'),defaultMode:0o444}}],
     [{name:'nginx-cache',mountPath:'/var/cache/nginx'},{name:'nginx-run',mountPath:'/var/run'},{name:'nginx-config',mountPath:'/etc/nginx/conf.d'},{name:'nginx-template',mountPath:'/etc/nginx/templates',readOnly:true}],
     '96Mi',{httpGet:{path:'/',port:8080}});

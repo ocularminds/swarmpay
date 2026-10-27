@@ -33,6 +33,9 @@ test('the public entry point and credentials remain separated from private execu
   assert.ok(app.containers[0].env.some(e=>e.name==='SWARM_PUBLIC_ORIGIN'&&e.value==='https://swarm.decionis.com'));
   assert.deepEqual(app.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-commerce-secrets']);
   assert.deepEqual(executor.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-payment-secrets']);
+  // Per-client limits trust forwarded addresses only because the ingress is the web's sole peer.
+  const web=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-web').spec.template.spec;
+  assert.ok(web.containers[0].env.some(e=>e.name==='SWARM_TRUSTED_PROXY'&&e.value==='0.0.0.0/0'));
   assert.ok(!JSON.stringify(items).includes('venue-private'));
 });
 
@@ -85,6 +88,7 @@ test('the rendered policy permits the workflow and rejects private bypasses, cro
   const app=pod('commerce-app'),executor=pod('payment-executor'),gate=pod('agentsafe'),db=pod('postgres'),web=pod('web'),egress=pod('egress');
   const ingress={namespace:target.ingressNamespace,ip:'10.48.2.2',labels:target.ingressPodLabels};
   assert.ok(allowed(ingress,web,8080,policies));
+  for(const peer of [app,executor,gate,db,egress])assert.equal(allowed(peer,web,8080,policies),false);
   assert.ok(allowed(web,app,8080,policies));
   assert.ok(allowed(app,gate,8082,policies));
   assert.ok(allowed(gate,executor,8081,policies));

@@ -34,12 +34,19 @@ if(ai==='azure') {
   check(!!(env.AZURE_OPENAI_ENDPOINT||env.AZURE_OPENAI_URL),'Azure OpenAI endpoint configured');
   check(!!(env.AZURE_OPENAI_DEPLOYMENT||env.AZURE_OPENAI_LLM),'Azure OpenAI deployment configured');
 } else if(ai==='openai') fields('OpenAI key',['OPENAI_API_KEY']);
+const authority=env.SWARM_AUTHORITY?.trim()||(env.SWARM_MODE==='demo'?'local':'decionis');
+check(['local','decionis'].includes(authority)&&(env.SWARM_MODE!=='demo'||authority==='local'),'Explicit payment authority',authority);
 if(env.SWARM_MODE==='sandbox') {
   fields('PayPal sandbox merchant configuration',['TENTS','CATERING'].flatMap(merchant=>['CLIENT_ID','CLIENT_SECRET','MERCHANT_ID','WEBHOOK_ID'].map(suffix=>`PAYPAL_${merchant}_${suffix}`)));
-  fields('Hosted Decionis configuration',['DECIONIS_TENANT_ID','DECIONIS_POLICY_VERSION']);
   check((env.OPENAI_MODEL||'gpt-6-astra')==='gpt-6-astra','Requested GPT-6 Astra model');
-  file('Decionis source key for installation','DECIONIS_KEY_HOST_FILE','.secrets/decionis-api-key');
-  console.log('NEXT: install the authority key into the sandbox project volume; then verify actual account capabilities.');
+  if(authority==='decionis') {
+    fields('Hosted Decionis configuration',['DECIONIS_TENANT_ID','DECIONIS_POLICY_VERSION']);
+    file('Decionis source key for installation','DECIONIS_KEY_HOST_FILE','.secrets/decionis-api-key');
+    console.log('NEXT: install the authority key into the sandbox project volume; then verify actual account capabilities.');
+  } else {
+    check(env.DECIONIS_POLICY_VERSION==='swarm-pay-demo-v1','Local test authority policy','DECIONIS_POLICY_VERSION=swarm-pay-demo-v1');
+    console.log('INFO: PayPal sandbox payments are decided by the disclosed local test authority, not hosted Decionis.');
+  }
 } else {
   console.log(`INFO: Payments and authority are synthetic. AI provider: ${ai}.`);
 }

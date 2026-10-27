@@ -123,7 +123,10 @@ if (existsSync(keyPath) && readFileSync(keyPath, 'utf8').trim() && !flag('--repl
   report.installed_into = `${project}_authority-key`;
 }
 
-writeFileSync(envFile, envText.replace(/^DECIONIS_POLICY_VERSION=.*$/m, `DECIONIS_POLICY_VERSION=${template.version}`), { mode: 0o600 });
-report.env_file = `${envFile}: DECIONIS_POLICY_VERSION=${template.version}`;
+let updated = envText.replace(/^DECIONIS_POLICY_VERSION=.*$/m, `DECIONIS_POLICY_VERSION=${template.version}`);
+// The local gateway now asks Decionis; the hosted gateway is chosen by its URL instead.
+if (!hosted) updated = /^SWARM_AUTHORITY=/m.test(updated) ? updated.replace(/^SWARM_AUTHORITY=.*$/m, 'SWARM_AUTHORITY=decionis') : `${updated.replace(/\n?$/, '\n')}SWARM_AUTHORITY=decionis\n`;
+writeFileSync(envFile, updated, { mode: 0o600 });
+report.env_file = `${envFile}: DECIONIS_POLICY_VERSION=${template.version}${hosted ? '' : ', SWARM_AUTHORITY=decionis'}`;
 report.next = 'Revoke the administrator key in the workspace now; the gateway runs on its own key.';
 console.log(JSON.stringify(report, null, 1));

@@ -56,6 +56,26 @@ class PaymentServiceTest {
         assertThrows(CommerceException.class,()->service.execute(command,"another-hash","another-dossier"));
         verify(provider,times(1)).execute(any(),any(),any());
     }
+    @Test void providerUnavailableBeforeAnyEffectIsRetriedUnderTheSameIdentity() {
+        var result=new ProviderResult("APPROVAL_REQUIRED","order",null,null,null,50000,"USD","tents","TEST");
+        when(provider.execute(command,plan,tent)).thenThrow(new PayPalPaymentProvider.ProviderNotDispatchedException()).thenReturn(result);
+        assertThrows(NotDispatchedException.class,()->service.execute(command,"hash","dossier"));
+        verify(payments).notDispatched(command.id());
+        verify(payments,never()).uncertain(any());verify(payments,never()).fail(any());
+
+        when(payments.state(command.id())).thenReturn("NOT_DISPATCHED");
+        assertSame(result,service.execute(command,"fresh-hash","fresh-dossier"));
+        verify(payments).checkSame(command);
+        verify(payments).begin(command,"fresh-hash","fresh-dossier");
+        verify(payments).complete(command.id(),result);
+    }
+    @Test void reconciliationReportsANotDispatchedAttemptAsRetryable() {
+        when(payments.command(command.id())).thenReturn(command);
+        when(payments.evidence(command.id())).thenReturn(new GateResult("NOT_DISPATCHED","INDETERMINATE",null,"dossier","hash",null,"",null));
+        var reconciled=service.reconcile(command.id());
+        assertEquals("NOT_EXECUTED",reconciled.state());assertEquals("NOT_FORWARDED",reconciled.execution());
+        verifyNoInteractions(provider);
+    }
     @Test void aChangedAuthorizationCannotReleaseCatering() {
         var line=plan.lines().get(1);
         when(payments.latest(line.id())).thenReturn(new ProviderResult("AUTHORIZED","order","real-authorization",null,null,90000,"USD","catering","TEST"));

@@ -21,7 +21,10 @@ public final class PaymentService {
     public ProviderResult execute(PaymentCommand c,String intentHash,String dossier) {
         boolean admitted=payments.transaction(() -> {
             payments.lockOrder(c.orderId());
-            if (!payments.state(c.id()).equals("NOT_EXECUTED")) { payments.checkSame(c); return false; }
+            String state=payments.state(c.id());
+            // Only an attempt that never reached a payment effect may be dispatched again, under the same identity.
+            if (state.equals("NOT_DISPATCHED")) payments.checkSame(c);
+            else if (!state.equals("NOT_EXECUTED")) { payments.checkSame(c); return false; }
             if (payments.hasUnresolved(c.orderId())) throw CommerceException.held("A previous payment attempt must be reconciled first");
             validate(c);
             return payments.begin(c,intentHash,dossier);
@@ -39,6 +42,7 @@ public final class PaymentService {
             payments.complete(c.id(),result);
             return result;
         } catch (CommerceException e) { payments.fail(c.id()); throw e; }
+        catch (PayPalPaymentProvider.ProviderNotDispatchedException e) { payments.notDispatched(c.id()); throw new NotDispatchedException(); }
         catch (Exception e) { payments.uncertain(c.id()); throw new CommerceException("INDETERMINATE","The provider outcome is uncertain. Reconciliation is required.",503); }
     }
     private void validate(PaymentCommand c) {
@@ -84,6 +88,8 @@ public final class PaymentService {
         var command=payments.command(id);
         if (command==null) return new GateResult("NOT_EXECUTED","NOT_FORWARDED",null,null,null,null,"No provider attempt is recorded. Funds remain reserved.",null);
         var binding=payments.evidence(id);
+        if (binding.state().equals("NOT_DISPATCHED"))
+            return new GateResult("NOT_EXECUTED","NOT_FORWARDED",null,binding.dossierId(),binding.intentHash(),null,NotDispatchedException.MESSAGE,null);
         var result=payments.result(id);
         if (result==null || result.status().equals("PENDING")) {
             var observed=provider.reconcile(command,result);

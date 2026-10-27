@@ -16,9 +16,13 @@ import java.util.*;
 @RestController
 class SessionController {
     private final String mode;
+    private final String authority;
     private final AstraSettings ai;
     private final WebAccessPolicy access;
-    SessionController(String runtimeMode,AstraSettings ai,WebAccessPolicy access) { mode=runtimeMode;this.ai=ai;this.access=access; }
+    SessionController(String runtimeMode,AstraSettings ai,WebAccessPolicy access) {
+        mode=runtimeMode;this.ai=ai;this.access=access;
+        authority=authority(RuntimeSettings.value("AGENTSAFE_URL",null),RuntimeSettings.authority(mode));
+    }
     @GetMapping("/api/session") Map<String,Object> session(Authentication auth,CsrfToken csrf) {
         boolean signed=auth!=null && auth.isAuthenticated() && auth.getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_HUMAN"));
         return Map.of("authenticated",signed,"username",signed?auth.getName():"","csrfToken",csrf.getToken(),"csrfHeader",csrf.getHeaderName());
@@ -34,14 +38,13 @@ class SessionController {
         return Map.of("mode","demo");
     }
     /** Who decides: the shared hosted gateway answers with Decionis whatever the payment mode. */
-    static String authority(String agentSafeUrl,String mode) {
+    static String authority(String agentSafeUrl,String authority) {
         if (agentSafeUrl!=null && agentSafeUrl.startsWith("https://")) return "AgentSafe hosted gateway · Decionis";
-        return mode.equals("demo")?"AgentSafe · local test authority":"AgentSafe · Decionis";
+        return authority.equals("local")?"AgentSafe · local test authority":"AgentSafe · Decionis";
     }
-    private String authority() { return authority(RuntimeSettings.value("AGENTSAFE_URL",null),mode); }
     @GetMapping("/api/config") Map<String,Object> config() {
         return Map.of("mode",mode,"demoSessionEnabled",access.demoSessionEnabled(mode),"aiProvider",ai.provider(),"model",ai.source(),
-            "authority",authority(),
+            "authority",authority,
             "catalogSource","Curated demo catalog","receiptIssuer",RuntimeSettings.required("VENUE_ISSUER"),
             "clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID","")),
             "policyVersion",RuntimeSettings.required("DECIONIS_POLICY_VERSION"));

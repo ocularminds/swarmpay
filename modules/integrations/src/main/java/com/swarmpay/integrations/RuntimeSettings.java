@@ -17,6 +17,14 @@ public final class RuntimeSettings {
         if (!mode.equals("demo") && !mode.equals("sandbox")) throw new IllegalStateException("SWARM_MODE must be demo or sandbox");
         return mode;
     }
+    /** Who decides payments, chosen apart from the payment mode: PayPal sandbox may run under the local test authority. */
+    public static String authority(String mode) { return authority(mode,System.getenv("SWARM_AUTHORITY")); }
+    static String authority(String mode,String configured) {
+        String authority=configured==null||configured.isBlank()?(mode.equals("demo")?"local":"decionis"):configured.strip();
+        if (!authority.equals("local") && !authority.equals("decionis")) throw new IllegalStateException("SWARM_AUTHORITY must be local or decionis");
+        if (mode.equals("demo") && !authority.equals("local")) throw new IllegalStateException("Simulated payments use the local test authority");
+        return authority;
+    }
     public static String secret(String name) {
         String file=System.getenv(name+"_FILE");
         if (file==null || file.isBlank()) return required(name);

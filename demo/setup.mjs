@@ -24,7 +24,8 @@ if(!existsSync(privatePath)) {
 if(!existsSync(resolve(root,'.secrets/decionis-api-key')))writeFileSync(resolve(root,'.secrets/decionis-api-key'),'',{mode:0o600,flag:'wx'});
 const config={ SWARM_MODE:mode,SWARM_AI_PROVIDER:mode==='demo'?'demo':'azure',WEB_PORT:mode==='demo'?'5173':'5175',WEBHOOK_PORT:mode==='demo'?'5184':'5186',SWARM_PUBLIC_ORIGIN:'',SWARM_SESSION_COOKIE_SECURE:'false',PG_ADMIN_PASSWORD:secret(),PG_APP_PASSWORD:secret(),PG_EXECUTOR_PASSWORD:secret(),
   EXECUTOR_TOKEN:secret(),MCP_TOKEN:secret(),ORGANIZER_USERNAME:'organizer',ORGANIZER_PASSWORD:secret(),
-  DECIONIS_POLICY_VERSION:mode==='demo'?'swarm-pay-demo-v1':'',DECIONIS_TENANT_ID:'',DECIONIS_KEY_HOST_FILE:'./.secrets/decionis-api-key',
+  // Sandbox starts under the disclosed local test authority; demo/connect-decionis.mjs switches it to Decionis.
+  SWARM_AUTHORITY:'local',DECIONIS_POLICY_VERSION:'swarm-pay-demo-v1',DECIONIS_TENANT_ID:'',DECIONIS_KEY_HOST_FILE:'./.secrets/decionis-api-key',
   VENUE_ISSUER:'demo-venue-fixture',VENUE_PUBLIC_KEY_HOST_FILE:'./.secrets/venue-public.pem',
   AZURE_OPENAI_API_KEY:'',AZURE_OPENAI_ENDPOINT:'',AZURE_OPENAI_DEPLOYMENT:'gpt-6-astra',
   OPENAI_API_KEY:'',OPENAI_MODEL:'gpt-6-astra',PAYPAL_TENTS_CLIENT_ID:'',PAYPAL_TENTS_CLIENT_SECRET:'',PAYPAL_TENTS_MERCHANT_ID:'',PAYPAL_TENTS_WEBHOOK_ID:'',

@@ -21,20 +21,26 @@ export function PayPalCheckout({planId,order,clientId,onDone,onError}:{planId:st
   const done=useRef(onDone);done.current=onDone;const error=useRef(onError);error.current=onError;
   useEffect(()=>{
     let active=true;let buttons:ReturnType<PayPal['Buttons']>|undefined;
+    // The SDK reports our own failures through onError; keep their reason (expired quote, authority
+    // hold, PayPal unavailable) instead of a generic message, but never show the SDK's internals.
+    let reason:string|undefined;
+    const explained=async<T,>(work:()=>Promise<T>)=>{try{return await work();}catch(e){reason=e instanceof Error?e.message:undefined;throw e;}};
     load(clientId,order.paymentIntent.toLowerCase(),order.merchantId).then(paypal=>{
       if(!active || !target.current) return;
       buttons=paypal.Buttons({style:{layout:'vertical',color:'gold',shape:'rect',label:'paypal',height:42},
-        createOrder:async()=>{
+        createOrder:()=>explained(async()=>{
+          reason=undefined;
           const result=await api<GateResult>(`/api/plans/${planId}/orders/${order.id}/checkout`,'POST');
           if(!result.result?.providerOrderId || result.execution!=='FORWARDED') throw new Error(result.message);
           return result.result.providerOrderId;
-        },
-        onApprove:async(data:{orderID:string})=>{
+        }),
+        onApprove:(data:{orderID:string})=>explained(async()=>{
           const result=await api<GateResult>(`/api/plans/${planId}/orders/${order.id}/buyer-approved`,'POST',{providerOrderId:data.orderID});
-          done.current(); if(result.state!=='SUCCEEDED') error.current(result.message);
-        },
+          // QUEUED means the worker claimed this approval first; the refreshed status shows its outcome.
+          done.current(); if(!['SUCCEEDED','QUEUED'].includes(result.state)) error.current(result.message);
+        }),
         onCancel:()=>error.current('PayPal approval was cancelled. No new payment is confirmed.'),
-        onError:()=>{error.current('PayPal checkout did not finish. Check the payment status before trying again.');done.current();},
+        onError:()=>{error.current(reason||'PayPal checkout did not finish. Check the payment status before trying again.');done.current();},
       });return buttons.render(target.current);
     }).then(()=>{if(active)setLoading(false);}).catch(e=>{if(active){setLoading(false);error.current(e.message);}});
     return()=>{active=false;void buttons?.close();};

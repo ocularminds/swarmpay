@@ -11,6 +11,7 @@ import com.swarmpay.domain.Commerce.*;
 import com.swarmpay.domain.Commerce.Plan;
 import com.swarmpay.domain.CommerceException;
 import com.swarmpay.domain.Money;
+import io.apimatic.core.exceptions.AuthValidationException;
 import java.io.IOException;
 import java.time.*;
 import java.util.*;
@@ -118,12 +119,27 @@ public final class PayPalPaymentProvider implements PaymentProvider {
         } catch (ApiException e) {
             if (!providerAccepted && definitiveRefusal(e))
                 throw new CommerceException("PAYPAL_REFUSED","PayPal refused the request (HTTP " + e.getResponseCode() + "). Review the sandbox payment before retrying.",422);
+            if (retrySafe(c,effectAttempted,providerAccepted)) throw new ProviderNotDispatchedException();
             throw new ProviderUncertainException();
         } catch (CommerceException e) {
             // A bad response after dispatch cannot prove that the payment did not happen.
             if (effectAttempted) throw new ProviderUncertainException();
             throw e;
-        } catch (IOException e) { throw new ProviderUncertainException(); }
+        } catch (IOException e) {
+            if (retrySafe(c,effectAttempted,providerAccepted)) throw new ProviderNotDispatchedException();
+            throw new ProviderUncertainException();
+        } catch (AuthValidationException e) {
+            // The SDK raises this when it has no OAuth token, before it builds any request.
+            throw new ProviderNotDispatchedException();
+        }
+    }
+    /**
+     * Nothing that moves money was sent: the failure came from an order read before the
+     * payment POST, or from creating an order, which needs buyer approval before any funds move and
+     * which PayPal deduplicates by the same PayPal-Request-Id on retry.
+     */
+    private static boolean retrySafe(PaymentCommand c,boolean effectAttempted,boolean providerAccepted) {
+        return !effectAttempted || c.operation()==Operation.CREATE_ORDER && !providerAccepted;
     }
     @Override public ProviderResult reconcile(PaymentCommand c, ProviderResult known) {
         String order = c.operation() == Operation.AUTHORIZE_ORDER || c.operation() == Operation.CAPTURE_ORDER
@@ -298,5 +314,9 @@ public final class PayPalPaymentProvider implements PaymentProvider {
     }
     public static final class ProviderUncertainException extends RuntimeException {
         public ProviderUncertainException() { super("PayPal outcome is uncertain; reconcile before retrying"); }
+    }
+    /** PayPal could not be reached before any payment effect; the same command identity may be retried. */
+    public static final class ProviderNotDispatchedException extends RuntimeException {
+        public ProviderNotDispatchedException() { super("PayPal was unavailable before any payment was taken; retry is safe"); }
     }
 }

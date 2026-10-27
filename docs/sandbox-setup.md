@@ -38,6 +38,8 @@ node demo/setup.mjs --sandbox
 
 This creates `.env.sandbox` with distinct local passwords/tokens, UI port 5175 and webhook port 5186, preserving the existing `.env` and venue fixture keys. Complete the Azure values in that file locally. If the file was created before the callback listener was added, set `WEBHOOK_PORT=5186` in it. Never change an existing demo database to sandbox mode; both Java services persist a mode binding and reject that change.
 
+The payment mode and the payment authority are separate settings. A new sandbox configuration starts with `SWARM_AUTHORITY=local`: real PayPal sandbox orders, authorizations and captures, each decided by the disclosed local test authority with the same synthetic policy as the demo. The UI labels this `AgentSafe · local test authority`, and the Java executor still rechecks consent, reservations, prices, provider resources and receipts. To have hosted Decionis decide instead, complete **Hosted Decionis enforcement** below; its connector sets `SWARM_AUTHORITY=decionis`. A `.env.sandbox` created before this setting existed selects Decionis by default; add `SWARM_AUTHORITY=local` and `DECIONIS_POLICY_VERSION=swarm-pay-demo-v1` to use the local authority.
+
 In the [PayPal developer dashboard](https://developer.paypal.com/dashboard/), create two controlled sandbox business sellers and one sandbox personal buyer. Create a sandbox REST app for each seller and record the following locally:
 
 | Merchant | Required configuration |
@@ -111,7 +113,7 @@ The commerce application, which runs the agents, sits on internal Docker network
 
 **Hosted Decionis enforcement**
 
-Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient.
+This step is optional for PayPal sandbox payments, which can run under the local test authority. Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient.
 
 The policy is [`infra/agentsafe/decionis-policy.json`](../infra/agentsafe/decionis-policy.json), named `swarm-pay-payments`, version `swarm-pay-sandbox-v1`. A named policy sits beside any other policy in the workspace: Decionis resolves it by its id and newest version for a request (or a gateway key) that names it, and keeps the workspace default for everything else, so publishing it replaces nobody's rules. Decionis accepts `policy_id` once its named-policies change is live; until then the publish is refused, and nothing changes. It mirrors the local fixture: `payment.execute` for the two catalogue merchants in USD, up to $1,500, for the five known operations, bound to plan version 1, the policy version and the reserved workflow; a catering capture without a 64-hex receipt digest escalates; anything else is refused.
 

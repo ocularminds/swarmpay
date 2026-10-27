@@ -2,15 +2,41 @@
 
 **Give agents a budget. Pay merchants only on agreed terms.**
 
-SwarmPay turns an event request into a reviewed plan across two merchants. Tents are paid at checkout; catering is authorized at checkout and captured after an agreed venue receipt passes verification. Every payment command passes through the published AgentSafe gateway and a private Java executor.
+An event organizer must pay several merchants on different terms, and handing an AI agent a card puts the whole budget at risk. With SwarmPay, the organizer describes the event, AI agents build a plan across two merchants, and each merchant is paid only on its agreed terms: tents at checkout, catering after a signed venue receipt confirms delivery. The organizer approves the exact plan once; agents never hold payment credentials.
 
-Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/). The architecture was approved on October 25, 2026; see the [approved plan](docs/architecture-and-delivery-plan.md).
+Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
-**Current delivery:** the demo is live at **[swarm.decionis.com](https://swarm.decionis.com)** with organizer sign-in, Azure OpenAI planning, simulated payments and AgentSafe enforcement against a local test authority. The public browser journey, signed fixture capture, evidence export and AKS isolation checks passed. Java REST/MCP services and persistent workflows also run locally. Native PayPal sandbox and hosted Decionis enforcement validation remain incomplete. See the [capability matrix](docs/implementation-status.md).
+| | |
+| --- | --- |
+| **Video** | _TODO: YouTube link_ |
+| **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Organizer login and testing steps are in the Devpost private testing instructions. Payments there are simulated and labeled. |
+| **Run locally** | [Three commands](#run-it-locally), no accounts needed |
 
-**Run the local demo**
+## PayPal capabilities
 
-Install Docker with Compose v2 and Node.js 22.23.2 (the version in `.node-version`). Java is provided by the Docker build; no host JDK is needed for this path. The initial build downloads dependencies.
+Only a private executor holds PayPal credentials; every payment command reaches it through a fail-closed policy gateway (AgentSafe).
+
+- **JavaScript SDK Buttons**, with a separate `data-namespace` per merchant so each seller gets its own buyer approval ([`PayPalCheckout.tsx`](apps/web/src/PayPalCheckout.tsx)).
+- **Orders v2**: `CAPTURE` intent for tents, `AUTHORIZE` intent for catering, the seller as payee and a `PayPal-Request-Id` on each write.
+- **Payments v2**: capture the catering authorization after the receipt verifies, or void it.
+- **Webhook signature verification** per seller ([`PayPalWebhookVerifier.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalWebhookVerifier.java)).
+- **PayPal Java Server SDK** 2.4.0 for all Orders and Payments calls ([`PayPalPaymentProvider.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalPaymentProvider.java)).
+
+> **TODO: update once sandbox execution is verified.** Both sandbox seller apps and their webhook registrations pass PayPal's API checks. A full sandbox buyer approval, capture and void has not been verified yet, so the hosted demo uses simulated payments. See [implementation status](docs/implementation-status.md).
+
+## AI
+
+Azure OpenAI `gpt-6-astra` through the Responses API ([`modules/agent-workflows`](modules/agent-workflows)):
+
+- **Intent extraction** turns free text into typed, editable fields (guests, tents, budget in cents, venue, weather, date) and clarifying questions.
+- **Sourcing** chooses one tent and one catering offer through a schema that admits only the catalog's offer IDs; Java checks capacity, dates and budget before a plan exists.
+- **Risk & milestone** review checks the chosen offers against the confirmed event.
+
+Every call uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents get no payment tools; catalog prices set the amounts, and the organizer approves every value. An agent can ask for the catering payment through the MCP `request_milestone_payment` tool, but that request goes through AgentSafe, which holds it until a verified delivery receipt exists.
+
+## Run it locally
+
+Needs Docker with Compose v2 and Node.js 22. No PayPal or Azure account is required.
 
 ```sh
 node demo/setup.mjs
@@ -18,21 +44,9 @@ node demo/doctor.mjs
 docker compose up --build -d --wait
 ```
 
-Open **[http://localhost:5173](http://localhost:5173)** and choose **Explore the local demo**. The UI and a separate webhook listener on port 5184 bind only to loopback. The setup script generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and does not configure external accounts. If your `.env` predates the simulated venue, run `node demo/setup.mjs` again: it adds the venue's signing key, which only the venue container receives.
+Open <http://localhost:5173> and choose **Explore the local demo**. Let the Sourcing Agent choose the offers, approve the $1,400 plan and pay both merchants. Then watch AgentSafe hold the agent's early request to pay catering, and release catering only when the simulated venue confirms delivery with a signed receipt. The [walkthrough](demo/walkthrough.md) has the full script.
 
-1. Keep the event about an hour ahead, confirm tent rentals, and leave both offer preferences on **Sourcing Agent chooses**. Prepare a plan for 30 guests and five tents.
-2. The Sourcing Agent chooses the $500 tent rental and $900 catering, the fullest combination within the $1,500 budget, and the server checks its choice. Approve the $1,400 plan.
-3. Complete each **Simulated checkout**. Tents show paid; catering shows authorized and awaiting delivery.
-4. Open **Delivery & proof**. A photo alone cannot release catering. Choose **Let the agent request payment**: the milestone agent asks for the catering payment before delivery, and AgentSafe holds the request. No payment command is queued.
-5. Choose **Confirm delivery as the venue**. A separate venue container signs a receipt with its own key; SwarmPay verifies that it matches the event, merchant, quantity and delivery window, and the same AgentSafe boundary allows the catering capture. **Download evidence** exports the payment records and application audit chain.
-
-To test altered or replayed receipts, sign an exported workflow with `node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json` and upload the file within 15 minutes.
-
-The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering checkout must be within three days of the event. Use a new plan when a quote expires. A longer walkthrough is in [demo/walkthrough.md](demo/walkthrough.md).
-
-Stop with `docker compose down`; the database, authority journal and key volumes remain. A later `docker compose up -d --wait` restores workflows. Removing volumes destroys those records, so volume deletion is not part of the normal reset procedure. Use **New plan** for another demonstration.
-
-**Architecture**
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -48,7 +62,29 @@ flowchart LR
     EXEC --> LEDGER[(Private payment ledger)]
 ```
 
-The demo shares one plan and budget but uses **two merchant approvals**. It does not implement legal escrow, platform custody, automatic marketplace splitting, or Standard Payouts. Authorization followed by capture avoids paying the same seller twice through a separate payout.
+One plan and budget, two merchant approvals. Authorize-then-capture pays each seller directly, with no escrow, custody or payouts.
+
+---
+
+## For maintainers
+
+### Local demo details
+
+Use Node.js 22.23.2, the version in `.node-version`. Java is provided by the Docker build; no host JDK is needed for this path, and the initial build downloads dependencies. The UI and a separate webhook listener on port 5184 bind only to loopback. `demo/setup.mjs` generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and configures no external accounts. If your `.env` predates the simulated venue, run `node demo/setup.mjs` again: it adds the venue's signing key, which only the venue container receives.
+
+1. Keep the event about an hour ahead, confirm tent rentals, and leave both offer preferences on **Sourcing Agent chooses**. Prepare a plan for 30 guests and five tents.
+2. The Sourcing Agent chooses the $500 tent rental and $900 catering, the fullest combination within the $1,500 budget, and the server checks its choice. Approve the $1,400 plan.
+3. Complete each **Simulated checkout**. Tents show paid; catering shows authorized and awaiting delivery.
+4. Open **Delivery & proof**. A photo alone cannot release catering. Choose **Let the agent request payment**: the milestone agent asks for the catering payment before delivery, and AgentSafe holds the request. No payment command is queued.
+5. Choose **Confirm delivery as the venue**. A separate venue container signs a receipt with its own key; SwarmPay verifies that it matches the event, merchant, quantity and delivery window, and the same AgentSafe boundary allows the catering capture. **Download evidence** exports the payment records and application audit chain.
+
+To test altered or replayed receipts, sign an exported workflow with `node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json` and upload the file within 15 minutes.
+
+The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering checkout must be within three days of the event. Use a new plan when a quote expires.
+
+Stop with `docker compose down`; the database, authority journal and key volumes remain. A later `docker compose up -d --wait` restores workflows. Removing volumes destroys those records, so volume deletion is not part of the normal reset procedure. Use **New plan** for another demonstration.
+
+### Repository layout
 
 | Path | Responsibility |
 | --- | --- |
@@ -56,17 +92,18 @@ The demo shares one plan and budget but uses **two merchant approvals**. It does
 | `apps/payment-executor` | Private Spring Boot service holding PayPal credentials and a durable attempt ledger |
 | `apps/web` | React/TypeScript/Vite UI, native PayPal SDK branch, browser tests |
 | `modules/commerce-domain` | Typed intents, immutable plans, money in integer cents |
-| `modules/agent-workflows` | Bounded sourcing/risk assessments and typed intent extraction through OpenAI Responses |
+| `modules/agent-workflows` | Bounded sourcing choice, risk assessment and typed intent extraction through OpenAI Responses |
 | `modules/integrations` | PayPal SDK/API, authority HTTP client, catalog and Ed25519 receipt verification |
 | `modules/persistence` | Atomic consent/reservations, outbox, attempt ledger and audit chain |
 | `modules/mcp-tools` | Seven typed tools; human plan approval is not an agent tool |
 | `infra/agentsafe` | Pinned published gateway, synthetic policy and adversarial boundary tests |
 | `infra/egress` | The agent's only route out: an HTTPS proxy that admits the configured model host and refuses PayPal |
+| `infra/venue` | The simulated venue: the only holder of the venue signing key; signs a receipt for the signed-in organizer's recorded order |
 | `contracts`, `docs`, `demo` | Wire contracts, operating limits, setup and repeatable validation |
 
-Java 21, Spring Boot 4.1.2, Spring AI 2.0.2, Gradle 8.14.3, PayPal Java SDK 2.4.0, and OpenAI Java 4.91.0 are pinned. The requested model is `gpt-6-astra`; there is no model fallback. AgentSafe 0.2.5 and its pipeline 0.3.8 are locked. A reviewed Presence dependency override is explained in [security and reliability](docs/security-and-reliability.md).
+Java 21, Spring Boot 4.1.2, Spring AI 2.0.2, Gradle 8.14.3, PayPal Java Server SDK 2.4.0, and OpenAI Java 4.91.0 are pinned. The model is fixed to `gpt-6-astra`; there is no model fallback. AgentSafe 0.2.5 and its pipeline 0.3.8 are locked. A reviewed Presence dependency override is explained in [security and reliability](docs/security-and-reliability.md).
 
-**Verify locally**
+### Verify locally
 
 With Node 22 active, select deterministic AI for the fixture tests without changing `.env`:
 
@@ -94,32 +131,20 @@ For native Java development, activate JDK 21 and run `./gradlew verify` (Docker 
 
 The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol, webhook verification, gateway, API/MCP, isolation, callback ingress, restart, deployment configuration, source packaging and browser checks using synthetic fixtures. PayPal/OpenAI/Decionis account tests are deliberately separate.
 
-**Azure hosting**
+### Hosted demo
 
-The demo runs in the user-approved existing `decionis` namespace of `decionis-rg` / `decionis-aks` in Central US. Its resources and policy selectors are dedicated to `swarm-pay`; the deployment does not change shared namespace labels or existing Decionis workloads. Five services are healthy, both volumes are bound, and public HTTPS uses a verified Let's Encrypt certificate. See the [Azure runbook](docs/azure-hosting.md) for the release record, separate credentials, network checks and rollout procedure.
+`swarm.decionis.com` runs five dedicated `swarm-pay-*` services in the existing `decionis` namespace of the `decionis-aks` cluster, with real Azure AI, simulated payments and a local test authority. Hosted access requires `SWARM_PUBLIC_ORIGIN` and `SWARM_SESSION_COOKIE_SECURE=true`, which enforce Host/Origin checks, organizer sign-in and secure cookies and disable the one-click local session. Details are linked rather than repeated here:
 
-`infra/azure/release.mjs` packages a merged commit directly from Git, requires successful CI for that commit and submits an AMD64 build to the existing Azure registry. It emits deployment image references only after the run and all four registry digests verify. The current deployment uses the [recorded immutable images](infra/azure/releases/d3ea860.images.json); the runbook includes the commands and recovery limits.
+- [Azure hosting runbook](docs/azure-hosting.md): CI-bound image releases, the [recorded immutable images](infra/azure/releases/d3ea860.images.json), network policies, TLS, the local HTTPS rehearsal (`node demo/hosted/run.mjs`), the explicit public acceptance check (`demo/check-deployed.mjs`) and rollback limits.
+- [Hosted AgentSafe endpoints](docs/azure-hosting.md#hosted-agentsafe-endpoints): neither candidate Decionis endpoint is verified as SwarmPay's enforcement gateway yet, so the demo discloses its local test authority.
+- [Security and reliability](docs/security-and-reliability.md): the authority boundary, payment replay protection, evidence limits and hosted web access rules.
 
-Hosted access requires `SWARM_PUBLIC_ORIGIN=https://swarm.decionis.com` and `SWARM_SESSION_COOKIE_SECURE=true`. The app validates Host/Origin, requires organizer sign-in and disables the one-click local demo session. The normal loopback demo keeps both settings at their generated defaults. An isolated HTTPS rehearsal runs without provider credentials or changes to `.env`:
+### Connect real sandbox accounts
 
-```sh
-node demo/hosted/run.mjs up
-node demo/hosted/run.mjs check
-node demo/hosted/run.mjs down
-```
+Follow [sandbox-setup.md](docs/sandbox-setup.md) for Azure OpenAI, two PayPal seller apps plus a sandbox buyer, webhook verification, a Decionis tenant with enforcement access and a separately identified test venue issuer. Payment account tests use a separate Compose project and `.env.sandbox`; each database binds itself to its runtime mode and refuses relabeling demo payments as sandbox payments.
 
-Use `SWARM_TEST_BROWSER=chrome` for the check if Chrome is installed. This separate stack exercises the full simulated payment journey, sign-in/sign-out, origin rejection, secure cookies and restricted container users/filesystems. It does not prove AKS network enforcement or replace native sandbox acceptance.
+`node demo/check-paypal.mjs .env.sandbox --callback-origin https://swarm.decionis.com` checks seller OAuth access and webhook subscriptions through PayPal's sandbox API, including the expected host and `/webhooks/paypal/{merchant}` paths. It prints no secrets, sends no payment requests and writes a private readiness report. Temporary ngrok callbacks, described in the same runbook, are an optional path for local sandbox testing.
 
-The separate `demo/check-deployed.mjs` explicitly tests the public Azure demo with normal TLS verification, private organizer credentials and a host-only fixture signing key. It makes two real Azure model calls and one simulated workflow; it is never run by ordinary CI. The completed run verified the photo-only hold, receipt capture, evidence export and desktop/mobile views. Credentials remain in the private deployment bundle, not in this repository.
-
-The supplied hosted AgentSafe choices are recorded in the [hosting runbook](docs/azure-hosting.md#hosted-agentsafe-endpoints): `swarm.decionisedge.com` currently reports an unserved host; `dci.decionisedge.com` requires a tenant key. Neither has been verified as SwarmPay's enforcement gateway, so the demo continues to disclose its local test authority.
-
-**Connect real sandbox accounts**
-
-Follow [sandbox-setup.md](docs/sandbox-setup.md). It covers Azure OpenAI credentials and deployment, two PayPal seller apps plus a sandbox buyer, webhook verification, a Decionis tenant with enforcement access, and a separately identified test venue issuer. Use a separate Compose project and `.env.sandbox` for payment account tests; each database binds itself to its runtime mode and refuses relabeling demo payments as sandbox payments.
-
-`node demo/check-paypal.mjs .env.sandbox --callback-origin https://swarm.decionis.com` checks configured seller OAuth access and webhook subscriptions using PayPal's sandbox API, including the expected host and `/webhooks/paypal/{merchant}` paths. It prints no secrets, sends no payment requests, and writes a private readiness report. Missing account configuration produces a nonzero exit code. The [ngrok runbook](docs/sandbox-setup.md#temporary-ngrok-callbacks) remains an optional callback path for local sandbox testing. The hosted Azure demo currently uses simulated payments; its public availability does not verify native PayPal callbacks.
-
-The [API and MCP reference](contracts/README.md), [security notes](docs/security-and-reliability.md), and [implementation status](docs/implementation-status.md) describe the supported behavior and outstanding integration work. A local file-presence check is not proof that an account or grant can execute.
+The [API and MCP reference](contracts/README.md), [delivery phases](docs/delivery-phases.md), [architecture plan](docs/architecture-and-delivery-plan.md) and [implementation status](docs/implementation-status.md) describe the supported behavior and outstanding integration work. A local file-presence check is not proof that an account or grant can execute.
 
 Apache-2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE).

@@ -1,13 +1,60 @@
-**SwarmPay submission draft — account validation pending**
+**SwarmPay Devpost submission text**
 
-**Tagline:** Give agents a budget. Pay merchants only on agreed terms.
+_Maintainer note, not for pasting: paste everything below the line into Devpost after replacing each `[TODO …]`. Before submitting, make the repository public (it is private today), recheck the [official rules](https://paypalaihackathon.devpost.com/rules) and the [implementation status](implementation-status.md), and submit before November 12, 2026, 12:00 PT (20:00 UTC); target November 11._
 
-SwarmPay helps an organizer turn an event request into a reviewed plan across two merchants. Two bounded AI roles compare curated offers and explain the risk and delivery terms. The organizer confirms the budget and payees, then completes each merchant's PayPal approval. Tent rentals are paid at checkout; catering is authorized and captured only after an agreed venue receipt passes deterministic verification.
+---
 
-The engineering focus is the boundary between a recommendation and a payment. Every payment command follows the published AgentSafe gateway into an isolated Java executor. The executor rechecks consent, reservations, resource bindings and receipt evidence, while durable command identities prevent a replay from creating another business payment. The UI shows partial completion and pending outcomes without presenting them as success.
+**Give agents a budget. Pay merchants only on agreed terms.**
 
-The monorepo uses Java 21, Spring Boot, Gradle, authenticated Spring AI MCP, PostgreSQL, React, the PayPal Java/JavaScript SDKs, Azure OpenAI Responses and the published Decionis AgentSafe runtime. The requested model is GPT-6 Astra. The core includes two merchants, separate native approvals and one catering milestone. It does not depend on a general wallet, a legal escrow account or arbitrary-site purchasing.
+- **Video:** [TODO: public YouTube URL, under three minutes]
+- **Live demo:** https://swarm.decionis.com (organizer sign-in; see the testing instructions)
+- **Code:** [TODO: public repository URL], Apache-2.0
 
-At this stage the local payment and authority journey is reproducible with explicit fixtures. Use the [implementation status](implementation-status.md) for current account evidence. Do not submit this draft as a claim of verified hosted Decionis or PayPal sandbox execution until those gates pass.
+## Inspiration
 
-Before submission, add actual PayPal sandbox and Decionis proof, the final public repository URL, reviewer run instructions, and a public YouTube video under three minutes. Confirm eligibility and the [official rules](https://paypalaihackathon.devpost.com/rules) again. The challenge deadline is November 12, 2026 at 20:00 UTC; target November 11. No Devpost entry, hosted deployment or public video has been submitted by this implementation.
+Agent commerce tends to offer two bad options: the agent only recommends, or it gets a card and spends freely. Real purchases sit in between. An event organizer pays for tents up front but should pay the caterer only once the food arrives. We wanted agents to do the legwork while every payment follows the organizer's agreed terms.
+
+## What it does
+
+The organizer describes an event: "30 guests, five tent rentals, $1,500, rain likely." AI agents turn that into editable details, choose one offer from each of two merchants in a curated catalog, and flag budget, capacity, weather and timing risks. The organizer approves one exact plan, then completes a separate PayPal approval for each merchant. Tents are captured at checkout. Catering is only authorized. If an agent asks to pay the caterer before delivery, the payment boundary holds the request and nothing is paid. Catering is captured when a signed venue receipt matching the event, merchant, quantity and delivery window verifies; a photo alone is not enough. In the demo, a separate simulated venue signs that receipt. Everything exports as an evidence trail.
+
+## How we built it
+
+A Java 21 / Spring Boot monorepo with a React UI. The commerce app plans and records consent; a separate private executor is the only service with PayPal credentials. Each payment command passes through the published AgentSafe gateway in fail-closed mode, and the executor rechecks consent, the budget reservation and the receipt before calling PayPal. PostgreSQL holds money in integer cents, atomic budget reservations, durable command identities and a SHA-256 audit chain. Seven typed MCP tools expose the workflow to agents; plan approval is deliberately not one of them, and an agent's payment request goes through the same gateway. The simulated venue runs as its own service and is the only holder of the receipt signing key. In the hosted demo, the gateway consults a local test authority.
+
+## Tools used
+
+**AI.** Azure OpenAI `gpt-6-astra` through the Responses API, via the official OpenAI Java SDK. Three calls: typed intent extraction, a sourcing choice limited to the catalog's offer IDs, and a risk & milestone assessment. Each uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents never receive payment or signing tools, and catalog prices, not model output, set the amounts.
+
+**PayPal.**
+
+- JavaScript SDK Buttons, with a separate `data-namespace` per merchant so each seller gets its own buyer approval.
+- Orders v2: `CAPTURE` intent for tents, `AUTHORIZE` intent for catering, the seller as payee and a `PayPal-Request-Id` on each write.
+- Payments v2: capture the catering authorization after the receipt verifies, or void it on cancellation.
+- Webhook signature verification for each seller.
+- PayPal Java Server SDK 2.4.0 for all server calls, with bounded timeouts and retries disabled.
+
+**Sandbox evidence:** [TODO: sandbox order, authorization and capture IDs plus screenshots once the end-to-end sandbox run is verified. Until then, say plainly that the hosted demo uses simulated, clearly labeled payments.]
+
+## Challenges
+
+- **Ambiguous outcomes.** A payment timeout or 5xx may still have moved money. SwarmPay persists each attempt before dispatch, treats unclear results as unknown and reconciles them by lookup instead of retrying blindly, keeping the budget reserved meanwhile.
+- **Two sellers, one plan.** Escrow and payouts were the wrong tools; authorize-then-capture pays each seller directly on its own terms.
+- **Keeping agents away from money.** Their only network route is a proxy that admits the model host and refuses PayPal, and the app cannot reach the executor even by container IP.
+- **Replay.** Concurrent replays of the same receipt produce exactly one capture.
+
+## What's next
+
+- Complete the account-backed PayPal sandbox run and hosted Decionis enforcement, including held-payment approval and resume.
+- Real venue integrations and a dispute process, plus refunds and budget reallocation after cancellation.
+- Scoped multi-user MCP credentials, more merchants and multi-milestone contracts.
+
+## Testing instructions
+
+[TODO: supply privately in Devpost's testing-instructions field; never commit these:
+
+- Organizer login for https://swarm.decionis.com
+- PayPal sandbox buyer login, once the sandbox runtime is live
+- The delivery step on the hosted demo is the **Confirm delivery as the venue** button, once the venue deployment is live there
+
+Anyone can run the full simulated journey locally with three commands; see the repository README.]

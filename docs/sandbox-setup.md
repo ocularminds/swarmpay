@@ -14,7 +14,7 @@ AZURE_OPENAI_ENDPOINT=
 AZURE_OPENAI_DEPLOYMENT=gpt-6-astra
 ```
 
-The endpoint can be the HTTPS Azure OpenAI resource root or its `/openai/v1` URL. The application normalizes it to `/openai/v1/`, disables redirects, and passes the deployment name in the Responses request. No `api-version` query is required for this v1 route. The deployment must point to the requested GPT-6 Astra model; a deployment name alone does not prove the underlying model. See Microsoft's [v1 API guidance](https://learn.microsoft.com/azure/ai-foundry/openai/api-version-lifecycle) and the official [Java SDK Azure configuration](https://github.com/openai/openai-java#Microsoft-Azure).
+The endpoint can be the HTTPS Azure OpenAI resource root or its `/openai/v1` URL. The application normalizes it to `/openai/v1/`, disables redirects, and passes the deployment name in the Responses request. No `api-version` query is required for this v1 route. The deployment must point to the GPT-6 Astra model; a deployment name alone does not prove the underlying model. See Microsoft's [v1 API guidance](https://learn.microsoft.com/azure/ai-foundry/openai/api-version-lifecycle) and the official [Java SDK Azure configuration](https://github.com/openai/openai-java#Microsoft-Azure).
 
 The initial local names `AZURE_OPEANAI_KEY`, `AZURE_OPENAI_URL`, and `AZURE_OPENAI_LLM` are supported as aliases, including the original spelling of `OPEANAI`. Their values do not need to be pasted into chat or rewritten. If both key names are present, the existing `AZURE_OPEANAI_KEY` takes precedence. The canonical names above are preferred for new configurations.
 

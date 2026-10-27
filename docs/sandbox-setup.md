@@ -152,7 +152,7 @@ Open [http://localhost:5175](http://localhost:5175) and sign in with the organiz
 
 If PayPal declines the sandbox buyer's funding source, its checkout reopens on the same order so the buyer can choose another; the retry reuses the same payment command and takes a fresh authority decision.
 
-Before delivery, choose **Let the agent request payment** and confirm that AgentSafe holds the request and no payment is sent. Then choose **Confirm delivery as the venue**. The venue container signs the recorded catering order with the current time, and the receipt can trigger a sandbox catering capture. To sign an exported workflow outside the application instead, the signer requires an explicit flag for **PayPal sandbox only**:
+Before delivery, choose **Let the agent ask** and confirm that AgentSafe holds the request and no payment is sent. Then choose **Confirm delivery as the venue**. The venue container signs the recorded catering order with the current time, and the receipt can trigger a sandbox catering capture. To sign an exported workflow outside the application instead, the signer requires an explicit flag for **PayPal sandbox only**:
 
 ```sh
 node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json --sandbox-test

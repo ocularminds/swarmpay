@@ -5,9 +5,8 @@ import type {Config} from './types';
 /** The signed-out page: one promise, one action, no workspace menu. */
 export function Landing({config,busy,error,onDismiss,onDemo,onSignIn}:{config:Config;busy:string;error:string;onDismiss:()=>void;onDemo:()=>void;onSignIn:(username:string,password:string)=>void}) {
   const [username,setUsername]=useState('organizer');const [password,setPassword]=useState('');
-  const sandbox=config.mode==='sandbox';
   return <div className="landing">
-    <header className="landing-header"><Brand/><span className="landing-mode"><i/><span>{sandbox?'PayPal sandbox':<>Demo<em> · no real money moves</em></>}</span></span></header>
+    <header className="landing-header"><Brand/><ModePill config={config}/></header>
     <main className="landing-main">
       <section className="landing-pitch">
         <h1>Book your event.<br/>Pay only on your terms.</h1>
@@ -29,11 +28,19 @@ export function Landing({config,busy,error,onDismiss,onDemo,onSignIn}:{config:Co
       </section>
       <ExamplePlan/>
     </main>
-    <footer className="landing-footer"><div><p>{sandbox?'Payments run in the PayPal sandbox. The catalog and venue are simulated.':'Payments, catalog and venue are simulated in this demo.'} {config.aiProvider==='demo'?'Agent responses are simulated.':`Planning uses ${config.model}.`} {config.authority==='AgentSafe · local test authority'?'AgentSafe checks payments with a local test authority.':`${config.authority} decides every payment.`}</p><span>Built for the PayPal AI Hackathon</span></div></footer>
+    <SiteFooter config={config} className="landing-footer"/>
   </div>;
 }
 
-function Brand(){return <div className="brand"><span className="brand-symbol"><span/><span/><span/><span/></span>SwarmPay<span className="brand-dot">.</span></div>;}
+/** What is real and what is simulated, said once at the foot of every page. */
+export function SiteFooter({config,className}:{config:Config;className:string}) {
+  return <footer className={className}><div><p>{config.mode==='sandbox'?'Payments run in the PayPal sandbox. The catalog and venue are simulated.':'Payments, catalog and venue are simulated in this demo.'} {config.aiProvider==='demo'?'Agent responses are simulated.':`Planning uses ${config.model}.`} {config.authority==='AgentSafe · local test authority'?'AgentSafe checks payments with a local test authority.':`${config.authority} decides every payment.`}</p><span>Built for the PayPal AI Hackathon</span></div></footer>;
+}
+/** The mode pill shared by the landing and the workspace. */
+export function ModePill({config}:{config:Config}) {
+  return <span className="landing-mode"><i/><span>{config.mode==='sandbox'?'PayPal sandbox':<>Demo<em> · no real money moves</em></>}</span></span>;
+}
+export function Brand(){return <div className="brand"><span className="brand-symbol"><span/><span/><span/><span/></span>SwarmPay<span className="brand-dot">.</span></div>;}
 
 /** An illustration of the outcome, labeled as an example rather than live data. */
 function ExamplePlan() {

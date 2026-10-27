@@ -8,7 +8,7 @@ export type AuditEvent={sequence:number;type:string;message:string;source:string
 export type Workflow={plan:Plan;orders:Order[];events:AuditEvent[];committedMinor:number;capturedMinor:number;mode:'demo'|'sandbox';receiptVerified:boolean;paymentFrozen:boolean;agentRequests:AgentRequest[]};
 export type ProviderResult={status:string;providerOrderId:string;authorizationId:string|null;captureId:string|null;source:string};
 export type GateResult={state:string;execution:string;decisionId:string|null;dossierId:string|null;intentHash:string|null;intentId:string|null;message:string;result:ProviderResult|null};
-export type Command={command:{id:string;operation:string;merchantId:string;amountMinor:number};state:string;result:GateResult|null};
+export type Command={command:{id:string;orderId:string;operation:string;merchantId:string;amountMinor:number};state:string;result:GateResult|null};
 /** An agent's payment request the authority decided; never queued as a payment. */
 export type AgentRequest={command:{id:string;operation:string;merchantId:string;amountMinor:number};result:GateResult;at:string};
 export type Config={mode:'demo'|'sandbox';demoSessionEnabled:boolean;aiProvider:'demo'|'azure'|'openai';model:string;authority:string;catalogSource:string;receiptIssuer:string;clientIds:Record<string,string>;policyVersion:string};

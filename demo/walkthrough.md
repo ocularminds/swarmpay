@@ -7,9 +7,9 @@ Start with the [README](../README.md). For a repeatable recording or test, use `
 | Time | Action | Evidence to show |
 | --- | --- | --- |
 | 0:00–0:20 | Open the organizer workspace. Describe a rainy outdoor meetup for 30 people, five tent rentals and a $1,500 budget. | Absolute event date, venue, rental confirmation and editable quantities. Clearly identify local payment/authority fixtures. |
-| 0:20–0:40 | Use **Understand request**, leave both offer preferences on **Sourcing Agent chooses**, then **Prepare my plan**. Keep the event about one hour ahead. | The Sourcing Agent's choice and reasons, then the risk review, each with its actual provider label. The server checks the choice: $500 tents and $900 catering. |
-| 0:40–1:00 | Review and approve the exact $1,400 plan. Complete the two **Simulated checkout** dialogs. | Tent payment is captured; catering is authorized. Confirmed paid is $500, committed is $1,400. |
-| 1:00–1:20 | Open **Delivery & proof**, upload a small image, then choose **Let the agent request payment**. | A photo does not satisfy the receipt condition. The agent's early request reaches AgentSafe, which holds it with a dossier ID; no payment command is queued. |
+| 0:20–0:40 | Use **Plan with AI**, choose **Rent tents**, leave the offers to the Sourcing Agent, then **Prepare my plan**. Keep the event about one hour ahead. | The Sourcing Agent's choice and reasons, then the risk review, each with its actual provider label. The server checks the choice: $500 tents and $900 catering. |
+| 0:40–1:00 | Review the exact $1,400 plan and choose **Approve $1,400**. Follow the next step: **Pay $500**, then **Authorize $900**, each in a simulated checkout. | Tent payment is captured; catering is authorized. Confirmed paid is $500, committed is $1,400. |
+| 1:00–1:20 | Under **Try it**, choose **Let the agent ask**. Optionally add a small image under **Other ways to confirm**. | A photo does not satisfy the receipt condition. The agent's early request reaches AgentSafe, which holds it with a dossier ID; no payment command is queued. |
 | 1:20–1:45 | Choose **Confirm delivery as the venue**. | The separate venue signs a receipt with its own key; it passes exact contract checks, and the same boundary allows a fresh catering capture. Confirmed paid reaches $1,400. |
 | 1:45–2:00 | Download evidence and inspect the timeline. | Original command IDs, authority correlation, provider result and chain verification. Replaying the receipt creates no second capture. |
 

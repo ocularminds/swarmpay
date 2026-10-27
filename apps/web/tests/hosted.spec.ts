@@ -13,12 +13,12 @@ test('hosted access requires sign-in, uses a secure session, and signs out compl
   const refused=page.waitForResponse(response=>response.url().endsWith('/api/login'));
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
   expect((await refused).status()).toBe(401);
-  await expect(page.getByRole('alert')).toContainText('credentials were not accepted');
+  await expect(page.getByRole('alert')).toContainText('That password didn’t work');
   await signIntoWorkspace(page,request);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
   await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
-  await expect(page.getByRole('heading',{name:'What are we planning?'})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Tell us about your event.'})).toHaveCount(0);
   const status=await page.evaluate(async()=> (await fetch('/api/plans')).status);
   expect(status).toBe(401);
   await page.screenshot({path:info.outputPath('hosted-mobile-sign-in.png'),fullPage:true});

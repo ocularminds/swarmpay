@@ -21,13 +21,17 @@ public final class PaymentRepository {
     public boolean hasUnresolved(UUID order) {
         return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM payments.attempts WHERE order_id=? AND state IN ('DISPATCHING','INDETERMINATE'))",Boolean.class,order));
     }
-    /** Records a new attempt, or re-admits one that never reached a payment effect under its fresh authority decision. */
+    /**
+     * Records a new attempt, or re-admits one that took no payment under its fresh authority
+     * decision: one PayPal never received, or one whose buyer must choose another funding source.
+     */
     public boolean begin(PaymentCommand command, String intentHash, String dossierId) {
         return db.update("""
             INSERT INTO payments.attempts(id,workflow_id,order_id,operation,command_json,command_hash,intent_hash,dossier_id,state)
             VALUES (?,?,?,?,?,?,?,?,'DISPATCHING') ON CONFLICT(id) DO UPDATE
-              SET state='DISPATCHING',intent_hash=EXCLUDED.intent_hash,dossier_id=EXCLUDED.dossier_id,updated_at=now()
-              WHERE attempts.state='NOT_DISPATCHED' AND attempts.command_hash=EXCLUDED.command_hash
+              SET state='DISPATCHING',intent_hash=EXCLUDED.intent_hash,dossier_id=EXCLUDED.dossier_id,updated_at=now(),
+                buyer_attempts=attempts.buyer_attempts+CASE WHEN attempts.state='BUYER_ACTION_REQUIRED' THEN 1 ELSE 0 END
+              WHERE attempts.state IN ('NOT_DISPATCHED','BUYER_ACTION_REQUIRED') AND attempts.command_hash=EXCLUDED.command_hash
             """,command.id(),command.workflowId(),command.orderId(),command.operation().name(),DbJson.write(command),
             CommerceRepository.sha256(DbJson.write(command)),intentHash,dossierId) == 1;
     }
@@ -41,6 +45,12 @@ public final class PaymentRepository {
     public void uncertain(UUID id) { db.update("UPDATE payments.attempts SET state='INDETERMINATE',updated_at=now() WHERE id=?",id); }
     public void fail(UUID id) { db.update("UPDATE payments.attempts SET state='FAILED',updated_at=now() WHERE id=?",id); }
     public void notDispatched(UUID id) { db.update("UPDATE payments.attempts SET state='NOT_DISPATCHED',updated_at=now() WHERE id=?",id); }
+    public void buyerActionRequired(UUID id) { db.update("UPDATE payments.attempts SET state='BUYER_ACTION_REQUIRED',updated_at=now() WHERE id=?",id); }
+    /** How many times the buyer has approved this order again after a declined funding source. */
+    public int buyerAttempts(UUID id) {
+        var counts=db.query("SELECT buyer_attempts FROM payments.attempts WHERE id=?",(r,n)->r.getInt(1),id);
+        return counts.isEmpty()?0:counts.getFirst();
+    }
     public ProviderResult result(UUID id) {
         var results = db.query("SELECT result_json FROM payments.attempts WHERE id=? AND state='COMPLETED'",(r,n) -> DbJson.read(r.getString(1),ProviderResult.class),id);
         return results.isEmpty() ? null : results.getFirst();

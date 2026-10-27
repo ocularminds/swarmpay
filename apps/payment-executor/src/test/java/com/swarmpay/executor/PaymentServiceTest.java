@@ -76,6 +76,38 @@ class PaymentServiceTest {
         assertEquals("NOT_EXECUTED",reconciled.state());assertEquals("NOT_FORWARDED",reconciled.execution());
         verifyNoInteractions(provider);
     }
+    @Test void aDeclinedFundingSourceIsDispatchedAgainOnlyAsTheSameCommandAfterTheBuyerApprovesAgain() {
+        var c=command(tent,50000,Operation.CAPTURE_ORDER,"order");
+        var captured=new ProviderResult("CAPTURED","order",null,"capture",null,50000,"USD","tents","TEST");
+        when(payments.latest(tent.id())).thenReturn(new ProviderResult("APPROVAL_REQUIRED","order",null,null,null,50000,"USD","tents","TEST"));
+        when(provider.execute(c,plan,tent)).thenThrow(new PayPalPaymentProvider.BuyerActionRequiredException());
+        assertThrows(BuyerActionException.class,()->service.execute(c,"hash","dossier"));
+        verify(payments).buyerActionRequired(c.id());
+        verify(payments,never()).fail(any());verify(payments,never()).uncertain(any());
+
+        when(payments.state(c.id())).thenReturn("BUYER_ACTION_REQUIRED");
+        when(payments.buyerAttempts(c.id())).thenReturn(1);
+        when(provider.execute(c,plan,tent,1)).thenReturn(captured);
+        assertSame(captured,service.execute(c,"fresh-hash","fresh-dossier"));
+        verify(payments).checkSame(c);
+        verify(payments).begin(c,"fresh-hash","fresh-dossier");
+        verify(payments).complete(c.id(),captured);
+
+        // A changed command cannot borrow the declined attempt's identity, and the buyer's retries are bounded.
+        doThrow(CommerceException.conflict("changed")).when(payments).checkSame(c);
+        assertThrows(CommerceException.class,()->service.execute(c,"hash","dossier"));
+        doNothing().when(payments).checkSame(c);
+        when(payments.buyerAttempts(c.id())).thenReturn(5);
+        assertThrows(CommerceException.class,()->service.execute(c,"hash","dossier"));
+        verify(provider,times(1)).execute(c,plan,tent,1);
+    }
+    @Test void reconciliationReportsADeclinedFundingSourceAsAwaitingTheBuyer() {
+        when(payments.command(command.id())).thenReturn(command);
+        when(payments.evidence(command.id())).thenReturn(new GateResult("BUYER_ACTION_REQUIRED","INDETERMINATE",null,"dossier","hash",null,"",null));
+        var reconciled=service.reconcile(command.id());
+        assertEquals("BUYER_ACTION_REQUIRED",reconciled.state());assertEquals("NOT_FORWARDED",reconciled.execution());
+        verifyNoInteractions(provider);
+    }
     @Test void aChangedAuthorizationCannotReleaseCatering() {
         var line=plan.lines().get(1);
         when(payments.latest(line.id())).thenReturn(new ProviderResult("AUTHORIZED","order","real-authorization",null,null,90000,"USD","catering","TEST"));

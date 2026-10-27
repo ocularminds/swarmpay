@@ -10,6 +10,8 @@ import java.util.Base64;
 import java.util.HexFormat;
 
 public final class ReceiptVerifier {
+    /** A venue attests delivery from two hours before the event until four hours after it. */
+    private static final Duration EARLIEST = Duration.ofHours(2), LATEST = Duration.ofHours(4);
     private final PublicKey key;
     private final String issuer;
     private final Clock clock;
@@ -30,12 +32,18 @@ public final class ReceiptVerifier {
                 throw CommerceException.held("Receipt is missing required evidence");
             if (r.issuedAt().isAfter(now.plusSeconds(60)) || r.issuedAt().isBefore(now.minus(Duration.ofMinutes(15)))
                     || r.deliveredAt().isAfter(now.plusSeconds(60)) || r.deliveredAt().isAfter(r.issuedAt().plusSeconds(60))
-                    || r.deliveredAt().isBefore(plan.intent().eventAt().minus(Duration.ofHours(2)))
-                    || r.deliveredAt().isAfter(plan.intent().eventAt().plus(Duration.ofHours(4))))
+                    || r.deliveredAt().isBefore(plan.intent().eventAt().minus(EARLIEST))
+                    || r.deliveredAt().isAfter(plan.intent().eventAt().plus(LATEST)))
                 throw CommerceException.held("Receipt is stale or outside the delivery window");
             return r;
         } catch (CommerceException e) { throw e; }
         catch (Exception e) { throw CommerceException.held("Receipt could not be verified"); }
+    }
+    /** Whether a delivery attested now would fall inside the event's delivery window. */
+    public void checkDeliveryWindow(Plan plan) {
+        Instant now = clock.instant(), event = plan.intent().eventAt();
+        if (now.isBefore(event.minus(EARLIEST))) throw CommerceException.held("The venue can confirm delivery from two hours before the event.");
+        if (now.isAfter(event.plus(LATEST))) throw CommerceException.held("The delivery window for this event has closed.");
     }
     public static PublicKey publicKey(String pem) {
         try {

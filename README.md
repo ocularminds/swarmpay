@@ -18,19 +18,15 @@ node demo/doctor.mjs
 docker compose up --build -d --wait
 ```
 
-Open **[http://localhost:5173](http://localhost:5173)** and choose **Explore the local demo**. The UI and a separate webhook listener on port 5184 bind only to loopback. The setup script generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and does not configure external accounts.
+Open **[http://localhost:5173](http://localhost:5173)** and choose **Explore the local demo**. The UI and a separate webhook listener on port 5184 bind only to loopback. The setup script generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and does not configure external accounts. If your `.env` predates the simulated venue, run `node demo/setup.mjs` again: it adds the venue's signing key, which only the venue container receives.
 
-1. Keep the event about an hour ahead, confirm tent rentals, and prepare a plan for 30 guests and five tents.
-2. Review the $500 tent rental and $900 catering quote against a $1,500 budget. Approve the $1,400 plan.
+1. Keep the event about an hour ahead, confirm tent rentals, and leave both offer preferences on **Sourcing Agent chooses**. Prepare a plan for 30 guests and five tents.
+2. The Sourcing Agent chooses the $500 tent rental and $900 catering, the fullest combination within the $1,500 budget, and the server checks its choice. Approve the $1,400 plan.
 3. Complete each **Simulated checkout**. Tents show paid; catering shows authorized and awaiting delivery.
-4. Open **Delivery & proof**. A photo alone cannot release catering.
-5. Choose **Export workflow**, then sign that exported file with the separate local fixture:
+4. Open **Delivery & proof**. A photo alone cannot release catering. Choose **Let the agent request payment**: the milestone agent asks for the catering payment before delivery, and AgentSafe holds the request. No payment command is queued.
+5. Choose **Confirm delivery as the venue**. A separate venue container signs a receipt with its own key; SwarmPay verifies that it matches the event, merchant, quantity and delivery window, and the same AgentSafe boundary allows the catering capture. **Download evidence** exports the payment records and application audit chain.
 
-   ```sh
-   node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json
-   ```
-
-6. Upload `receipt.json` within 15 minutes. The receipt must match the event, merchant, quantity and delivery window. One catering capture completes the workflow; **Download evidence** exports the payment records and application audit chain.
+To test altered or replayed receipts, sign an exported workflow with `node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json` and upload the file within 15 minutes.
 
 The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering checkout must be within three days of the event. Use a new plan when a quote expires. A longer walkthrough is in [demo/walkthrough.md](demo/walkthrough.md).
 
@@ -77,7 +73,7 @@ With Node 22 active, select deterministic AI for the fixture tests without chang
 ```sh
 SWARM_AI_PROVIDER=demo docker compose up -d --wait commerce-app
 node demo/verify-java.mjs
-node --test demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
+node --test demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/venue/venue.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
 npm --prefix infra/agentsafe ci
 npm --prefix infra/agentsafe test
 npm --prefix infra/agentsafe run verify-boundary

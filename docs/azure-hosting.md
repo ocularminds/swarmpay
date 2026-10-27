@@ -92,35 +92,44 @@ The tool never automatically submits a second build from a release directory; an
    node infra/azure/prepare-secrets.mjs .env .local/azure/bootstrap-decionis
    ```
 
-   The source must have owner-only permissions. The script preserves it, copies only the Azure model settings (the endpoint alone also goes to `swarm-pay-egress-settings`, the egress proxy's only setting), and generates distinct database passwords, executor/MCP tokens, organizer password and demo venue key. It refuses an existing output directory to avoid silently rotating database credentials. Keep `secrets.json`, `organizer.env` and `venue-private.pem` private and out of source, logs and build contexts. Only `venue-public.pem` is mounted by the application. Kubernetes Secret data is base64 encoding, not encryption; cluster access and storage controls remain required.
-3. Finish the source/build procedure above for the reviewed commit. The successful release's `images.json` must have keys `web`, `commerce-app`, `payment-executor`, `agentsafe` and `egress`, each bound to its actual `decionisacr.azurecr.io/swarm-pay/<component>@sha256:<digest>` manifest. Do not hand-fill placeholder digests or substitute mutable tags.
+   The source must have owner-only permissions. The script preserves it, copies only the Azure model settings (the endpoint alone also goes to `swarm-pay-egress-settings`, the egress proxy's only setting), and generates distinct database passwords, executor/MCP tokens, organizer password and demo venue key. The venue key's secret is written separately to `venue-secret.json`; only the simulated venue deployment mounts it. It refuses an existing output directory to avoid silently rotating database credentials. Keep `secrets.json`, `venue-secret.json`, `organizer.env` and `venue-private.pem` private and out of source, logs and build contexts. Only `venue-public.pem` is mounted by the application. Kubernetes Secret data is base64 encoding, not encryption; cluster access and storage controls remain required.
+
+   An existing bootstrap directory gains the venue secret from the key the deployment already admits: `node infra/azure/prepare-secrets.mjs --venue-secret .local/azure/bootstrap-decionis`.
+3. Finish the source/build procedure above for the reviewed commit. The successful release's `images.json` must have keys `web`, `commerce-app`, `payment-executor`, `agentsafe`, `egress` and `venue`, each bound to its actual `decionisacr.azurecr.io/swarm-pay/<component>@sha256:<digest>` manifest. Do not hand-fill placeholder digests or substitute mutable tags.
 4. Render the release using that verified map (adjust the private directory if a custom one was selected):
 
    ```sh
    node infra/azure/render.mjs infra/azure/target.json ".local/azure/releases/$swarm_release_commit/images.json" .local/azure/bootstrap-decionis/venue-public.pem .local/azure/release
    ```
 
-   The published release also has a tracked image map at `infra/azure/releases/d3ea860.images.json`. Rendering refuses an existing output directory so old namespace manifests cannot mix with a new release. The initial applied manifests are preserved under `.local/azure/decionis-release-v2/`.
+   `infra/azure/target.json` names the payments explicitly: `"payments": "demo"` for simulated payments, or `"sandbox"` for the PayPal sandbox (see below). The published release also has a tracked image map at `infra/azure/releases/d3ea860.images.json`. Rendering refuses an existing output directory so old namespace manifests cannot mix with a new release. The initial applied manifests are preserved under `.local/azure/decionis-release-v2/`.
 5. Check for name collisions and validate the actual resource manifests and credentials without printing Secret contents. There is no namespace creation step:
 
    ```sh
    kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/release/networkPolicies.json
    kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/bootstrap-decionis/secrets.json
+   kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/bootstrap-decionis/venue-secret.json
    kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/release/privateResources.json
    kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/release/ingress.json
    ```
 
-6. Apply `networkPolicies.json` first, followed by credentials and private workloads, then wait for all five deployments and persistent claims. The initial rollout started PostgreSQL before the application deployments. Before publishing ingress, verify actual pod-to-pod isolation, app-to-executor denial, database role separation, Azure model connectivity, and the sign-in flow through a controlled port-forward using the configured Host/Origin. Avoid printing runtime environments or Secret objects. Preserve this evidence separately from the local fixture results.
+6. Apply `networkPolicies.json` first, followed by credentials and private workloads, then wait for all deployments and persistent claims. The initial rollout started PostgreSQL before the application deployments. Before publishing ingress, verify actual pod-to-pod isolation, app-to-executor denial, database role separation, Azure model connectivity, and the sign-in flow through a controlled port-forward using the configured Host/Origin. Avoid printing runtime environments or Secret objects. Preserve this evidence separately from the local fixture results.
 7. Review and apply `ingress.json`, wait for a valid certificate, then test the ingress IP with TLS SNI and Host `swarm.decionis.com` (for example, `curl --resolve` without `--insecure`). DNS-01 allows certificate issuance before the public A record. Only after this succeeds, create/update the **`swarm` A record** in the existing `decionis.com` zone to the verified ingress IP. Do not replace the zone, apex, wildcard or records used by other products.
-8. Verify public HTTPS, forced HTTP redirect, organizer sign-in/sign-out, anonymous denial, simulated-payment labels, one signed-receipt journey and an evidence export. Check actual ingress rate-limit behavior: the web proxy takes the client address from the ingress's `X-Forwarded-For` (`SWARM_TRUSTED_PROXY`), which is safe only because its network policy admits the ingress controller alone, so several reviewers no longer share one sign-in limit. If the load balancer does not preserve client addresses, the limit is per ingress-visible address instead. Protect the Azure model budget operationally as well. Record the deployed commit, image digests, certificate expiry and verification results in the delivery record.
+8. Verify public HTTPS, forced HTTP redirect, organizer sign-in/sign-out, anonymous denial, simulated-payment labels, one journey confirmed through the simulated venue and an evidence export. Check actual ingress rate-limit behavior: the web proxy takes the client address from the ingress's `X-Forwarded-For` (`SWARM_TRUSTED_PROXY`), which is safe only because its network policy admits the ingress controller alone, so several reviewers no longer share one sign-in limit. If the load balancer does not preserve client addresses, the limit is per ingress-visible address instead. Protect the Azure model budget operationally as well. Record the deployed commit, image digests, certificate expiry and verification results in the delivery record.
 
-Once the hosted fixture is live, its separate demo receipt can be signed locally using an exported workflow:
+**The simulated venue.** Reviewers confirm a delivery with **Confirm delivery as the venue**. The venue runs as its own deployment and is the only workload that mounts `swarm-pay-venue-secrets`. Its one route, `/venue/deliveries`, admits a request only through the web, forwards the organizer's session to the application, and signs the catering order the application recorded with the current time. It cannot sign facts supplied by the browser or confirm another organizer's plan. Its network policy admits the web alone and lets it reach only the application. This replaces signing receipts on the operator's machine; it remains a disclosed demo venue fixture, not a delivery attestation from a real venue. To test altered or replayed receipts, an operator can still sign an exported workflow locally:
 
 ```sh
 SWARM_VENUE_PRIVATE_KEY_FILE=.local/azure/bootstrap-decionis/venue-private.pem node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json
 ```
 
-The signer remains a demo venue fixture. Do not copy its private key into a pod or expose a signing API.
+**Switch the hosted demo to the PayPal sandbox.** A sandbox deployment is a fresh environment. Prepare a new bootstrap with the sandbox merchants' settings, then render with `"payments": "sandbox"` in the target:
+
+```sh
+node infra/azure/prepare-secrets.mjs .env.sandbox .local/azure/bootstrap-sandbox --sandbox
+```
+
+`--sandbox` requires both merchants' client ID, client secret, merchant ID and webhook ID. It copies them to the executor's secret alone; the application receives only the two public client IDs its PayPal buttons need. Sandbox renders new `swarm-pay-postgres-sandbox-data` and `swarm-pay-authority-sandbox-evidence` claims, because a database bound to simulated payments refuses to relabel itself as sandbox; the demo claims remain untouched. The runtime uses `SWARM_AUTHORITY=local`, the disclosed local test authority, unless `hostedGateway` is configured, in which case Decionis decides. The organizer password changes with the new bootstrap. The registered webhook URLs are unchanged.
 
 For a full public acceptance run, install the web dependencies and a Playwright browser, then explicitly run:
 

@@ -10,14 +10,17 @@ public final class PlanFactory {
     private final Clock clock;
     public PlanFactory(Clock clock) { this.clock = clock; }
     public Plan create(String owner, Intent intent, Offer tents, Offer catering, List<Assessment> assessments) {
-        if (!intent.eventAt().isAfter(clock.instant())) throw CommerceException.invalid("Choose a future event");
-        if (intent.eventAt().isAfter(clock.instant().plus(Duration.ofDays(28)))) throw CommerceException.invalid("The event must be within 28 days; longer bookings require a different payment schedule");
+        checkSchedule(intent);
         if (tents.category() != Category.TENTS || catering.category() != Category.CATERING) throw CommerceException.invalid("Select one offer in each category");
         if (intent.tents() > tents.capacity() || intent.attendees() > catering.capacity()) throw CommerceException.invalid("An offer does not have enough capacity");
         var lines = List.of(line(tents, intent.tents(), "CAPTURE"), line(catering, intent.attendees(), "AUTHORIZE"));
         long total = lines.stream().mapToLong(Line::totalMinor).reduce(0, Math::addExact);
         return new Plan(UUID.randomUUID(), 1, owner, intent, lines, assessments, total,
                 clock.instant().plus(Duration.ofMinutes(30)), "DRAFT", clock.instant());
+    }
+    public void checkSchedule(Intent intent) {
+        if (!intent.eventAt().isAfter(clock.instant())) throw CommerceException.invalid("Choose a future event");
+        if (intent.eventAt().isAfter(clock.instant().plus(Duration.ofDays(28)))) throw CommerceException.invalid("The event must be within 28 days; longer bookings require a different payment schedule");
     }
     public void checkApproval(Plan plan) {
         if (!clock.instant().isBefore(plan.expiresAt())) throw CommerceException.conflict("The quote expired. Create a fresh plan.");

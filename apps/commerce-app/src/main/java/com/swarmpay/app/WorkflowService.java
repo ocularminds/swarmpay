@@ -24,16 +24,42 @@ public final class WorkflowService {
         this.db=db; this.catalog=catalog; this.factory=factory; this.agents=agents; this.authority=authority; this.verifier=verifier;
         mode=runtimeMode; policyVersion=RuntimeSettings.required("DECIONIS_POLICY_VERSION");
     }
+    /** With no offers chosen, the Sourcing Agent chooses them; Java checks its choice like any other before a plan exists. */
     public Plan propose(String owner,Intent intent,String tentOfferId,String cateringOfferId) {
-        var tents=catalog.get(tentOfferId); var catering=catalog.get(cateringOfferId);
+        if(tentOfferId!=null && tentOfferId.isBlank()) tentOfferId=null;
+        if(cateringOfferId!=null && cateringOfferId.isBlank()) cateringOfferId=null;
+        boolean agentChooses=tentOfferId==null && cateringOfferId==null;
+        if(!agentChooses && (tentOfferId==null || cateringOfferId==null)) throw CommerceException.invalid("Choose both offers, or let the Sourcing Agent choose both.");
         // Validate counts, dates and prices before paying for any model inference.
-        factory.create(owner,intent,tents,catering,List.of());
+        if(agentChooses) {
+            factory.checkSchedule(intent);
+            if(catalog.offers().stream().noneMatch(o->o.category()==Category.TENTS && o.capacity()>=intent.tents())
+                || catalog.offers().stream().noneMatch(o->o.category()==Category.CATERING && o.capacity()>=intent.attendees()))
+                throw CommerceException.invalid("No catalog offer has enough capacity for this event");
+        } else factory.create(owner,intent,catalog.get(tentOfferId),catalog.get(cateringOfferId),List.of());
         if(!planning.tryAcquire()) throw new CommerceException("BUSY","Two plans are already being prepared. Try again shortly.",429);
         try {
-            var assessments=agents.assess(intent,List.of(tents,catering));
+            Offer tents,catering; List<Assessment> assessments;
+            if(agentChooses) {
+                var proposal=agents.propose(intent,catalog.offers());
+                tents=proposed(proposal.tentOfferId(),Category.TENTS); catering=proposed(proposal.cateringOfferId(),Category.CATERING);
+                try { factory.create(owner,intent,tents,catering,List.of()); }
+                catch(CommerceException e) { throw rejected(e.getMessage()); }
+                assessments=List.of(proposal.sourcing(),agents.review(intent,List.of(tents,catering)));
+            } else {
+                tents=catalog.get(tentOfferId); catering=catalog.get(cateringOfferId);
+                assessments=agents.assess(intent,List.of(tents,catering));
+            }
             var plan=factory.create(owner,intent,tents,catering,assessments);
             db.create(plan); return plan;
         } finally { planning.release(); }
+    }
+    private Offer proposed(String id,Category category) {
+        return catalog.offers().stream().filter(o->o.id().equals(id) && o.category()==category).findFirst()
+            .orElseThrow(()->rejected("It named an offer outside the catalog."));
+    }
+    private static CommerceException rejected(String reason) {
+        return new CommerceException("AGENT_PROPOSAL_REJECTED","The Sourcing Agent's choice was rejected: "+reason+" Choose the offers yourself.",502);
     }
     public List<Plan> list(String owner) { return db.list(owner); }
     public Plan approve(UUID id,String owner,int version) {
@@ -44,7 +70,7 @@ public final class WorkflowService {
         var plan=db.owned(id,owner); var orders=db.orders(plan);
         long paid=orders.stream().filter(o->o.status().equals("CAPTURED")).mapToLong(OrderView::amountMinor).sum();
         boolean receipt=orders.stream().filter(o->o.category()==Category.CATERING).anyMatch(o->db.receiptDigest(o.id())!=null);
-        return new Workflow(plan,orders,db.events(id),plan.status().equals("APPROVED")?plan.totalMinor():0,paid,mode,receipt,db.frozen(id));
+        return new Workflow(plan,orders,db.events(id),plan.status().equals("APPROVED")?plan.totalMinor():0,paid,mode,receipt,db.frozen(id),db.agentRequests(id));
     }
     public GateResult checkout(UUID id,UUID orderId,String owner) { return payment(db.owned(id,owner),orderId,Operation.CREATE_ORDER); }
     public GateResult buyerApproved(UUID id,UUID orderId,String owner,String providerOrderId) {
@@ -57,6 +83,32 @@ public final class WorkflowService {
         var plan=db.owned(id,owner);
         var line=plan.lines().stream().filter(l->l.category()==Category.CATERING).findFirst().orElseThrow();
         return payment(plan,line.id(),Operation.CAPTURE_AUTHORIZATION);
+    }
+    /**
+     * An agent asks for the catering capture. Once a verified receipt exists this is the ordinary
+     * milestone. Before then the request still goes to AgentSafe, which decides; it is never queued,
+     * so it cannot be retried or replayed into a payment, and the executor refuses any command
+     * outside the outbox.
+     */
+    public GateResult agentMilestone(UUID id,String owner) {
+        var plan=db.owned(id,owner);
+        var line=plan.lines().stream().filter(l->l.category()==Category.CATERING).findFirst().orElseThrow();
+        if(db.receiptDigest(line.id())!=null) return milestone(id,owner);
+        db.approvedForExecution(id);
+        var order=db.order(plan,line.id());
+        if(!order.status().equals("AUTHORIZED") || order.authorizationId()==null) throw CommerceException.held("Catering is not authorized yet, so there is no payment to request.");
+        var request=new PaymentCommand(UUID.randomUUID(),plan.id(),plan.version(),line.id(),Operation.CAPTURE_AUTHORIZATION,line.merchantId(),
+            line.totalMinor(),"USD",order.authorizationId(),null,plan.id().toString(),policyVersion);
+        var decided=authority.execute(request);
+        String message=switch(decided.state()) {
+            case "ESCALATE","HELD" -> "AgentSafe held the agent's request to pay catering for human review: no verified delivery receipt is attached. No payment was sent.";
+            case "BLOCK","BLOCKED" -> "AgentSafe blocked the agent's request to pay catering. No payment was sent.";
+            case "AUTHORITY_UNAVAILABLE" -> "Authority was unavailable, so the agent's request to pay catering was not sent.";
+            default -> "The agent's request to pay catering was not executed. "+decided.message();
+        };
+        var result=new GateResult(decided.state(),decided.execution(),decided.decisionId(),decided.dossierId(),decided.intentHash(),decided.intentId(),message,decided.result());
+        db.recordAgentRequest(request,result,"AGENT_REQUEST_"+decided.state());
+        return result;
     }
     public GateResult voidAuthorization(UUID id,String owner) {
         var plan=db.owned(id,owner);
@@ -72,6 +124,8 @@ public final class WorkflowService {
             if(operation==Operation.CAPTURE_AUTHORIZATION && digest==null) throw CommerceException.held("A photo alone cannot release payment. A trusted venue receipt is required.");
             String resource=switch(operation) { case CREATE_ORDER -> null; case CAPTURE_ORDER,AUTHORIZE_ORDER -> order.providerOrderId(); default -> order.authorizationId(); };
             if(operation!=Operation.CREATE_ORDER && resource==null) throw CommerceException.held("Complete this merchant's buyer approval first");
+            // Only a buyer approval reaches here with these operations: after a declined funding source, it retries the same command.
+            if(operation==Operation.CAPTURE_ORDER || operation==Operation.AUTHORIZE_ORDER) db.requeueAfterBuyerAction(plan.id(),orderId,operation);
             var command=db.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),plan.version(),line.id(),operation,line.merchantId(),line.totalMinor(),"USD",resource,digest,plan.id().toString(),policyVersion));
             return dispatch(command);
         } catch(CommerceException e) { db.evidence(plan.id(),"PAYMENT_HELD",e.getMessage(),"APPLICATION"); throw e; }
@@ -97,6 +151,21 @@ public final class WorkflowService {
     }
     public Workflow receipt(UUID id,String owner,SignedReceipt signed) {
         acceptReceipt(db.owned(id,owner),signed); return get(id,owner);
+    }
+    /**
+     * The organizer asks the simulated venue to confirm delivery. Only the
+     * organizer's session reaches this, and the venue signs these recorded
+     * facts with its own key; the application never holds that key.
+     */
+    public DeliveryFacts venueRequest(UUID id,String owner) {
+        var plan=db.owned(id,owner);
+        var line=plan.lines().stream().filter(l->l.category()==Category.CATERING).findFirst().orElseThrow();
+        db.approvedForExecution(id);
+        if(!db.order(plan,line.id()).status().equals("AUTHORIZED"))
+            throw CommerceException.held("Authorize catering first. The venue confirms delivery once its funds are authorized.");
+        verifier.checkDeliveryWindow(plan);
+        db.evidence(id,"VENUE_CONFIRMATION_REQUESTED","You asked the simulated venue to confirm the catering delivery.","HUMAN");
+        return new DeliveryFacts(plan.id(),line.id(),line.merchantId(),plan.intent().venue(),line.quantity());
     }
     public void venueReceipt(SignedReceipt signed) {
         if(signed.payload()==null || signed.payload().length()>16000) throw CommerceException.invalid("Invalid receipt envelope");
@@ -147,7 +216,7 @@ public final class WorkflowService {
             public Plan proposeCheckout(Intent intent,String tents,String catering) { return propose(owner,intent,tents,catering); }
             public Workflow getWorkflow(UUID id) { return get(id,owner); }
             public List<Event> getEvidence(UUID id) { db.owned(id,owner); return db.events(id); }
-            public GateResult requestMilestonePayment(UUID id) { return milestone(id,owner); }
+            public GateResult requestMilestonePayment(UUID id) { return agentMilestone(id,owner); }
         };
     }
 }

@@ -15,6 +15,7 @@ public final class PaymentService {
     private final Clock clock;
     private final String policyVersion;
     private final String mode;
+    private static final int MAX_BUYER_ATTEMPTS=5;
     public PaymentService(CommerceRepository commerce,PaymentRepository payments,PaymentProvider provider,ReceiptVerifier verifier,Clock clock,String policyVersion,String mode) {
         this.commerce=commerce; this.payments=payments; this.provider=provider; this.verifier=verifier; this.clock=clock; this.policyVersion=policyVersion; this.mode=mode;
     }
@@ -22,9 +23,11 @@ public final class PaymentService {
         boolean admitted=payments.transaction(() -> {
             payments.lockOrder(c.orderId());
             String state=payments.state(c.id());
-            // Only an attempt that never reached a payment effect may be dispatched again, under the same identity.
-            if (state.equals("NOT_DISPATCHED")) payments.checkSame(c);
+            // Only an attempt that took no payment may be dispatched again, under the same identity.
+            if (state.equals("NOT_DISPATCHED") || state.equals("BUYER_ACTION_REQUIRED")) payments.checkSame(c);
             else if (!state.equals("NOT_EXECUTED")) { payments.checkSame(c); return false; }
+            if (state.equals("BUYER_ACTION_REQUIRED") && payments.buyerAttempts(c.id())>=MAX_BUYER_ATTEMPTS)
+                throw CommerceException.held("PayPal declined this checkout too many times. Prepare a new plan.");
             if (payments.hasUnresolved(c.orderId())) throw CommerceException.held("A previous payment attempt must be reconciled first");
             validate(c);
             return payments.begin(c,intentHash,dossier);
@@ -36,13 +39,16 @@ public final class PaymentService {
         }
         try {
             var plan=executionPlan(c);
-            var result=provider.execute(c,plan,commerce.line(plan,c.orderId()));
+            var line=commerce.line(plan,c.orderId());
+            int buyerAttempt=payments.buyerAttempts(c.id());
+            var result=buyerAttempt==0?provider.execute(c,plan,line):provider.execute(c,plan,line,buyerAttempt);
             if (!matches(c,result,null))
                 throw new PayPalPaymentProvider.ProviderUncertainException();
             payments.complete(c.id(),result);
             return result;
         } catch (CommerceException e) { payments.fail(c.id()); throw e; }
         catch (PayPalPaymentProvider.ProviderNotDispatchedException e) { payments.notDispatched(c.id()); throw new NotDispatchedException(); }
+        catch (PayPalPaymentProvider.BuyerActionRequiredException e) { payments.buyerActionRequired(c.id()); throw new BuyerActionException(); }
         catch (Exception e) { payments.uncertain(c.id()); throw new CommerceException("INDETERMINATE","The provider outcome is uncertain. Reconciliation is required.",503); }
     }
     private void validate(PaymentCommand c) {
@@ -90,6 +96,8 @@ public final class PaymentService {
         var binding=payments.evidence(id);
         if (binding.state().equals("NOT_DISPATCHED"))
             return new GateResult("NOT_EXECUTED","NOT_FORWARDED",null,binding.dossierId(),binding.intentHash(),null,NotDispatchedException.MESSAGE,null);
+        if (binding.state().equals("BUYER_ACTION_REQUIRED"))
+            return new GateResult("BUYER_ACTION_REQUIRED","NOT_FORWARDED",null,binding.dossierId(),binding.intentHash(),null,BuyerActionException.MESSAGE,null);
         var result=payments.result(id);
         if (result==null || result.status().equals("PENDING")) {
             var observed=provider.reconcile(command,result);

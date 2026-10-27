@@ -4,7 +4,7 @@ import {isIP} from 'node:net';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
-const components=['web','commerce-app','payment-executor','agentsafe','egress'];
+const components=['web','commerce-app','payment-executor','agentsafe','egress','venue'];
 const postgresImage='postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929';
 const partOf={'app.kubernetes.io/part-of':'swarm-pay'};
 const labels=component=>({...partOf,'app.kubernetes.io/component':component});
@@ -44,6 +44,11 @@ export function render(target,images,venuePublicKey) {
   if(target.publicHost!=='swarm.decionis.com'||isIP(target.dnsResolver)!==4)throw new Error('Configure the approved public host and the cluster IPv4 DNS resolver');
   if(!target.ingressPodLabels||Object.keys(target.ingressPodLabels).length===0||Object.values(target.ingressPodLabels).some(v=>typeof v!=='string'||!v))
     throw new Error('The ingress controller needs an explicit, verified pod selector');
+  // Payments are an explicit choice. Sandbox runs on its own database and evidence
+  // volumes: a database bound to simulated payments never relabels itself as sandbox.
+  if(!['demo','sandbox'].includes(target.payments))throw new Error('Choose demo or sandbox payments for this deployment');
+  const sandbox=target.payments==='sandbox';
+  const dataVolume=sandbox?'postgres-sandbox-data':'postgres-data',evidenceVolume=sandbox?'authority-sandbox-evidence':'authority-evidence';
   const hosted=hostedGateway(target);
   for(const component of components.filter(component=>!(hosted&&component==='agentsafe'))) {
     const prefix=`${target.registry}/swarm-pay/${component}@sha256:`;
@@ -58,15 +63,18 @@ export function render(target,images,venuePublicKey) {
   const ns=target.namespace,items=[];
   const host=component=>`${resourceName(component)}.${ns}.svc.cluster.local`;
   const object=(apiVersion,kind,name,body={})=>({apiVersion,kind,metadata:{name:resourceName(name),namespace:ns,labels:partOf},...body});
-  const configEnv={SWARM_MODE:'demo',VENUE_ISSUER:'demo-venue-fixture',DECIONIS_POLICY_VERSION:hosted?hosted.policyVersion:'swarm-pay-demo-v1'};
+  // PayPal sandbox runs under the disclosed local test authority unless the hosted Decionis gateway decides.
+  const configEnv={SWARM_MODE:target.payments,SWARM_AUTHORITY:sandbox&&hosted?'decionis':'local',VENUE_ISSUER:'demo-venue-fixture',
+    DECIONIS_POLICY_VERSION:hosted?hosted.policyVersion:'swarm-pay-demo-v1'};
   items.push(object('v1','ConfigMap','runtime',{data:configEnv}));
   items.push(object('v1','ConfigMap','venue-public-key',{data:{'venue-public.pem':venuePublicKey}}));
   items.push(object('v1','ConfigMap','postgres-bootstrap',{data:{'01-roles.sql':readFileSync(new URL('../postgres/01-roles.sql',import.meta.url),'utf8')}}));
   const nginxTemplate=readFileSync(new URL('../../apps/web/nginx.conf',import.meta.url),'utf8')
-    .replaceAll('commerce-app:8080',`${host('commerce-app')}:8080`).replaceAll('payment-executor:8081',`${host('payment-executor')}:8081`);
+    .replaceAll('commerce-app:8080',`${host('commerce-app')}:8080`).replaceAll('payment-executor:8081',`${host('payment-executor')}:8081`)
+    .replaceAll('venue:8084',`${host('venue')}:8084`);
   items.push(object('v1','ConfigMap','nginx-template',{data:{'default.conf.template':nginxTemplate}}));
   items.push(object('v1','ServiceAccount','runtime',{automountServiceAccountToken:false}));
-  for(const [volume,size] of [['postgres-data','8Gi'],...(hosted?[]:[['authority-evidence','4Gi']])])
+  for(const [volume,size] of [[dataVolume,'8Gi'],...(hosted?[]:[[evidenceVolume,'4Gi']])])
     items.push(object('v1','PersistentVolumeClaim',volume,{spec:{storageClassName:target.storageClass,accessModes:['ReadWriteOnce'],resources:{requests:{storage:size}}}}));
 
   const secretEnv=secret=>[{configMapRef:{name:resourceName('runtime')}},...(secret?[{secretRef:{name:resourceName(secret)}}]:[])];
@@ -88,13 +96,13 @@ export function render(target,images,venuePublicKey) {
   }
   const javaProbe=number=>({httpGet:{path:'/actuator/health',port:number}});
   deployment('postgres',postgresImage,999,{POSTGRES_DB:'swarm',POSTGRES_USER:'postgres',PGDATA:'/var/lib/postgresql/data/pgdata'},'postgres-secrets',
-    [{name:'data',persistentVolumeClaim:{claimName:resourceName('postgres-data')}},{name:'bootstrap',configMap:{name:resourceName('postgres-bootstrap')}},temporary('postgres-run')],
+    [{name:'data',persistentVolumeClaim:{claimName:resourceName(dataVolume)}},{name:'bootstrap',configMap:{name:resourceName('postgres-bootstrap')}},temporary('postgres-run')],
     [{name:'data',mountPath:'/var/lib/postgresql/data'},{name:'bootstrap',mountPath:'/docker-entrypoint-initdb.d',readOnly:true},{name:'postgres-run',mountPath:'/var/run/postgresql'}],
     '512Mi',{exec:{command:['pg_isready','-U','postgres','-d','swarm']}});
   deployment('payment-executor',images['payment-executor'],10001,{DATABASE_URL:`jdbc:postgresql://${host('postgres')}:5432/swarm`,DATABASE_USER:'swarm_executor',VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem'},
     'payment-secrets',[publicKey],[publicKeyMount],'512Mi',javaProbe(8081));
   if(!hosted)deployment('agentsafe',images.agentsafe,1000,{AGENTSAFE_UPSTREAM:`http://${host('payment-executor')}:8081`},null,
-    [{name:'evidence',persistentVolumeClaim:{claimName:resourceName('authority-evidence')}}],[{name:'evidence',mountPath:'/var/lib/agentsafe/evidence'}],'384Mi',
+    [{name:'evidence',persistentVolumeClaim:{claimName:resourceName(evidenceVolume)}}],[{name:'evidence',mountPath:'/var/lib/agentsafe/evidence'}],'384Mi',
     {exec:{command:['node','-e',"fetch('http://localhost:8082/_agentsafe/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}});
   // The app's one route out: HTTPS through the egress proxy, which admits the
   // model host and, when hosted, the gateway host. Cluster services stay direct.
@@ -105,6 +113,9 @@ export function render(target,images,venuePublicKey) {
     JAVA_TOOL_OPTIONS:`-Dhttps.proxyHost=${host('egress')} -Dhttps.proxyPort=3128 -Dhttp.nonProxyHosts=localhost|127.0.0.1|*.svc.cluster.local`,
     ORGANIZER_USERNAME:'organizer',SWARM_AI_PROVIDER:'azure',SWARM_PUBLIC_ORIGIN:`https://${target.publicHost}`,SWARM_SESSION_COOKIE_SECURE:'true',
     VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem'},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080));
+  // The simulated venue holds its own signing key and reaches only the application.
+  deployment('venue',images.venue,1000,{COMMERCE_URL:`http://${host('commerce-app')}:8080`},'venue-secrets',[],[],'96Mi',
+    {httpGet:{path:'/healthz',port:8084}});
   // The web policy admits only the ingress controller, which sets X-Forwarded-For from its own
   // client connection, so per-client login and planning limits can trust any peer here.
   deployment('web',images.web,101,{SWARM_NGINX_RESOLVER:target.dnsResolver,SWARM_TRUSTED_PROXY:'0.0.0.0/0',
@@ -112,7 +123,7 @@ export function render(target,images,venuePublicKey) {
     [temporary('nginx-cache'),temporary('nginx-run'),temporary('nginx-config'),{name:'nginx-template',configMap:{name:resourceName('nginx-template'),defaultMode:0o444}}],
     [{name:'nginx-cache',mountPath:'/var/cache/nginx'},{name:'nginx-run',mountPath:'/var/run'},{name:'nginx-config',mountPath:'/etc/nginx/conf.d'},{name:'nginx-template',mountPath:'/etc/nginx/templates',readOnly:true}],
     '96Mi',{httpGet:{path:'/',port:8080}});
-  for(const [component,number] of [['postgres',5432],['payment-executor',8081],...(hosted?[]:[['agentsafe',8082]]),['commerce-app',8080],['web',8080],['egress',3128]])
+  for(const [component,number] of [['postgres',5432],['payment-executor',8081],...(hosted?[]:[['agentsafe',8082]]),['commerce-app',8080],['web',8080],['egress',3128],['venue',8084]])
     items.push(object('v1','Service',component,{spec:{type:'ClusterIP',selector:labels(component),ports:[{name:'service',port:number,targetPort:number}]}}));
 
   items.push(object('networking.k8s.io/v1','NetworkPolicy','default-deny',{spec:{podSelector:{matchLabels:partOf},policyTypes:['Ingress','Egress']}}));
@@ -124,12 +135,13 @@ export function render(target,images,venuePublicKey) {
   // The app reaches no host outside the cluster directly: PayPal, metadata and
   // everything else is closed; the egress proxy decides which hosts it reaches.
   for(const [component,ingress,egress] of [
-    ['web',[{from:[ingressPeer],ports:[port(8080)]}],[dns,to('commerce-app',8080),to('payment-executor',8081)]],
-    ['commerce-app',[from(['web'],8080)],[dns,to('postgres',5432),...(hosted?[]:[to('agentsafe',8082)]),to('egress',3128)]],
+    ['web',[{from:[ingressPeer],ports:[port(8080)]}],[dns,to('commerce-app',8080),to('payment-executor',8081),to('venue',8084)]],
+    ['commerce-app',[from(['web','venue'],8080)],[dns,to('postgres',5432),...(hosted?[]:[to('agentsafe',8082)]),to('egress',3128)]],
     ...(hosted?[]:[['agentsafe',[from(['commerce-app'],8082)],[dns,to('payment-executor',8081),externalHttps]]]),
     ['payment-executor',[hosted?{from:[peer('web'),ingressPeer],ports:[port(8081)]}:from(['agentsafe','web'],8081)],[dns,to('postgres',5432),externalHttps]],
     ['postgres',[from(['commerce-app','payment-executor'],5432)],[]],
-    ['egress',[from(['commerce-app'],3128)],[dns,externalHttps]]
+    ['egress',[from(['commerce-app'],3128)],[dns,externalHttps]],
+    ['venue',[from(['web'],8084)],[dns,to('commerce-app',8080)]]
   ])items.push(object('networking.k8s.io/v1','NetworkPolicy',component,{spec:{podSelector:selector(component),policyTypes:['Ingress','Egress'],ingress,egress}}));
 
   const ingress=object('networking.k8s.io/v1','Ingress','ingress',{spec:{ingressClassName:target.ingressClass,

@@ -20,7 +20,8 @@ class PaymentRepositoryTest {
         sql=new JdbcTemplate(source);payments=new PaymentRepository(source);
         try(var connection=source.getConnection();var statement=connection.createStatement()) {
             statement.execute("CREATE SCHEMA payments");connection.setSchema("payments");
-            statement.execute(Files.readString(Path.of("../../apps/payment-executor/src/main/resources/db/payments/V1__payments.sql")));
+            for(String migration:new String[]{"V1__payments.sql","V3__buyer_reapproval.sql"})
+                statement.execute(Files.readString(Path.of("../../apps/payment-executor/src/main/resources/db/payments/"+migration)));
         }
     }
     PaymentCommand command(UUID id,long amount) {
@@ -45,5 +46,20 @@ class PaymentRepositoryTest {
 
         payments.complete(c.id(),new ProviderResult("APPROVAL_REQUIRED","order",null,null,null,50000,"USD","tents","TEST"));
         assertFalse(payments.begin(c,"hash-3","dossier-3"));
+    }
+    @Test void aDeclinedBuyerStepIsReadmittedWithACountedAttemptButAFailedOneIsNot() {
+        var c=command(UUID.randomUUID(),50000);
+        assertTrue(payments.begin(c,"hash-1","dossier-1"));
+        assertEquals(0,payments.buyerAttempts(c.id()));
+        payments.buyerActionRequired(c.id());
+        assertTrue(payments.begin(c,"hash-2","dossier-2"));
+        assertEquals(1,payments.buyerAttempts(c.id()));
+        // PayPal unreachable on the retry: re-admitted under the same counted attempt.
+        payments.notDispatched(c.id());
+        assertTrue(payments.begin(c,"hash-3","dossier-3"));
+        assertEquals(1,payments.buyerAttempts(c.id()));
+        payments.fail(c.id());
+        assertFalse(payments.begin(c,"hash-4","dossier-4"),"a refused attempt is final");
+        assertEquals(0,payments.buyerAttempts(UUID.randomUUID()));
     }
 }

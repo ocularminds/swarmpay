@@ -1,4 +1,5 @@
 import {existsSync,readFileSync,statSync} from 'node:fs';
+import {createPrivateKey,createPublicKey} from 'node:crypto';
 import {parseEnv} from 'node:util';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -27,6 +28,12 @@ check((statSync(path).mode&0o077)===0,'Environment file is private to its owner'
 fields('Local database, service and organizer settings',['PG_ADMIN_PASSWORD','PG_APP_PASSWORD','PG_EXECUTOR_PASSWORD','EXECUTOR_TOKEN','MCP_TOKEN','ORGANIZER_USERNAME','ORGANIZER_PASSWORD','DECIONIS_POLICY_VERSION','VENUE_ISSUER']);
 check(new Set([env.PG_ADMIN_PASSWORD,env.PG_APP_PASSWORD,env.PG_EXECUTOR_PASSWORD,env.EXECUTOR_TOKEN,env.MCP_TOKEN]).size===5,'Database passwords and service tokens are distinct');
 file('Trusted venue public key','VENUE_PUBLIC_KEY_HOST_FILE','.secrets/venue-public.pem');
+let venueSigner=false;
+try {
+  const signer=createPublicKey(createPrivateKey({key:Buffer.from(env.VENUE_PRIVATE_KEY??'','base64'),format:'der',type:'pkcs8'})).export({type:'spki',format:'der'});
+  venueSigner=signer.equals(createPublicKey(readFileSync(resolve(root,env.VENUE_PUBLIC_KEY_HOST_FILE||'.secrets/venue-public.pem'))).export({type:'spki',format:'der'}));
+} catch {}
+check(venueSigner,'Simulated venue signing key matches the trusted public key',venueSigner?'':'rerun node demo/setup.mjs to add VENUE_PRIVATE_KEY');
 const ai=env.SWARM_AI_PROVIDER||'demo';
 check(['demo','azure','openai'].includes(ai),'Explicit AI provider');
 if(ai==='azure') {

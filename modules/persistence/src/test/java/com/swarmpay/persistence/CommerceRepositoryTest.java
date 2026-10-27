@@ -28,6 +28,7 @@ class CommerceRepositoryTest {
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V1__commerce.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V2__runtime_binding.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V3__monotonic_order_projection.sql")));
+            statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V4__agent_requests.sql")));
         }
     }
     Plan plan(long budget) {
@@ -76,6 +77,38 @@ class CommerceRepositoryTest {
         repository.finish(command,new GateResult("NOT_EXECUTED","NOT_FORWARDED",null,null,null,null,"No provider attempt",null));
         repository.retryNotForwarded(command);assertTrue(repository.claim(command.id()));assertFalse(repository.claim(command.id()));
         assertEquals(command,repository.commandsFor(plan).getFirst());
+    }
+    @Test void onlyANewBuyerApprovalRequeuesADeclinedFundingSource() {
+        var plan=plan(150000);repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);
+        var line=plan.lines().getFirst();
+        var capture=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,line.id(),Operation.CAPTURE_ORDER,"tents",50000,"USD","order",null,plan.id().toString(),"test-v1"));
+        assertTrue(repository.claim(capture.id()));
+        repository.finish(capture,new GateResult("BUYER_ACTION_REQUIRED","NOT_FORWARDED",null,"dossier","hash",null,"Declined",null));
+        // The generic retry cannot resend a declined funding source; the buyer must choose another first.
+        assertThrows(CommerceException.class,()->repository.retryNotForwarded(capture));
+        repository.requeueAfterBuyerAction(plan.id(),line.id(),Operation.CAPTURE_AUTHORIZATION);
+        assertEquals("BUYER_ACTION_REQUIRED",repository.commandState(capture.id()));
+        repository.requeueAfterBuyerAction(plan.id(),line.id(),Operation.CAPTURE_ORDER);
+        assertEquals("QUEUED",repository.commandState(capture.id()));assertNull(repository.commandResult(capture.id()));
+        assertTrue(repository.claim(capture.id()));
+        repository.requeueAfterBuyerAction(plan.id(),line.id(),Operation.CAPTURE_ORDER);
+        assertEquals("DISPATCHING",repository.commandState(capture.id()),"an attempt in flight is never requeued");
+        assertEquals(1,repository.events(plan.id()).stream().filter(e->e.type().equals("BUYER_REAPPROVED")).count());
+        assertTrue(repository.verifyChain(plan.id()));
+    }
+    @Test void anAgentRequestTheAuthorityHeldIsRecordedButNeverQueued() {
+        var plan=plan(150000);repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);
+        var line=plan.lines().get(1);
+        var request=new PaymentCommand(UUID.randomUUID(),plan.id(),1,line.id(),Operation.CAPTURE_AUTHORIZATION,"catering",90000,"USD","auth",null,plan.id().toString(),"test-v1");
+        repository.recordAgentRequest(request,new GateResult("ESCALATE","HELD","decision","dossier","sha256:hash","intent","Held for review.",null),"AGENT_REQUEST_ESCALATE");
+        var recorded=repository.agentRequests(plan.id());
+        assertEquals(1,recorded.size());assertEquals(request,recorded.getFirst().command());assertEquals("dossier",recorded.getFirst().result().dossierId());
+        assertTrue(repository.queued().stream().noneMatch(c->c.id().equals(request.id())));
+        assertFalse(repository.recordedCommandMatches(request),"the executor finds no outbox command for it");
+        assertTrue(repository.commandsFor(plan).isEmpty());
+        var event=repository.events(plan.id()).getLast();
+        assertEquals("AGENT_REQUEST_ESCALATE",event.type());assertEquals("AGENTSAFE",event.source());
+        assertTrue(repository.verifyChain(plan.id()));
     }
     @Test void outOfOrderRepliesCannotRewindAuthorizationOrPendingCapture() {
         var plan=plan(150000);repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);

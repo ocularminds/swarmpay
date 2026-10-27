@@ -26,6 +26,9 @@ class ExecutorErrors {
     @ExceptionHandler(NotDispatchedException.class) ResponseEntity<Map<String,String>> notDispatched(NotDispatchedException e) {
         return ResponseEntity.status(424).body(Map.of("code","PAYPAL_UNAVAILABLE","state","NOT_EXECUTED","execution","NOT_FORWARDED","message",e.getMessage()));
     }
+    @ExceptionHandler(BuyerActionException.class) ResponseEntity<Map<String,String>> buyerAction(BuyerActionException e) {
+        return ResponseEntity.status(422).body(Map.of("code","BUYER_ACTION_REQUIRED","state","BUYER_ACTION_REQUIRED","execution","NOT_FORWARDED","message",e.getMessage()));
+    }
     @ExceptionHandler({IllegalArgumentException.class,org.springframework.http.converter.HttpMessageNotReadableException.class})
     ResponseEntity<Map<String,String>> invalid(Exception e) { return ResponseEntity.badRequest().body(Map.of("code","INVALID_REQUEST","message","Invalid payment command")); }
 }

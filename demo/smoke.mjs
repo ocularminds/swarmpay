@@ -25,6 +25,11 @@ const expensive=await create(130000);
 await request(`/api/plans/${expensive.id}/approve`,{method:'POST',body:{version:1},expect:422});
 assert.equal((await request(`/api/plans/${expensive.id}/commands`)).length,0);
 console.log('PASS: above-budget approval creates no payment command');
+const proposed=await request('/api/plans',{method:'POST',body:{intent:intent(150000)}});
+assert.deepEqual(proposed.lines.map(l=>l.offerId),['tents-standard','catering-seasonal']);
+assert.equal(proposed.assessments[0].role,'Sourcing');assert.match(proposed.assessments[0].summary,/^Chose /);
+await request('/api/plans',{method:'POST',body:{intent:intent(150000),tentOfferId:'tents-standard'},expect:400});
+console.log('PASS: the Sourcing Agent proposes the offer pair and the server builds the plan from its choice');
 const plan=await create(150000),path=`/api/plans/${plan.id}`;
 await request(`${path}/orders/${plan.lines[0].id}/checkout`,{method:'POST',expect:409});
 await Promise.all(Array.from({length:6},()=>request(`${path}/approve`,{method:'POST',body:{version:1}})));
@@ -41,6 +46,12 @@ console.log('PASS: separate tent capture and catering authorization; one whole-b
 const photoForm=new FormData();photoForm.set('file',new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN2kAAAAASUVORK5CYII=','base64')],{type:'image/png'}),'delivery.png');
 const photo=await fetch(base+path+'/photo',{method:'POST',headers:{Cookie:cookie,'X-CSRF-TOKEN':csrf},body:photoForm});assert.equal(photo.status,200);
 await request(path+'/milestone',{method:'POST',expect:409});assert.equal((await request(path)).capturedMinor,50000);
+// The agent asks for the catering payment before delivery: AgentSafe decides, and nothing is queued.
+const early=await request(path+'/agent-milestone',{method:'POST'});
+assert.equal(early.state,'ESCALATE');assert.equal(early.execution,'HELD');assert.ok(early.dossierId);assert.equal(early.result,null);
+flow=await request(path);assert.equal(flow.capturedMinor,50000);assert.equal(flow.agentRequests.length,1);assert.equal(flow.agentRequests[0].result.dossierId,early.dossierId);
+assert.equal((await request(path+'/commands')).length,4);
+console.log('PASS: AgentSafe holds an agent\'s early payment request; no payment command is queued');
 const catering=plan.lines.find(l=>l.category==='CATERING'),now=new Date().toISOString();
 const data={issuer:'demo-venue-fixture',workflowId:plan.id,orderId:catering.id,merchantId:'catering',venue:plan.intent.venue,quantity:30,deliveredAt:now,issuedAt:now,nonce:randomUUID()};
 const bytes=Buffer.from(JSON.stringify(data));const key=readFileSync(resolve(root,'.secrets/venue-private.pem'));
@@ -68,6 +79,12 @@ const voided=await request(disputedPath+'/void',{method:'POST'});assert.equal(vo
 const disputedFlow=await request(disputedPath);assert.equal(disputedFlow.capturedMinor,0);assert.equal(disputedFlow.paymentFrozen,true);
 assert.equal((await request(disputedPath+'/commands')).length,3);
 console.log('PASS: a dispute freeze prevents capture while a fresh gated void cancels the existing authorization');
+// A plan whose catering is authorized and awaiting delivery, for the agent and venue checks below.
+const awaiting=await create(150000),awaitingPath=`/api/plans/${awaiting.id}`;
+await request(awaitingPath+'/approve',{method:'POST',body:{version:1}});
+const awaitingLine=awaiting.lines.find(line=>line.category==='CATERING');
+const awaitingCheckout=await request(`${awaitingPath}/orders/${awaitingLine.id}/checkout`,{method:'POST'});
+await request(`${awaitingPath}/orders/${awaitingLine.id}/buyer-approved`,{method:'POST',body:{providerOrderId:awaitingCheckout.result.providerOrderId}});
 const env=Object.fromEntries(readFileSync(resolve(root,'.env'),'utf8').split('\n').filter(l=>l.includes('=')&&!l.startsWith('#')).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1)]));
 let mcpSession='',protocol='2025-11-25';
 async function mcp(payload){
@@ -88,6 +105,20 @@ const searched=await mcp({jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'s
 assert.ok(searched.result.content.some(c=>c.text?.includes('Canopy Collective')));
 const denied=await fetch(base+path+'/approve',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.MCP_TOKEN}`},body:'{"version":1}'});assert.equal(denied.status,403);
 console.log('PASS: authenticated MCP initialize/list/call; agent token cannot record human consent');
+const asked=await mcp({jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'request_milestone_payment',arguments:{workflowId:awaiting.id}}});
+assert.equal(asked.result.isError??false,false);assert.match(asked.result.content[0].text,/"state":"ESCALATE"/);
+assert.equal((await request(awaitingPath)).capturedMinor,0);
+console.log('PASS: the MCP milestone tool reaches AgentSafe, which holds a request without a delivery receipt');
+const venue=(headers={})=>fetch(base+'/venue/deliveries',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie,'X-CSRF-TOKEN':csrf,...headers},body:JSON.stringify({workflowId:awaiting.id}),signal:AbortSignal.timeout(30000)});
+// Without the organizer's session, the application refuses (its CSRF check answers first) and nothing is signed.
+assert.ok([401,403].includes((await venue({Cookie:''})).status));
+assert.equal((await venue({'Sec-Fetch-Site':'cross-site'})).status,403);
+assert.equal((await venue({'X-CSRF-TOKEN':'forged'})).status,403);
+assert.equal((await request(awaitingPath)).receiptVerified,false);
+const confirmed=await venue();assert.equal(confirmed.status,200,await confirmed.clone().text());
+const delivered=await request(awaitingPath);assert.equal(delivered.receiptVerified,true);assert.equal(delivered.capturedMinor,90000);
+assert.ok(delivered.events.some(e=>e.type==='VENUE_CONFIRMATION_REQUESTED'));
+console.log('PASS: only the signed-in organizer can ask the separate venue to sign a receipt, which releases the catering capture');
 mkdirSync(resolve(root,'.local'),{recursive:true});
 writeFileSync(resolve(root,'.local/smoke-workflow.json'),JSON.stringify(flow,null,2));
 writeFileSync(resolve(root,'.local/smoke-evidence.json'),JSON.stringify(evidence,null,2));

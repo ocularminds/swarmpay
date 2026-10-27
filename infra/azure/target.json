@@ -4,6 +4,7 @@
   "registry": "decionisacr.azurecr.io",
   "namespace": "decionis",
   "publicHost": "swarm.decionis.com",
+  "payments": "demo",
   "dnsResolver": "10.64.0.10",
   "storageClass": "decionis-zrs",
   "ingressClass": "decionis-nginx",

@@ -27,9 +27,12 @@ class WorkflowController {
     @PostMapping("/api/plans/{id}/orders/{order}/checkout") GateResult checkout(@PathVariable UUID id,@PathVariable UUID order,Principal user) { return flows.checkout(id,order,user.getName()); }
     @PostMapping("/api/plans/{id}/orders/{order}/buyer-approved") GateResult buyerApproved(@PathVariable UUID id,@PathVariable UUID order,@RequestBody BuyerApproval approval,Principal user) { return flows.buyerApproved(id,order,user.getName(),approval.providerOrderId()); }
     @PostMapping("/api/plans/{id}/milestone") GateResult milestone(@PathVariable UUID id,Principal user) { return flows.milestone(id,user.getName()); }
+    /** The organizer asks the milestone agent to request payment now: the same path as the MCP tool request_milestone_payment. */
+    @PostMapping("/api/plans/{id}/agent-milestone") GateResult agentMilestone(@PathVariable UUID id,Principal user) { return flows.forAgent(user.getName()).requestMilestonePayment(id); }
     @PostMapping("/api/plans/{id}/void") GateResult voidAuthorization(@PathVariable UUID id,Principal user) { return flows.voidAuthorization(id,user.getName()); }
     @PostMapping("/api/plans/{id}/freeze") Map<String,Boolean> freeze(@PathVariable UUID id,Principal user) { flows.freeze(id,user.getName()); return Map.of("frozen",true); }
     @PostMapping("/api/plans/{id}/receipt") Workflow receipt(@PathVariable UUID id,@RequestBody SignedReceipt body,Principal user) { return flows.receipt(id,user.getName(),body); }
+    @PostMapping("/api/plans/{id}/venue-request") DeliveryFacts venueRequest(@PathVariable UUID id,Principal user) { return flows.venueRequest(id,user.getName()); }
     @PostMapping("/api/venue/receipts") Map<String,Boolean> venueReceipt(@RequestBody SignedReceipt body) { flows.venueReceipt(body); return Map.of("accepted",true); }
     @PostMapping("/api/plans/{id}/photo") Map<String,String> photo(@PathVariable UUID id,@RequestParam MultipartFile file,Principal user) throws Exception { flows.photo(id,user.getName(),file.getBytes(),file.getContentType()); return Map.of("state","HELD","message","Photo saved. A trusted venue receipt is still required."); }
     @GetMapping("/api/plans/{id}/commands") List<Map<String,Object>> commands(@PathVariable UUID id,Principal user) { return flows.commands(id,user.getName()); }

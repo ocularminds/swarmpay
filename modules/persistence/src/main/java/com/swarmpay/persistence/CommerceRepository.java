@@ -116,6 +116,19 @@ public final class CommerceRepository {
             return null;
         });
     }
+    /**
+     * PayPal declined the buyer's funding source and took no payment. A new native approval of the
+     * same order queues the same command for a fresh authority decision; nothing else can.
+     */
+    public void requeueAfterBuyerAction(UUID workflowId, UUID orderId, Operation operation) {
+        transaction(() -> {
+            lock(workflowId);
+            if (db.update("UPDATE commerce.commands SET state='QUEUED',result_json=NULL,updated_at=now() WHERE order_id=? AND operation=? AND state='BUYER_ACTION_REQUIRED'",
+                    orderId, operation.name()) == 1)
+                appendInside(workflowId,"BUYER_REAPPROVED","You approved this checkout again with another way to pay. The same payment was queued for a fresh authority decision.","HUMAN");
+            return null;
+        });
+    }
     public boolean recordedCommandMatches(PaymentCommand command) {
         var rows=db.query("SELECT command_json FROM commerce.commands WHERE id=?",(r,n)->DbJson.read(r.getString(1),PaymentCommand.class),command.id());
         return rows.size()==1 && rows.getFirst().equals(command);
@@ -171,6 +184,19 @@ public final class CommerceRepository {
             appendInside(command.workflowId(), "PAYMENT_" + result.state(), result.message(), result.dossierId() == null ? "APPLICATION" : "AGENTSAFE");
             return null;
         });
+    }
+    public void recordAgentRequest(PaymentCommand request, GateResult result, String type) {
+        transaction(() -> {
+            lock(request.workflowId());
+            db.update("INSERT INTO commerce.agent_requests(id,workflow_id,command_json,result_json) VALUES (?,?,?,?)",
+                request.id(), request.workflowId(), DbJson.write(request), DbJson.write(result));
+            appendInside(request.workflowId(), type, result.message(), result.dossierId() == null ? "APPLICATION" : "AGENTSAFE");
+            return null;
+        });
+    }
+    public List<AgentRequest> agentRequests(UUID workflowId) {
+        return db.query("SELECT command_json,result_json,created_at FROM commerce.agent_requests WHERE workflow_id=? ORDER BY created_at", (r,n) ->
+            new AgentRequest(DbJson.read(r.getString(1), PaymentCommand.class), DbJson.read(r.getString(2), GateResult.class), r.getTimestamp(3).toInstant()), workflowId);
     }
     public void evidence(UUID workflowId, String type, String message, String source) {
         transaction(() -> { lock(workflowId); appendInside(workflowId,type,message,source); return null; });

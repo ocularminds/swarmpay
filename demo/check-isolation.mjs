@@ -7,7 +7,10 @@ const addresses=Object.entries(JSON.parse(network.stdout));const address=address
 const direct=docker(['compose','exec','-T','commerce-app','curl','--connect-timeout','2','--max-time','3','-fsS',`http://${address}:8081/actuator/health`]);
 assert.notEqual(direct.status,0,'Public application must not reach private executor, even with its IP');
 const secrets=docker(['compose','exec','-T','commerce-app','sh','-c','test -z "${PAYPAL_TENTS_CLIENT_SECRET+x}" && test -z "${PAYPAL_CATERING_CLIENT_SECRET+x}"']);assert.equal(secrets.status,0);
-const privateKey=docker(['compose','exec','-T','commerce-app','sh','-c','test ! -e /run/secrets/venue-private.pem']);assert.equal(privateKey.status,0);
+const privateKey=docker(['compose','exec','-T','commerce-app','sh','-c','test ! -e /run/secrets/venue-private.pem && test -z "${VENUE_PRIVATE_KEY+x}"']);assert.equal(privateKey.status,0);
+// Only the simulated venue holds its signing key, and it cannot reach the executor.
+const venueExecutor=docker(['compose','exec','-T','venue','node','-e',`fetch('http://${address}:8081/actuator/health',{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(0),()=>process.exit(1))`]);
+assert.notEqual(venueExecutor.status,0,'The venue must not reach the private executor');
 const database=docker(['compose','exec','-T','postgres','psql','-v','ON_ERROR_STOP=1','-U','swarm_app','-d','swarm','-c','SELECT count(*) FROM payments.attempts']);assert.notEqual(database.status,0);assert.match(database.stderr,/permission denied/);
 // PayPal is closed to the agent at the network: no route by name or by address, and the egress proxy refuses it.
 const {lookup}=await import('node:dns/promises');

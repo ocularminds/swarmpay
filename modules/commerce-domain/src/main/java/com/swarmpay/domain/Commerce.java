@@ -45,7 +45,10 @@ public final class Commerce {
     public record Event(long sequence, String type, String message, String source, Instant at,
                         String previousHash, String hash) {}
     public record Workflow(Plan plan, List<OrderView> orders, List<Event> events,
-                           long committedMinor, long capturedMinor, String mode, boolean receiptVerified, boolean paymentFrozen) {}
+                           long committedMinor, long capturedMinor, String mode, boolean receiptVerified, boolean paymentFrozen,
+                           List<AgentRequest> agentRequests) {}
+    /** An agent's payment request that the authority decided without queuing a payment. */
+    public record AgentRequest(PaymentCommand command, GateResult result, Instant at) {}
     public record PaymentCommand(UUID id, UUID workflowId, int planVersion, UUID orderId, Operation operation,
                                  String merchantId, long amountMinor, String currency,
                                  String providerResourceId, String evidenceDigest, String reservationId, String policyVersion) {
@@ -67,12 +70,21 @@ public final class Commerce {
     public record Receipt(String issuer, UUID workflowId, UUID orderId, String merchantId, String venue,
                           int quantity, Instant deliveredAt, Instant issuedAt, String nonce) {}
     public record SignedReceipt(String payload, String signature) {}
+    /** What the application recorded for a catering delivery; the venue signs these facts, never the browser's. */
+    public record DeliveryFacts(UUID workflowId, UUID orderId, String merchantId, String venue, int quantity) {}
     public interface Catalog {
         List<Offer> offers();
         Offer get(String id);
     }
+    /** The Sourcing Agent's choice of one offer per category and its reasons. Java validates the choice before any plan exists. */
+    public record Proposal(String tentOfferId, String cateringOfferId, Assessment sourcing) {}
     public interface AgentPlanner {
+        /** Both roles on offers the organizer chose. */
         List<Assessment> assess(Intent intent, List<Offer> offers);
+        /** The Sourcing Agent chooses from the curated catalog. */
+        Proposal propose(Intent intent, List<Offer> catalog);
+        /** The Risk and Milestone Agent reviews the chosen offers. */
+        Assessment review(Intent intent, List<Offer> offers);
         String source();
     }
     public record IntentSuggestion(Integer attendees, Integer tents, Long budgetMinor, String venue,
@@ -91,6 +103,11 @@ public final class Commerce {
     }
     public interface PaymentProvider {
         ProviderResult execute(PaymentCommand command, Plan plan, Line line);
+        /** The buyer approved again after a declined funding source: a distinct provider request for the same command. */
+        default ProviderResult execute(PaymentCommand command, Plan plan, Line line, int buyerAttempt) {
+            if (buyerAttempt != 0) throw new IllegalArgumentException("This provider cannot attempt a buyer approval again");
+            return execute(command, plan, line);
+        }
         ProviderResult reconcile(PaymentCommand command, ProviderResult lastKnownResult);
     }
     public interface AuthorityGateway {

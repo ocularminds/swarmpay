@@ -29,9 +29,10 @@ Only a private executor holds PayPal credentials; every payment command reaches 
 Azure OpenAI `gpt-6-astra` through the Responses API ([`modules/agent-workflows`](modules/agent-workflows)):
 
 - **Intent extraction** turns free text into typed, editable fields (guests, tents, budget in cents, venue, weather, date) and clarifying questions.
-- **Sourcing** and **risk & milestone** assessments check the curated catalog against the confirmed event.
+- **Sourcing** chooses one tent and one catering offer through a schema that admits only the catalog's offer IDs; Java checks capacity, dates and budget before a plan exists.
+- **Risk & milestone** review checks the chosen offers against the confirmed event.
 
-Every call uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents get no payment tools; catalog prices set the amounts, and the organizer approves every value.
+Every call uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents get no payment tools; catalog prices set the amounts, and the organizer approves every value. An agent can ask for the catering payment through the MCP `request_milestone_payment` tool, but that request goes through AgentSafe, which holds it until a verified delivery receipt exists.
 
 ## Run it locally
 
@@ -43,7 +44,7 @@ node demo/doctor.mjs
 docker compose up --build -d --wait
 ```
 
-Open <http://localhost:5173> and choose **Explore the local demo**. Approve the $1,400 plan, pay both merchants, and see catering release only on a signed receipt. The [walkthrough](demo/walkthrough.md) has the full script.
+Open <http://localhost:5173> and choose **Explore the local demo**. Let the Sourcing Agent choose the offers, approve the $1,400 plan and pay both merchants. Then watch AgentSafe hold the agent's early request to pay catering, and release catering only when the simulated venue confirms delivery with a signed receipt. The [walkthrough](demo/walkthrough.md) has the full script.
 
 ## Architecture
 
@@ -69,19 +70,15 @@ One plan and budget, two merchant approvals. Authorize-then-capture pays each se
 
 ### Local demo details
 
-Use Node.js 22.23.2, the version in `.node-version`. Java is provided by the Docker build; no host JDK is needed for this path, and the initial build downloads dependencies. The UI and a separate webhook listener on port 5184 bind only to loopback. `demo/setup.mjs` generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and configures no external accounts.
+Use Node.js 22.23.2, the version in `.node-version`. Java is provided by the Docker build; no host JDK is needed for this path, and the initial build downloads dependencies. The UI and a separate webhook listener on port 5184 bind only to loopback. `demo/setup.mjs` generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and configures no external accounts. If your `.env` predates the simulated venue, run `node demo/setup.mjs` again: it adds the venue's signing key, which only the venue container receives.
 
-1. Keep the event about an hour ahead, confirm tent rentals, and prepare a plan for 30 guests and five tents.
-2. Review the $500 tent rental and $900 catering quote against a $1,500 budget. Approve the $1,400 plan.
+1. Keep the event about an hour ahead, confirm tent rentals, and leave both offer preferences on **Sourcing Agent chooses**. Prepare a plan for 30 guests and five tents.
+2. The Sourcing Agent chooses the $500 tent rental and $900 catering, the fullest combination within the $1,500 budget, and the server checks its choice. Approve the $1,400 plan.
 3. Complete each **Simulated checkout**. Tents show paid; catering shows authorized and awaiting delivery.
-4. Open **Delivery & proof**. A photo alone cannot release catering.
-5. Choose **Export workflow**, then sign that exported file with the separate local fixture:
+4. Open **Delivery & proof**. A photo alone cannot release catering. Choose **Let the agent request payment**: the milestone agent asks for the catering payment before delivery, and AgentSafe holds the request. No payment command is queued.
+5. Choose **Confirm delivery as the venue**. A separate venue container signs a receipt with its own key; SwarmPay verifies that it matches the event, merchant, quantity and delivery window, and the same AgentSafe boundary allows the catering capture. **Download evidence** exports the payment records and application audit chain.
 
-   ```sh
-   node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json
-   ```
-
-6. Upload `receipt.json` within 15 minutes. The receipt must match the event, merchant, quantity and delivery window. One catering capture completes the workflow; **Download evidence** exports the payment records and application audit chain.
+To test altered or replayed receipts, sign an exported workflow with `node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json` and upload the file within 15 minutes.
 
 The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering checkout must be within three days of the event. Use a new plan when a quote expires.
 
@@ -95,12 +92,13 @@ Stop with `docker compose down`; the database, authority journal and key volumes
 | `apps/payment-executor` | Private Spring Boot service holding PayPal credentials and a durable attempt ledger |
 | `apps/web` | React/TypeScript/Vite UI, native PayPal SDK branch, browser tests |
 | `modules/commerce-domain` | Typed intents, immutable plans, money in integer cents |
-| `modules/agent-workflows` | Bounded sourcing/risk assessments and typed intent extraction through OpenAI Responses |
+| `modules/agent-workflows` | Bounded sourcing choice, risk assessment and typed intent extraction through OpenAI Responses |
 | `modules/integrations` | PayPal SDK/API, authority HTTP client, catalog and Ed25519 receipt verification |
 | `modules/persistence` | Atomic consent/reservations, outbox, attempt ledger and audit chain |
 | `modules/mcp-tools` | Seven typed tools; human plan approval is not an agent tool |
 | `infra/agentsafe` | Pinned published gateway, synthetic policy and adversarial boundary tests |
 | `infra/egress` | The agent's only route out: an HTTPS proxy that admits the configured model host and refuses PayPal |
+| `infra/venue` | The simulated venue: the only holder of the venue signing key; signs a receipt for the signed-in organizer's recorded order |
 | `contracts`, `docs`, `demo` | Wire contracts, operating limits, setup and repeatable validation |
 
 Java 21, Spring Boot 4.1.2, Spring AI 2.0.2, Gradle 8.14.3, PayPal Java Server SDK 2.4.0, and OpenAI Java 4.91.0 are pinned. The model is fixed to `gpt-6-astra`; there is no model fallback. AgentSafe 0.2.5 and its pipeline 0.3.8 are locked. A reviewed Presence dependency override is explained in [security and reliability](docs/security-and-reliability.md).
@@ -112,7 +110,7 @@ With Node 22 active, select deterministic AI for the fixture tests without chang
 ```sh
 SWARM_AI_PROVIDER=demo docker compose up -d --wait commerce-app
 node demo/verify-java.mjs
-node --test demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
+node --test demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/venue/venue.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
 npm --prefix infra/agentsafe ci
 npm --prefix infra/agentsafe test
 npm --prefix infra/agentsafe run verify-boundary

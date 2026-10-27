@@ -8,7 +8,7 @@ const base=JSON.parse(readFileSync(new URL('./target.json',import.meta.url),'utf
 const target={...base,ingressClass:'fixture-nginx',ingressNamespace:'fixture-ingress',
   ingressPodLabels:{'app.kubernetes.io/name':'ingress-nginx','app.kubernetes.io/component':'controller'},clusterIssuer:'fixture-dns01',certificateChallenge:'dns01'};
 const key=generateKeyPairSync('ed25519').publicKey.export({type:'spki',format:'pem'});
-const images=Object.fromEntries(['web','commerce-app','payment-executor','agentsafe','egress'].map(component=>[component,`${target.registry}/swarm-pay/${component}@sha256:${'a'.repeat(64)}`]));
+const images=Object.fromEntries(['web','commerce-app','payment-executor','agentsafe','egress','venue'].map(component=>[component,`${target.registry}/swarm-pay/${component}@sha256:${'a'.repeat(64)}`]));
 
 test('unverified ingress and mutable images cannot produce a deployment',()=>{
   assert.throws(()=>render({...target,ingressClass:''},images,key),/verified/);
@@ -19,6 +19,7 @@ test('unverified ingress and mutable images cannot produce a deployment',()=>{
   assert.throws(()=>render({...target,namespace:'default'},images,key),/existing decionis/);
   const privateKey=generateKeyPairSync('ed25519').privateKey.export({type:'pkcs8',format:'pem'});
   assert.throws(()=>render(target,images,privateKey),/public key/);
+  for(const payments of [undefined,'live','production'])assert.throws(()=>render({...target,payments},images,key),/demo or sandbox payments/);
 });
 
 test('the public entry point and credentials remain separated from private execution',()=>{
@@ -37,6 +38,14 @@ test('the public entry point and credentials remain separated from private execu
   const web=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-web').spec.template.spec;
   assert.ok(web.containers[0].env.some(e=>e.name==='SWARM_TRUSTED_PROXY'&&e.value==='0.0.0.0/0'));
   assert.ok(!JSON.stringify(items).includes('venue-private'));
+  // Only the simulated venue receives its signing key, from its own secret.
+  const venue=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-venue').spec.template.spec.containers[0];
+  assert.deepEqual(venue.envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-venue-secrets']);
+  assert.equal(venue.image,images.venue);
+  for(const name of ['swarm-pay-commerce-app','swarm-pay-payment-executor','swarm-pay-web','swarm-pay-agentsafe','swarm-pay-egress']) {
+    const container=items.find(i=>i.kind==='Deployment'&&i.metadata.name===name).spec.template.spec.containers[0];
+    assert.ok(!(container.envFrom??[]).some(v=>v.secretRef?.name==='swarm-pay-venue-secrets'));
+  }
 });
 
 test('shared-namespace manifests own only prefixed resources and resolve every service, credential and volume reference',()=>{
@@ -56,7 +65,7 @@ test('shared-namespace manifests own only prefixed resources and resolve every s
       if(ref.persistentVolumeClaim)assert.ok(exists('PersistentVolumeClaim',ref.persistentVolumeClaim.claimName));
     }
     for(const ref of pod.containers[0].envFrom)if(ref.configMapRef)assert.ok(exists('ConfigMap',ref.configMapRef.name));
-    for(const setting of pod.containers[0].env.filter(e=>['DATABASE_URL','AGENTSAFE_URL','AGENTSAFE_UPSTREAM'].includes(e.name))) {
+    for(const setting of pod.containers[0].env.filter(e=>['DATABASE_URL','AGENTSAFE_URL','AGENTSAFE_UPSTREAM','COMMERCE_URL'].includes(e.name))) {
       const hostname=new URL(setting.value.replace(/^jdbc:/,'')).hostname;
       assert.ok(hostname.endsWith('.decionis.svc.cluster.local'));assert.ok(exists('Service',hostname.split('.')[0]));
     }
@@ -65,6 +74,7 @@ test('shared-namespace manifests own only prefixed resources and resolve every s
   const nginx=items.find(i=>i.kind==='ConfigMap'&&i.metadata.name==='swarm-pay-nginx-template').data['default.conf.template'];
   assert.ok(nginx.includes('server swarm-pay-commerce-app.decionis.svc.cluster.local:8080 resolve;'));
   assert.ok(nginx.includes('server swarm-pay-payment-executor.decionis.svc.cluster.local:8081 resolve;'));
+  assert.ok(nginx.includes('server swarm-pay-venue.decionis.svc.cluster.local:8084 resolve;'));
   assert.ok(nginx.includes('location /internal/ { return 404; }'));
 });
 
@@ -83,12 +93,18 @@ test('every runtime starts without root, Kubernetes credentials or a writable im
 
 test('the rendered policy permits the workflow and rejects private bypasses, cross-namespace traffic and metadata access',()=>{
   const policies=render(target,images,key).networkPolicies.items;
-  assert.equal(policies.length,7);
+  assert.equal(policies.length,8);
   const pod=(component,namespace=target.namespace,ip='10.48.1.2')=>({namespace,ip,labels:{'app.kubernetes.io/part-of':'swarm-pay','app.kubernetes.io/component':component}});
-  const app=pod('commerce-app'),executor=pod('payment-executor'),gate=pod('agentsafe'),db=pod('postgres'),web=pod('web'),egress=pod('egress');
+  const app=pod('commerce-app'),executor=pod('payment-executor'),gate=pod('agentsafe'),db=pod('postgres'),web=pod('web'),egress=pod('egress'),venue=pod('venue');
   const ingress={namespace:target.ingressNamespace,ip:'10.48.2.2',labels:target.ingressPodLabels};
   assert.ok(allowed(ingress,web,8080,policies));
-  for(const peer of [app,executor,gate,db,egress])assert.equal(allowed(peer,web,8080,policies),false);
+  for(const peer of [app,executor,gate,db,egress,venue])assert.equal(allowed(peer,web,8080,policies),false);
+  // The venue answers the web alone and reaches only the application.
+  assert.ok(allowed(web,venue,8084,policies));
+  assert.ok(allowed(venue,app,8080,policies));
+  for(const peer of [app,executor,gate,db,egress,ingress])assert.equal(allowed(peer,venue,8084,policies),false);
+  for(const [other,number] of [[executor,8081],[gate,8082],[db,5432],[egress,3128]])assert.equal(allowed(venue,other,number,policies),false);
+  assert.equal(allowed(venue,{namespace:null,ip:'20.1.2.3',labels:{}},443,policies),false);
   assert.ok(allowed(web,app,8080,policies));
   assert.ok(allowed(app,gate,8082,policies));
   assert.ok(allowed(gate,executor,8081,policies));
@@ -163,6 +179,25 @@ test('hosted mode fronts the executor for the fleet alone and runs no gateway in
     assert.throws(()=>render({...target,hostedGateway:invalid},withoutGateway,key),/hosted gateway|fleet egress|executor hostname|policyVersion/);
   // Without hostedGateway the in-cluster gateway is still required.
   assert.throws(()=>render(target,withoutGateway,key),/agentsafe/);
+});
+
+test('sandbox payments run on their own database and evidence volumes under a disclosed authority',()=>{
+  const demo=render(target,images,key).privateResources.items,sandbox=render({...target,payments:'sandbox'},images,key).privateResources.items;
+  const runtime=items=>items.find(i=>i.kind==='ConfigMap'&&i.metadata.name==='swarm-pay-runtime').data;
+  const claims=items=>items.filter(i=>i.kind==='PersistentVolumeClaim').map(i=>i.metadata.name).sort();
+  assert.equal(runtime(demo).SWARM_MODE,'demo');
+  assert.deepEqual(claims(demo),['swarm-pay-authority-evidence','swarm-pay-postgres-data']);
+  assert.equal(runtime(sandbox).SWARM_MODE,'sandbox');
+  assert.equal(runtime(sandbox).SWARM_AUTHORITY,'local');
+  assert.deepEqual(claims(sandbox),['swarm-pay-authority-sandbox-evidence','swarm-pay-postgres-sandbox-data']);
+  const volume=(items,name)=>items.find(i=>i.kind==='Deployment'&&i.metadata.name===name).spec.template.spec.volumes.find(v=>v.persistentVolumeClaim).persistentVolumeClaim.claimName;
+  assert.equal(volume(sandbox,'swarm-pay-postgres'),'swarm-pay-postgres-sandbox-data');
+  assert.equal(volume(sandbox,'swarm-pay-agentsafe'),'swarm-pay-authority-sandbox-evidence');
+  // With the hosted gateway, Decionis decides sandbox payments.
+  const hostedGateway={url:'https://swarm.decionisedge.com',fleetEgressIp:'20.88.59.229',executorHost:'swarm-executor.decionis.com',policyVersion:'swarm-pay-sandbox-v1'};
+  const {agentsafe:_unused,...withoutGateway}=images;
+  assert.equal(runtime(render({...target,payments:'sandbox',hostedGateway},withoutGateway,key).privateResources.items).SWARM_AUTHORITY,'decionis');
+  assert.equal(runtime(render({...target,hostedGateway},withoutGateway,key).privateResources.items).SWARM_AUTHORITY,'local');
 });
 
 // Evaluate the standard pod-selector, namespace-selector and IPv4 peer rules

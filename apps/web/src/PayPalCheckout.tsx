@@ -34,10 +34,13 @@ export function PayPalCheckout({planId,order,clientId,onDone,onError}:{planId:st
           if(!result.result?.providerOrderId || result.execution!=='FORWARDED') throw new Error(result.message);
           return result.result.providerOrderId;
         }),
-        onApprove:(data:{orderID:string})=>explained(async()=>{
+        onApprove:(data:{orderID:string},actions:{restart:()=>Promise<void>})=>explained(async()=>{
           const result=await api<GateResult>(`/api/plans/${planId}/orders/${order.id}/buyer-approved`,'POST',{providerOrderId:data.orderID});
+          done.current();
+          // PayPal declined the funding source and took nothing: reopen the same order so the buyer can choose another.
+          if(result.state==='BUYER_ACTION_REQUIRED') {error.current(result.message);return actions.restart();}
           // QUEUED means the worker claimed this approval first; the refreshed status shows its outcome.
-          done.current(); if(!['SUCCEEDED','QUEUED'].includes(result.state)) error.current(result.message);
+          if(!['SUCCEEDED','QUEUED'].includes(result.state)) error.current(result.message);
         }),
         onCancel:()=>error.current('PayPal approval was cancelled. No new payment is confirmed.'),
         onError:()=>{error.current(reason||'PayPal checkout did not finish. Check the payment status before trying again.');done.current();},

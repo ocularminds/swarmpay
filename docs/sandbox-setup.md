@@ -141,7 +141,7 @@ The hosted policy must bind the workload, boundary, merchant, operation, amount/
 
 **Venue receipt and first account test**
 
-For a disclosed hackathon fixture, retain `VENUE_ISSUER=demo-venue-fixture` and the generated public key. The private fixture key remains on the host; it is never mounted into either Java application or exposed through MCP. A real venue integration supplies its own issuer/key and signs the [receipt contract](../contracts/receipt.schema.json).
+For a disclosed hackathon fixture, retain `VENUE_ISSUER=demo-venue-fixture` and the generated public key. The fixture key is never mounted into either Java application or exposed through MCP; only the separate simulated venue container receives it, as `VENUE_PRIVATE_KEY`. If `.env.sandbox` predates the venue, run `node demo/setup.mjs --sandbox` again to add that line. A real venue integration supplies its own issuer/key and signs the [receipt contract](../contracts/receipt.schema.json).
 
 ```sh
 node demo/doctor.mjs .env.sandbox
@@ -150,12 +150,14 @@ docker compose --env-file .env.sandbox -p swarm-pay-sandbox up --build -d --wait
 
 Open [http://localhost:5175](http://localhost:5175) and sign in with the organizer credentials in `.env.sandbox`. Choose an event within the next three days and complete both native PayPal approvals with the sandbox buyer. Verify the tent capture and the separate catering authorization in the correct seller accounts.
 
-Export the workflow. To exercise the disclosed venue fixture against **PayPal sandbox only**, the signer requires an explicit flag:
+If PayPal declines the sandbox buyer's funding source, its checkout reopens on the same order so the buyer can choose another; the retry reuses the same payment command and takes a fresh authority decision.
+
+Before delivery, choose **Let the agent request payment** and confirm that AgentSafe holds the request and no payment is sent. Then choose **Confirm delivery as the venue**. The venue container signs the recorded catering order with the current time, and the receipt can trigger a sandbox catering capture. To sign an exported workflow outside the application instead, the signer requires an explicit flag for **PayPal sandbox only**:
 
 ```sh
 node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json --sandbox-test
 ```
 
-Uploading that receipt can trigger a sandbox catering capture. It remains a simulated delivery attestation, not a claim that physical food arrived. Capture only follows a valid, fresh receipt and a new authority decision. Check that the seller, amount, authorization ID, capture ID and authority evidence agree. Replay the receipt and verify that no second capture appears.
+Either receipt remains a simulated delivery attestation, not a claim that physical food arrived. Capture only follows a valid, fresh receipt and a new authority decision. Check that the seller, amount, authorization ID, capture ID and authority evidence agree. Replay the receipt and verify that no second capture appears.
 
 Record the real sandbox/authority evidence in the capability matrix. Missing account capability, provider-pending status, an expired authorization, and an unknown response must remain visible as such. Refunds, reauthorization, long booking schedules and hosted Presence resume are not implemented by the core.

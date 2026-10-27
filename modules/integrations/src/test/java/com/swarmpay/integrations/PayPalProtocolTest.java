@@ -191,10 +191,25 @@ class PayPalProtocolTest {
         assertEquals(1,http.paymentPosts().size());
     }
 
-    @Test void explicitInstrumentDeclineIsReportedAsRefused() {
-        route(r->r.method().equals("GET")?new Response(200,order(tents,"APPROVED",Map.of())):error(422,"INSTRUMENT_DECLINED"));
-        var failure=assertThrows(CommerceException.class,()->provider.execute(command(tents,Operation.CAPTURE_ORDER),plan,tents));
-        assertEquals("PAYPAL_REFUSED",failure.code()); assertEquals(1,http.paymentPosts().size());
+    @Test void aDeclinedFundingSourceLetsTheBuyerApproveTheSameOrderAgain() {
+        var declined=new AtomicBoolean();
+        route(r->r.method().equals("GET")?new Response(200,order(tents,"APPROVED",Map.of()))
+            :declined.getAndSet(true)?new Response(201,order(tents,"COMPLETED",captured(tents))):error(422,"INSTRUMENT_DECLINED"));
+        var c=command(tents,Operation.CAPTURE_ORDER);
+        assertThrows(PayPalPaymentProvider.BuyerActionRequiredException.class,()->provider.execute(c,plan,tents));
+        assertEquals("CAPTURED",provider.execute(c,plan,tents,1).status());
+        // The second approval is a new provider request; PayPal still captures an order only once.
+        assertEquals(List.of(c.requestId(),c.requestId()+"-buyer-1"),http.paymentPosts().stream().map(r->r.header("PayPal-Request-Id")).toList());
+    }
+
+    @Test void refusalsTheBuyerCannotFixAreReportedAsRefused() {
+        route(r->r.method().equals("GET")?new Response(200,order(tents,"APPROVED",Map.of())):error(422,"PAYER_CANNOT_PAY"));
+        assertEquals("PAYPAL_REFUSED",assertThrows(CommerceException.class,()->provider.execute(command(tents,Operation.CAPTURE_ORDER),plan,tents)).code());
+        // Capturing an authorization involves no buyer, so a decline there cannot be approved again.
+        route(r->r.method().equals("GET")?new Response(200,order(catering,"COMPLETED",authorized())):error(422,"INSTRUMENT_DECLINED"));
+        assertEquals("PAYPAL_REFUSED",assertThrows(CommerceException.class,()->provider.execute(command(catering,Operation.CAPTURE_AUTHORIZATION),plan,catering)).code());
+        assertThrows(IllegalArgumentException.class,()->provider.execute(command(catering,Operation.CAPTURE_AUTHORIZATION),plan,catering,1));
+        assertEquals(2,http.paymentPosts().size());
     }
 
     @Test void lostCaptureResponseIsRecoveredWithReadsOnly() {

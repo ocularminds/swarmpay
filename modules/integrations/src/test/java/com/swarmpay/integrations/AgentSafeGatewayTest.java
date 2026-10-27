@@ -48,6 +48,16 @@ class AgentSafeGatewayTest {
         assertEquals("dossier",result.dossierId());
     }
 
+    @Test void aDeclinedFundingSourceWaitsForTheBuyerWithoutClaimingAPayment() {
+        gateway.handler=r->new Response(422,Map.of("code","BUYER_ACTION_REQUIRED","state","BUYER_ACTION_REQUIRED","execution","NOT_FORWARDED","message","Choose another way to pay."),
+            Map.of("agentsafe-execution","FAILED","agentsafe-decision","ALLOW","agentsafe-dossier-id","dossier","agentsafe-intent-hash","hash"));
+        var result=new AgentSafeGateway(gateway.base().toString(),"executor-token").execute(command);
+        assertEquals("BUYER_ACTION_REQUIRED",result.state());
+        assertEquals("NOT_FORWARDED",result.execution());
+        assertNull(result.result());
+        assertEquals("Choose another way to pay.",result.message());
+    }
+
     @Test void aHostedGatewayWithoutTheTenantKeyOrAGatewayWithNoCredentialIsRefusedAtStart() {
         assertThrows(IllegalStateException.class,()->new AgentSafeGateway("https://swarm.decionisedge.com","executor-token"));
         assertThrows(IllegalStateException.class,()->new AgentSafeGateway("https://swarm.decionisedge.com","executor-token","  "));

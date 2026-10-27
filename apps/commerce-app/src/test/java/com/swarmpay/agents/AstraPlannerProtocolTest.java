@@ -80,6 +80,24 @@ class AstraPlannerProtocolTest {
         assertTrue(result.stream().allMatch(r -> r.source().equals("Azure OpenAI · gpt-6-astra")));
         assertEquals(2,request.at("/text/format/schema/required").size());assertEquals(2,calls.get());
     }
+    @Test void theSourcingAgentCanNameOnlyCatalogOffersAndExplainsItsChoice() {
+        var catalog=new com.swarmpay.integrations.DemoCatalog().offers();
+        var intent=new Intent("A meetup",30,5,150000,Instant.now().plusSeconds(3600),"UTC","Test venue","Rain","RENT");
+        answer="{\"tentOfferId\":\"tents-standard\",\"cateringOfferId\":\"catering-seasonal\",\"summary\":\"Fits the budget and the rain.\",\"facts\":[\"$1,400 of $1,500\"]}";
+        var proposal=planner.propose(intent,catalog);
+        assertEquals("tents-standard",proposal.tentOfferId());assertEquals("catering-seasonal",proposal.cateringOfferId());
+        assertEquals("Sourcing",proposal.sourcing().role());assertEquals("Azure OpenAI · gpt-6-astra",proposal.sourcing().source());
+        assertTrue(request.at("/text/format/strict").asBoolean());
+        assertEquals(List.of("tents-standard","tents-premium"),JSON.convertValue(request.at("/text/format/schema/properties/tentOfferId/enum"),List.class));
+        assertEquals(List.of("catering-seasonal","catering-signature"),JSON.convertValue(request.at("/text/format/schema/properties/cateringOfferId/enum"),List.class));
+        assertEquals(4,request.at("/text/format/schema/required").size());
+        // An offer outside the catalog, or one from the wrong category, is never accepted.
+        answer=answer.replace("tents-standard","catering-seasonal");
+        assertEquals("MODEL_OUTPUT_INVALID",assertThrows(CommerceException.class,()->planner.propose(intent,catalog)).code());
+        answer=answer.replace("\"tentOfferId\":\"catering-seasonal\"","\"tentOfferId\":\"tents-unlisted\"");
+        assertEquals("MODEL_OUTPUT_INVALID",assertThrows(CommerceException.class,()->planner.propose(intent,catalog)).code());
+        assertEquals(3,calls.get());
+    }
     @Test void reportsOnlySafeProviderStatusAndDoesNotFallback() {
         httpStatus=404;
         var error=assertThrows(CommerceException.class,()->planner.interpret("event","UTC"));

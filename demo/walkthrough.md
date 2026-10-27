@@ -7,19 +7,17 @@ Start with the [README](../README.md). For a repeatable recording or test, use `
 | Time | Action | Evidence to show |
 | --- | --- | --- |
 | 0:00–0:20 | Open the organizer workspace. Describe a rainy outdoor meetup for 30 people, five tent rentals and a $1,500 budget. | Absolute event date, venue, rental confirmation and editable quantities. Clearly identify local payment/authority fixtures. |
-| 0:20–0:40 | Use **Understand request**, then **Prepare my plan**. Keep the event about one hour ahead. | Sourcing and risk summaries with their actual provider label. Two curated merchants: $500 tents and $900 catering. |
+| 0:20–0:40 | Use **Understand request**, leave both offer preferences on **Sourcing Agent chooses**, then **Prepare my plan**. Keep the event about one hour ahead. | The Sourcing Agent's choice and reasons, then the risk review, each with its actual provider label. The server checks the choice: $500 tents and $900 catering. |
 | 0:40–1:00 | Review and approve the exact $1,400 plan. Complete the two **Simulated checkout** dialogs. | Tent payment is captured; catering is authorized. Confirmed paid is $500, committed is $1,400. |
-| 1:00–1:20 | Open **Delivery & proof** and upload a small image. | Payment stays held because a photo does not satisfy the agreed receipt condition. |
-| 1:20–1:45 | Export the workflow, sign it with the separate fixture and upload the signed receipt. | Receipt passes exact contract checks. A fresh gated catering capture brings confirmed paid to $1,400. |
+| 1:00–1:20 | Open **Delivery & proof**, upload a small image, then choose **Let the agent request payment**. | A photo does not satisfy the receipt condition. The agent's early request reaches AgentSafe, which holds it with a dossier ID; no payment command is queued. |
+| 1:20–1:45 | Choose **Confirm delivery as the venue**. | The separate venue signs a receipt with its own key; it passes exact contract checks, and the same boundary allows a fresh catering capture. Confirmed paid reaches $1,400. |
 | 1:45–2:00 | Download evidence and inspect the timeline. | Original command IDs, authority correlation, provider result and chain verification. Replaying the receipt creates no second capture. |
 
-Sign the exported workflow outside the application:
+The simulated venue runs in its own container with its own signing key; the application and its agents cannot read that key. It confirms a delivery only for the signed-in organizer's plan, signs the order the application recorded with the current time, and submits the receipt through the public venue ingress. It is a disclosed test issuer and does not manufacture a real-world delivery claim. To test altered or replayed receipts, sign an exported workflow outside the application and upload it within 15 minutes:
 
 ```sh
 node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json
 ```
-
-Upload the receipt within 15 minutes. The fixture signs the matching catering order and current delivery time; it is a disclosed test issuer. It does not manufacture a real-world delivery claim.
 
 **Failure and recovery scenes**
 

@@ -54,7 +54,16 @@ public final class PayPalPaymentProvider implements PaymentProvider {
             .readTimeout(Duration.ofSeconds(20)).writeTimeout(Duration.ofSeconds(20)).callTimeout(Duration.ofSeconds(20))
             .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build();
     }
-    @Override public ProviderResult execute(PaymentCommand c, Plan plan, Line line) {
+    @Override public ProviderResult execute(PaymentCommand c, Plan plan, Line line) { return execute(c,plan,line,0); }
+    /**
+     * After PayPal declines the buyer's funding source, the buyer approves the same order
+     * again with another one. That approval is a new provider request for the same command:
+     * PayPal took no payment, and it captures or authorizes an order only once.
+     */
+    @Override public ProviderResult execute(PaymentCommand c, Plan plan, Line line, int buyerAttempt) {
+        boolean buyerStep = c.operation() == Operation.CAPTURE_ORDER || c.operation() == Operation.AUTHORIZE_ORDER;
+        if (buyerAttempt < 0 || buyerAttempt > 0 && !buyerStep) throw new IllegalArgumentException("Only a buyer approval can be attempted again");
+        String requestId = buyerAttempt == 0 ? c.requestId() : c.requestId() + "-buyer-" + buyerAttempt;
         var client = client(c.merchantId());
         var account = accounts.get(c.merchantId());
         boolean effectAttempted=false, providerAccepted=false;
@@ -88,13 +97,13 @@ public final class PayPalPaymentProvider implements PaymentProvider {
             return switch (c.operation()) {
                 case CAPTURE_ORDER -> {
                     var response=client.getOrdersController().captureOrder(new CaptureOrderInput.Builder(orderId,null)
-                        .paypalRequestId(c.requestId()).prefer("return=representation").build());
+                        .paypalRequestId(requestId).prefer("return=representation").build());
                     providerAccepted=true;
                     yield readReturnedOrder(tree(response.getResult()),c,account.merchantId(),line.paymentIntent(),orderId,client);
                 }
                 case AUTHORIZE_ORDER -> {
                     var response=client.getOrdersController().authorizeOrder(new AuthorizeOrderInput.Builder(orderId,null)
-                        .paypalRequestId(c.requestId()).prefer("return=representation").build());
+                        .paypalRequestId(requestId).prefer("return=representation").build());
                     providerAccepted=true;
                     yield readReturnedOrder(tree(response.getResult()),c,account.merchantId(),line.paymentIntent(),orderId,client);
                 }
@@ -117,6 +126,7 @@ public final class PayPalPaymentProvider implements PaymentProvider {
                 default -> throw CommerceException.invalid("Unsupported operation");
             };
         } catch (ApiException e) {
+            if (!providerAccepted && buyerStep && buyerCanChooseAgain(e)) throw new BuyerActionRequiredException();
             if (!providerAccepted && definitiveRefusal(e))
                 throw new CommerceException("PAYPAL_REFUSED","PayPal refused the request (HTTP " + e.getResponseCode() + "). Review the sandbox payment before retrying.",422);
             if (retrySafe(c,effectAttempted,providerAccepted)) throw new ProviderNotDispatchedException();
@@ -178,13 +188,20 @@ public final class PayPalPaymentProvider implements PaymentProvider {
     }
     private static boolean definitiveRefusal(ApiException e) {
         if(Set.of(400,401,403,404,405,406,415).contains(e.getResponseCode())) return true;
-        if(e.getResponseCode()!=422) return false;
+        var found=issues(e);
+        return e.getResponseCode()==422 && !found.isEmpty() && Set.of("INSTRUMENT_DECLINED","PAYER_CANNOT_PAY","TRANSACTION_REFUSED").containsAll(found);
+    }
+    /** PayPal declined the funding source the buyer chose; PayPal's checkout lets them choose another for the same order. */
+    private static boolean buyerCanChooseAgain(ApiException e) {
+        var found=issues(e);
+        return e.getResponseCode()==422 && !found.isEmpty() && Set.of("INSTRUMENT_DECLINED","PAYER_ACTION_REQUIRED").containsAll(found);
+    }
+    private static Set<String> issues(ApiException e) {
         try {
-            var details=Json.MAPPER.readTree(e.getHttpContext().getResponse().getBody()).path("details");
-            if(!details.isArray() || details.isEmpty()) return false;
-            for(var detail:details) if(!Set.of("INSTRUMENT_DECLINED","PAYER_CANNOT_PAY","TRANSACTION_REFUSED").contains(detail.path("issue").asText())) return false;
-            return true;
-        } catch(Exception ignored) { return false; }
+            var found=new HashSet<String>();
+            for(var detail:Json.MAPPER.readTree(e.getHttpContext().getResponse().getBody()).path("details")) found.add(detail.path("issue").asText());
+            return found;
+        } catch(Exception ignored) { return Set.of(); }
     }
     private ProviderResult readReturnedOrder(JsonNode node,PaymentCommand c,String payee,String intent,String id,PaypalServerSdkClient client) throws IOException,ApiException {
         verifyId(node,id);
@@ -318,5 +335,8 @@ public final class PayPalPaymentProvider implements PaymentProvider {
     /** PayPal could not be reached before any payment effect; the same command identity may be retried. */
     public static final class ProviderNotDispatchedException extends RuntimeException {
         public ProviderNotDispatchedException() { super("PayPal was unavailable before any payment was taken; retry is safe"); }
+    }
+    public static final class BuyerActionRequiredException extends RuntimeException {
+        public BuyerActionRequiredException() { super("PayPal declined the buyer's funding source; no payment was taken"); }
     }
 }

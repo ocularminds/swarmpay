@@ -24,6 +24,11 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     tmpfs: ["/tmp:uid=10001,gid=10001,mode=1777"]
+  venue:
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:uid=1000,gid=1000,mode=1777"]
   web:
     networks: [hosted-ingress]
     user: "101:101"

@@ -5,9 +5,11 @@ export type Assessment={role:string;summary:string;facts:string[];source:string}
 export type Plan={id:string;version:number;intent:Intent;lines:Line[];assessments:Assessment[];totalMinor:number;expiresAt:string;status:string;createdAt:string};
 export type Order={id:string;merchantId:string;merchantName:string;title:string;category:'TENTS'|'CATERING';quantity:number;amountMinor:number;paymentIntent:string;status:string;providerOrderId:string|null;authorizationId:string|null;captureId:string|null};
 export type AuditEvent={sequence:number;type:string;message:string;source:string;at:string;previousHash:string;hash:string};
-export type Workflow={plan:Plan;orders:Order[];events:AuditEvent[];committedMinor:number;capturedMinor:number;mode:'demo'|'sandbox';receiptVerified:boolean;paymentFrozen:boolean};
+export type Workflow={plan:Plan;orders:Order[];events:AuditEvent[];committedMinor:number;capturedMinor:number;mode:'demo'|'sandbox';receiptVerified:boolean;paymentFrozen:boolean;agentRequests:AgentRequest[]};
 export type ProviderResult={status:string;providerOrderId:string;authorizationId:string|null;captureId:string|null;source:string};
 export type GateResult={state:string;execution:string;decisionId:string|null;dossierId:string|null;intentHash:string|null;intentId:string|null;message:string;result:ProviderResult|null};
 export type Command={command:{id:string;operation:string;merchantId:string;amountMinor:number};state:string;result:GateResult|null};
+/** An agent's payment request the authority decided; never queued as a payment. */
+export type AgentRequest={command:{id:string;operation:string;merchantId:string;amountMinor:number};result:GateResult;at:string};
 export type Config={mode:'demo'|'sandbox';demoSessionEnabled:boolean;aiProvider:'demo'|'azure'|'openai';model:string;authority:string;catalogSource:string;receiptIssuer:string;clientIds:Record<string,string>;policyVersion:string};
 export type Session={authenticated:boolean;username:string;csrfToken:string;csrfHeader:string};

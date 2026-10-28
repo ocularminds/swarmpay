@@ -1,0 +1,30 @@
+# The local stack wired the way the Render Blueprint wires it: every service finds
+# its peers by host:port, the venue key is inline, and the web takes its DNS server
+# from the container. Used by node demo/render/check.mjs; not a deployment.
+services:
+  commerce-app:
+    environment:
+      DATABASE_URL: !reset null
+      DATABASE_HOSTPORT: postgres:5432
+      AGENTSAFE_URL: !reset null
+      AGENTSAFE_HOSTPORT: agentsafe:8082
+      JAVA_TOOL_OPTIONS: !reset null
+      EGRESS_HOSTPORT: egress:3128
+      VENUE_PUBLIC_KEY_FILE: !reset null
+      VENUE_PUBLIC_KEY: ${SWARM_RENDER_VENUE_PUBLIC_KEY:?Run node demo/render/check.mjs}
+  payment-executor:
+    environment:
+      DATABASE_URL: !reset null
+      DATABASE_HOSTPORT: postgres:5432
+      VENUE_PUBLIC_KEY_FILE: !reset null
+      VENUE_PUBLIC_KEY: ${SWARM_RENDER_VENUE_PUBLIC_KEY:?Run node demo/render/check.mjs}
+  agentsafe:
+    environment:
+      AGENTSAFE_UPSTREAM_HOSTPORT: payment-executor:8081
+  venue:
+    environment:
+      COMMERCE_URL: !reset null
+      COMMERCE_HOSTPORT: commerce-app:8080
+  web:
+    environment:
+      SWARM_NGINX_RESOLVER: auto

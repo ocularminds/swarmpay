@@ -21,14 +21,27 @@ public final class Commerce {
             try { ZoneId.of(timezone); } catch (RuntimeException e) { throw CommerceException.invalid("Use a valid timezone"); }
             if (venue == null || venue.isBlank() || venue.length() > 300) throw CommerceException.invalid("A venue is required");
             if (weather == null || weather.length() > 200) throw CommerceException.invalid("Weather constraint is too long");
-            if (!"RENT".equals(tentMode)) throw CommerceException.invalid("The demo catalog offers tent rentals. Confirm renting before continuing.");
+            if (!"RENT".equals(tentMode) && !"BUY".equals(tentMode)) throw CommerceException.invalid("Choose whether to rent or buy the tents before continuing.");
         }
     }
+    /** Where a purchasable product's data came from. The seller paid through PayPal is still the offer's merchant. */
+    public record ProductSource(String provider, String productId, String brand, String store, String productUrl) {}
+    /** {@code source} is null for SwarmPay's curated offers. */
     public record Offer(String id, String merchantId, String merchantName, Category category,
-                        String title, String description, long unitMinor, int capacity, String badge) {}
+                        String title, String description, long unitMinor, int capacity, String badge, ProductSource source) {
+        public Offer(String id, String merchantId, String merchantName, Category category,
+                     String title, String description, long unitMinor, int capacity, String badge) {
+            this(id, merchantId, merchantName, category, title, description, unitMinor, capacity, badge, null);
+        }
+    }
     public record Line(UUID id, String offerId, String merchantId, String merchantName,
                        Category category, String title, int quantity, long unitMinor, long totalMinor,
-                       String paymentIntent) {}
+                       String paymentIntent, ProductSource source) {
+        public Line(UUID id, String offerId, String merchantId, String merchantName, Category category, String title,
+                    int quantity, long unitMinor, long totalMinor, String paymentIntent) {
+            this(id, offerId, merchantId, merchantName, category, title, quantity, unitMinor, totalMinor, paymentIntent, null);
+        }
+    }
     public record Assessment(String role, String summary, List<String> facts, String source) {}
     public record Plan(UUID id, int version, String ownerId, Intent intent, List<Line> lines,
                        List<Assessment> assessments, long totalMinor, Instant expiresAt,
@@ -49,6 +62,10 @@ public final class Commerce {
                            List<AgentRequest> agentRequests) {}
     /** An agent's payment request that the authority decided without queuing a payment. */
     public record AgentRequest(PaymentCommand command, GateResult result, Instant at) {}
+    /** One row of an organizer's payment ledger: a payment command, or an agent's request the authority decided. {@code requestedBy} is ORGANIZER, AGENT or SWARMPAY. */
+    public record LedgerEntry(UUID id, Instant at, Instant settledAt, UUID workflowId, String venue, Instant eventAt, String merchantName, Category category,
+                              Operation operation, String requestedBy, long amountMinor, String state, String execution, String message,
+                              String dossierId, String providerOrderId, String authorizationId, String captureId) {}
     public record PaymentCommand(UUID id, UUID workflowId, int planVersion, UUID orderId, Operation operation,
                                  String merchantId, long amountMinor, String currency,
                                  String providerResourceId, String evidenceDigest, String reservationId, String policyVersion) {
@@ -75,6 +92,12 @@ public final class Commerce {
     public interface Catalog {
         List<Offer> offers();
         Offer get(String id);
+        /** The offers for this event: rentals, or purchasable tents when the organizer buys. Plans are built only from this list. */
+        default List<Offer> offers(Intent intent) {
+            if ("BUY".equals(intent.tentMode())) throw CommerceException.invalid("Buying tents isn't available here. Choose Rent tents to continue.");
+            return offers();
+        }
+        default boolean sellsTents() { return false; }
     }
     /** The Sourcing Agent's choice of one offer per category and its reasons. Java validates the choice before any plan exists. */
     public record Proposal(String tentOfferId, String cateringOfferId, Assessment sourcing) {}

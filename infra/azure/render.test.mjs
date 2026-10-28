@@ -33,7 +33,7 @@ test('the public entry point and credentials remain separated from private execu
   assert.ok(app.containers[0].env.some(e=>e.name==='SWARM_SESSION_COOKIE_SECURE'&&e.value==='true'));
   assert.ok(app.containers[0].env.some(e=>e.name==='SWARM_PUBLIC_ORIGIN'&&e.value==='https://swarm.decionis.com'));
   // Besides its own credentials the app gets only PayPal sign-in's public client ID and the token to ask the identity service.
-  assert.deepEqual(app.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-commerce-secrets','swarm-pay-login-client']);
+  assert.deepEqual(app.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-commerce-secrets','swarm-pay-login-client','swarm-pay-catalog-settings']);
   assert.deepEqual(executor.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-payment-secrets']);
   // Per-client limits trust forwarded addresses only because the ingress is the web's sole peer.
   const web=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-web').spec.template.spec;
@@ -73,9 +73,14 @@ test('shared-namespace manifests own only prefixed resources and resolve every s
   }
   for(const pvc of items.filter(i=>i.kind==='PersistentVolumeClaim'))assert.equal(pvc.spec.storageClassName,'decionis-zrs');
   const nginx=items.find(i=>i.kind==='ConfigMap'&&i.metadata.name==='swarm-pay-nginx-template').data['default.conf.template'];
-  assert.ok(nginx.includes('server swarm-pay-commerce-app.decionis.svc.cluster.local:8080 resolve;'));
-  assert.ok(nginx.includes('server swarm-pay-payment-executor.decionis.svc.cluster.local:8081 resolve;'));
-  assert.ok(nginx.includes('server swarm-pay-venue.decionis.svc.cluster.local:8084 resolve;'));
+  // The template names its upstreams by variable; the web deployment gives them this cluster's service names.
+  for(const name of ['COMMERCE','EXECUTOR','VENUE'])assert.ok(nginx.includes(`server \${SWARM_${name}_UPSTREAM} resolve;`),name);
+  const web=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-web').spec.template.spec.containers[0].env;
+  const upstream=name=>web.find(e=>e.name===`SWARM_${name}_UPSTREAM`)?.value;
+  assert.equal(upstream('COMMERCE'),'swarm-pay-commerce-app.decionis.svc.cluster.local:8080');
+  assert.equal(upstream('EXECUTOR'),'swarm-pay-payment-executor.decionis.svc.cluster.local:8081');
+  assert.equal(upstream('VENUE'),'swarm-pay-venue.decionis.svc.cluster.local:8084');
+  for(const [name,value] of Object.entries({COMMERCE:'commerce-app',EXECUTOR:'payment-executor',VENUE:'venue'}))assert.ok(exists('Service',`swarm-pay-${value}`),name);
   assert.ok(nginx.includes('location /internal/ { return 404; }'));
 });
 
@@ -145,7 +150,7 @@ test('PayPal sign-in answers the app alone, holds the only login secret, and is 
   const secretRefs=name=>(container(name).envFrom??[]).filter(v=>v.secretRef).map(v=>v.secretRef);
   // Both start without their secrets, with sign-in off, until the PayPal app's credentials are applied.
   assert.deepEqual(secretRefs('swarm-pay-identity'),[{name:'swarm-pay-identity-secrets',optional:true}]);
-  assert.deepEqual(secretRefs('swarm-pay-commerce-app'),[{name:'swarm-pay-commerce-secrets'},{name:'swarm-pay-login-client',optional:true}]);
+  assert.deepEqual(secretRefs('swarm-pay-commerce-app'),[{name:'swarm-pay-commerce-secrets'},{name:'swarm-pay-login-client',optional:true},{name:'swarm-pay-catalog-settings',optional:true}]);
   for(const name of ['swarm-pay-payment-executor','swarm-pay-web','swarm-pay-agentsafe','swarm-pay-egress','swarm-pay-venue'])
     assert.ok(!secretRefs(name).some(ref=>['swarm-pay-identity-secrets','swarm-pay-login-client'].includes(ref.name)),name);
   assert.equal(container('swarm-pay-identity').image,images.identity);
@@ -182,7 +187,7 @@ test('hosted mode fronts the executor for the fleet alone and runs no gateway in
   assert.ok(!policies.some(p=>p.metadata.name==='swarm-pay-agentsafe'));
   const env=name=>items.find(i=>i.kind==='Deployment'&&i.metadata.name===name).spec.template.spec.containers[0].env;
   assert.equal(env('swarm-pay-commerce-app').find(e=>e.name==='AGENTSAFE_URL').value,'https://swarm.decionisedge.com');
-  assert.deepEqual(env('swarm-pay-egress'),[{name:'EGRESS_ALLOW_HOSTS',value:'swarm.decionisedge.com'}]);
+  assert.deepEqual(env('swarm-pay-egress'),[{name:'EGRESS_ALLOW_HOSTS',value:'swarm.decionisedge.com,api.trychannel3.com'}]);
   assert.equal(items.find(i=>i.kind==='ConfigMap'&&i.metadata.name==='swarm-pay-runtime').data.DECIONIS_POLICY_VERSION,'swarm-pay-sandbox-v1');
   const ingress=bundle.executorIngress;
   assert.equal(ingress.metadata.name,'swarm-pay-executor');

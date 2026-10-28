@@ -29,6 +29,6 @@ public final class PlanFactory {
     }
     private static Line line(Offer offer, int quantity, String intent) {
         return new Line(UUID.randomUUID(), offer.id(), offer.merchantId(), offer.merchantName(), offer.category(),
-                offer.title(), quantity, offer.unitMinor(), Money.usd(offer.unitMinor()).times(quantity).minor(), intent);
+                offer.title(), quantity, offer.unitMinor(), Money.usd(offer.unitMinor()).times(quantity).minor(), intent, offer.source());
     }
 }

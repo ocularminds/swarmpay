@@ -22,10 +22,14 @@ import java.time.Clock;
 @SpringBootApplication
 @EnableScheduling
 public class CommerceApplication {
-    public static void main(String[] args) { SpringApplication.run(CommerceApplication.class,args); }
+    public static void main(String[] args) { RuntimeSettings.egressProxy(); SpringApplication.run(CommerceApplication.class,args); }
     @Bean Clock clock() { return Clock.systemUTC(); }
     @Bean String runtimeMode() { return RuntimeSettings.mode(); }
-    @Bean Catalog catalog() { return new DemoCatalog(); }
+    /** Curated rentals and catering; with a Channel3 key, tents to buy from Channel3's product data as well. */
+    @Bean Catalog catalog() {
+        var channel3=RuntimeSettings.optionalSecret("CHANNEL3_API_KEY");
+        return channel3==null?new DemoCatalog():new Channel3Catalog(new DemoCatalog(),channel3);
+    }
     @Bean PlanFactory planFactory(Clock clock) { return new PlanFactory(clock); }
     @Bean CommerceRepository repository(DataSource db) { return new CommerceRepository(db); }
     @Bean OrganizerAccounts organizerAccounts(DataSource db) { return new OrganizerAccounts(db); }
@@ -39,10 +43,10 @@ public class CommerceApplication {
     }
     @Bean IntentInterpreter interpreter(AgentPlanner planner) { return planner instanceof IntentInterpreter interpreter?interpreter:new DemoInterpreter(); }
     @Bean ReceiptVerifier receiptVerifier(Clock clock) throws Exception {
-        return new ReceiptVerifier(ReceiptVerifier.publicKey(Files.readString(Path.of(RuntimeSettings.required("VENUE_PUBLIC_KEY_FILE")))),RuntimeSettings.required("VENUE_ISSUER"),clock);
+        return new ReceiptVerifier(ReceiptVerifier.publicKey(RuntimeSettings.venuePublicKey()),RuntimeSettings.required("VENUE_ISSUER"),clock);
     }
     @Bean AuthorityGateway authority() {
-        return new AgentSafeGateway(RuntimeSettings.required("AGENTSAFE_URL"),RuntimeSettings.optionalSecret("EXECUTOR_TOKEN"),
+        return new AgentSafeGateway(RuntimeSettings.serviceUrl("AGENTSAFE_URL","AGENTSAFE_HOSTPORT"),RuntimeSettings.optionalSecret("EXECUTOR_TOKEN"),
             RuntimeSettings.optionalSecret("AGENTSAFE_TENANT_KEY"));
     }
     @Bean ToolCallbackProvider commerceTools(WorkflowService workflows) {

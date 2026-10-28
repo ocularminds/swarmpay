@@ -102,6 +102,8 @@ services:
       PAYPAL_LOGIN_CLIENT_ID: ${PAYPAL_LOGIN_CLIENT_ID:-}
       IDENTITY_URL: http://identity:8085
       IDENTITY_TOKEN: ${IDENTITY_TOKEN:-}
+      # Tents to buy from Channel3's product data; blank keeps tents rental-only.
+      CHANNEL3_API_KEY: ${CHANNEL3_API_KEY:-}
       # The agent's networks are internal: its only route out is the egress
       # proxy, which admits the model endpoint alone. PayPal is unreachable
       # from here, by name or by address; payments go through AgentSafe.
@@ -165,8 +167,9 @@ services:
   egress:
     build: ./infra/egress
     environment:
-      # Hostnames only; the proxy derives the model host and never admits PayPal.
+      # Hostnames only; the proxy derives the model host, admits Channel3's API and never admits PayPal.
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-${AZURE_OPENAI_URL:-}}
+      EGRESS_ALLOW_HOSTS: api.trychannel3.com
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     networks: [agent, egress]
     healthcheck:

@@ -69,9 +69,7 @@ export function render(target,images,venuePublicKey) {
   items.push(object('v1','ConfigMap','runtime',{data:configEnv}));
   items.push(object('v1','ConfigMap','venue-public-key',{data:{'venue-public.pem':venuePublicKey}}));
   items.push(object('v1','ConfigMap','postgres-bootstrap',{data:{'01-roles.sql':readFileSync(new URL('../postgres/01-roles.sql',import.meta.url),'utf8')}}));
-  const nginxTemplate=readFileSync(new URL('../../apps/web/nginx.conf',import.meta.url),'utf8')
-    .replaceAll('commerce-app:8080',`${host('commerce-app')}:8080`).replaceAll('payment-executor:8081',`${host('payment-executor')}:8081`)
-    .replaceAll('venue:8084',`${host('venue')}:8084`);
+  const nginxTemplate=readFileSync(new URL('../../apps/web/nginx.conf',import.meta.url),'utf8');
   items.push(object('v1','ConfigMap','nginx-template',{data:{'default.conf.template':nginxTemplate}}));
   items.push(object('v1','ServiceAccount','runtime',{automountServiceAccountToken:false}));
   for(const [volume,size] of [[dataVolume,'8Gi'],...(hosted?[]:[[evidenceVolume,'4Gi']])])
@@ -108,13 +106,14 @@ export function render(target,images,venuePublicKey) {
     {exec:{command:['node','-e',"fetch('http://localhost:8082/_agentsafe/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}});
   // The app's one route out: HTTPS through the egress proxy, which admits the
   // model host and, when hosted, the gateway host. Cluster services stay direct.
-  deployment('egress',images.egress,1000,hosted?{EGRESS_ALLOW_HOSTS:hosted.host}:{},'egress-settings',[],[],'96Mi',
+  // Channel3's API supplies tents to buy; PayPal stays refused by name whatever this list says.
+  deployment('egress',images.egress,1000,{EGRESS_ALLOW_HOSTS:[...(hosted?[hosted.host]:[]),'api.trychannel3.com'].join(',')},'egress-settings',[],[],'96Mi',
     {httpGet:{path:'/healthz',port:3128}});
   deployment('commerce-app',images['commerce-app'],10001,{DATABASE_URL:`jdbc:postgresql://${host('postgres')}:5432/swarm`,DATABASE_USER:'swarm_app',
     AGENTSAFE_URL:hosted?hosted.url:`http://${host('agentsafe')}:8082`,
     JAVA_TOOL_OPTIONS:`-Dhttps.proxyHost=${host('egress')} -Dhttps.proxyPort=3128 -Dhttp.nonProxyHosts=localhost|127.0.0.1|*.svc.cluster.local`,
     ORGANIZER_USERNAME:'organizer',SWARM_AI_PROVIDER:'azure',SWARM_PUBLIC_ORIGIN:`https://${target.publicHost}`,SWARM_SESSION_COOKIE_SECURE:'true',
-    VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem',IDENTITY_URL:`http://${host('identity')}:8085`},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080),['login-client']);
+    VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem',IDENTITY_URL:`http://${host('identity')}:8085`},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080),['login-client','catalog-settings']);
   // PayPal sign-in: the only workload holding the login secret. It answers the app alone and reaches PayPal's identity API.
   deployment('identity',images.identity,1000,{PAYPAL_API_BASE:'https://api-m.sandbox.paypal.com'},null,[],[],'96Mi',
     {httpGet:{path:'/healthz',port:8085}},['identity-secrets']);
@@ -124,6 +123,7 @@ export function render(target,images,venuePublicKey) {
   // The web policy admits only the ingress controller, which sets X-Forwarded-For from its own
   // client connection, so per-client login and planning limits can trust any peer here.
   deployment('web',images.web,101,{SWARM_NGINX_RESOLVER:target.dnsResolver,SWARM_TRUSTED_PROXY:'0.0.0.0/0',
+    SWARM_COMMERCE_UPSTREAM:`${host('commerce-app')}:8080`,SWARM_EXECUTOR_UPSTREAM:`${host('payment-executor')}:8081`,SWARM_VENUE_UPSTREAM:`${host('venue')}:8084`,
     NGINX_ENVSUBST_FILTER:'^SWARM_'},null,
     [temporary('nginx-cache'),temporary('nginx-run'),temporary('nginx-config'),{name:'nginx-template',configMap:{name:resourceName('nginx-template'),defaultMode:0o444}}],
     [{name:'nginx-cache',mountPath:'/var/cache/nginx'},{name:'nginx-run',mountPath:'/var/run'},{name:'nginx-config',mountPath:'/etc/nginx/conf.d'},{name:'nginx-template',mountPath:'/etc/nginx/templates',readOnly:true}],

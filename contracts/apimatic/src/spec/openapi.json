@@ -1,0 +1,2270 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SwarmPay API",
+    "version": "1.0.0",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "description": "Plan an event across two merchants and pay each one only on its agreed terms: tents at checkout through PayPal, catering authorized and captured only after a signed venue receipt. Every payment command goes through the AgentSafe gateway; agents use the MCP server at /mcp with an organizer's agent token and can never approve a plan.\n\nAuthenticate with a session cookie (sign in, or the local demo session), and send the CSRF header from /api/session on every state-changing request."
+  },
+  "servers": [
+    {
+      "url": "https://swarm.decionis.com",
+      "description": "Live demo (PayPal sandbox)"
+    },
+    {
+      "url": "http://localhost:5173",
+      "description": "Local simulated demo"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Session"
+    },
+    {
+      "name": "Planning"
+    },
+    {
+      "name": "Payments"
+    },
+    {
+      "name": "Delivery"
+    },
+    {
+      "name": "Agents"
+    },
+    {
+      "name": "Records"
+    }
+  ],
+  "paths": {
+    "/api/config": {
+      "get": {
+        "summary": "Public configuration",
+        "tags": [
+          "Session"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Config"
+                }
+              }
+            }
+          }
+        },
+        "description": "Payment mode, AI provider, authority, whether PayPal sign-in and tent purchases are offered, and the merchants' public PayPal client IDs. No secrets.",
+        "security": []
+      }
+    },
+    "/api/session": {
+      "get": {
+        "summary": "Current session and CSRF token",
+        "tags": [
+          "Session"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        },
+        "description": "Call before any state-changing request and send the returned CSRF header on it.",
+        "security": []
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Sign in with the organizer password",
+        "tags": [
+          "Session"
+        ],
+        "security": [
+          {
+            "csrf": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Signed in; refresh /api/session for the new CSRF token"
+          },
+          "401": {
+            "description": "Wrong credentials"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        }
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "summary": "Sign out",
+        "tags": [
+          "Session"
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          }
+        }
+      }
+    },
+    "/api/demo-session": {
+      "post": {
+        "summary": "Open the local demo organizer session",
+        "tags": [
+          "Session"
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed in as the demo organizer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Invalid"
+          }
+        },
+        "description": "Local simulated demo only; 404 when hosted or with PayPal sandbox payments.",
+        "security": []
+      }
+    },
+    "/api/paypal/start": {
+      "get": {
+        "summary": "Start sign-up or sign-in with PayPal",
+        "tags": [
+          "Session"
+        ],
+        "security": [],
+        "description": "Browser navigation only. Redirects to PayPal's sandbox sign-in for SwarmPay's app and sets a 10-minute SWARM_PAYPAL_STATE cookie.",
+        "responses": {
+          "302": {
+            "description": "To PayPal"
+          },
+          "404": {
+            "description": "Not configured"
+          }
+        }
+      }
+    },
+    "/api/paypal/return": {
+      "get": {
+        "summary": "PayPal's redirect back",
+        "tags": [
+          "Session"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Creates or refreshes the organizer account and a fresh session only for a state matching this browser's cookie and a code the sign-in service confirms.",
+        "responses": {
+          "302": {
+            "description": "To / on success, or /?signin=paypal-cancelled|paypal-failed"
+          }
+        }
+      }
+    },
+    "/api/catalog": {
+      "get": {
+        "summary": "Curated offers",
+        "tags": [
+          "Planning"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Offer"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/intent": {
+      "post": {
+        "summary": "Read a description into editable details",
+        "tags": [
+          "Planning"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentSuggestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "request",
+                  "timezone"
+                ],
+                "properties": {
+                  "request": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans": {
+      "get": {
+        "summary": "The organizer's recent plans",
+        "tags": [
+          "Planning"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Plan"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Prepare a plan",
+        "tags": [
+          "Planning"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "Omit both offer IDs to let the Sourcing Agent choose; the server checks its choice. Tents to buy (tentMode BUY) are always chosen by the agent from a fresh Channel3 search.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "intent"
+                ],
+                "properties": {
+                  "intent": {
+                    "$ref": "#/components/schemas/Intent"
+                  },
+                  "tentOfferId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cateringOfferId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}": {
+      "get": {
+        "summary": "A plan's workflow",
+        "tags": [
+          "Planning"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workflow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/approve": {
+      "post": {
+        "summary": "Approve the exact plan",
+        "tags": [
+          "Payments"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "The human's consent. Reserves the whole plan total; refused above budget or after the quote expires.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/orders/{order}/checkout": {
+      "post": {
+        "summary": "Open a merchant's checkout",
+        "tags": [
+          "Payments"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "A guarded create-order through AgentSafe; buyer approval is still required.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          },
+          {
+            "name": "order",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Merchant order (plan line) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/orders/{order}/buyer-approved": {
+      "post": {
+        "summary": "Confirm the buyer's PayPal approval",
+        "tags": [
+          "Payments"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "Captures the tents, or authorizes catering, through AgentSafe.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "providerOrderId"
+                ],
+                "properties": {
+                  "providerOrderId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          },
+          {
+            "name": "order",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Merchant order (plan line) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/milestone": {
+      "post": {
+        "summary": "Request the catering capture",
+        "tags": [
+          "Payments"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/agent-milestone": {
+      "post": {
+        "summary": "Let the milestone agent ask to pay catering",
+        "tags": [
+          "Agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "The same path as the MCP tool request_milestone_payment: AgentSafe decides, and holds it without a verified delivery receipt.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/void": {
+      "post": {
+        "summary": "Cancel the catering authorization",
+        "tags": [
+          "Payments"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/freeze": {
+      "post": {
+        "summary": "Pause payments for review",
+        "tags": [
+          "Payments"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "frozen": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/receipt": {
+      "post": {
+        "summary": "Upload a signed venue receipt",
+        "tags": [
+          "Delivery"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workflow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignedReceipt"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/photo": {
+      "post": {
+        "summary": "Add a delivery photo",
+        "tags": [
+          "Delivery"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "Supporting evidence only; it never releases a payment.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/venue-request": {
+      "post": {
+        "summary": "The facts the venue signs",
+        "tags": [
+          "Delivery"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryFacts"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "Called by the simulated venue with the organizer's session: the order the application recorded, never facts from the browser.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/venue/receipts": {
+      "post": {
+        "summary": "Venue receipt ingress",
+        "tags": [
+          "Delivery"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignedReceipt"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected: altered, stale or replayed"
+          }
+        }
+      }
+    },
+    "/api/plans/{id}/commands": {
+      "get": {
+        "summary": "A plan's payment commands",
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommandRecord"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/plans/{id}/evidence": {
+      "get": {
+        "summary": "Evidence export",
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "Payment records and the application's SHA-256 audit chain with its verification.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/commands/{id}/reconcile": {
+      "post": {
+        "summary": "Check a payment's status with PayPal",
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Payment command ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/commands/{id}/retry": {
+      "post": {
+        "summary": "Retry a command that was never dispatched",
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "Same command identity, after confirmed non-dispatch, with a fresh authority decision.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Payment command ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/ledger": {
+      "get": {
+        "summary": "Every payment across the organizer's plans",
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LedgerEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/agent-tokens": {
+      "get": {
+        "summary": "The organizer's active agent tokens",
+        "tags": [
+          "Agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentGrant"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Issue an agent token",
+        "tags": [
+          "Agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "The token is shown once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedAgentToken"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "description": "For the organizer's own MCP client at /mcp (Authorization: Bearer swp_…). It acts on this organizer's plans only and can never approve one. Up to five active.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
+    "/api/agent-tokens/{id}": {
+      "delete": {
+        "summary": "Revoke an agent token",
+        "tags": [
+          "Agents"
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Invalid"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Agent token ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Config": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "enum": [
+              "demo",
+              "sandbox"
+            ]
+          },
+          "demoSessionEnabled": {
+            "type": "boolean"
+          },
+          "paypalSignIn": {
+            "type": "boolean"
+          },
+          "tentPurchases": {
+            "type": "boolean"
+          },
+          "aiProvider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "authority": {
+            "type": "string"
+          },
+          "catalogSource": {
+            "type": "string"
+          },
+          "receiptIssuer": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "clientIds": {
+            "type": "object",
+            "properties": {
+              "tents": {
+                "type": "string"
+              },
+              "catering": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "username": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "csrfToken": {
+            "type": "string"
+          },
+          "csrfHeader": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductSource": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "Where a purchasable tent's data came from; the merchant still fills the order and is paid.",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "store": {
+            "type": "string"
+          },
+          "productUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Offer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "merchantName": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "TENTS",
+              "CATERING"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "unitMinor": {
+            "type": "integer",
+            "description": "USD cents, delivery and taxes included"
+          },
+          "capacity": {
+            "type": "integer"
+          },
+          "badge": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProductSource"
+          }
+        }
+      },
+      "Intent": {
+        "type": "object",
+        "required": [
+          "request",
+          "attendees",
+          "tents",
+          "budgetMinor",
+          "eventAt",
+          "timezone",
+          "venue",
+          "weather",
+          "tentMode"
+        ],
+        "properties": {
+          "request": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "attendees": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "tents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "budgetMinor": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "eventAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "venue": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "weather": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "tentMode": {
+            "enum": [
+              "RENT",
+              "BUY"
+            ]
+          }
+        }
+      },
+      "IntentSuggestion": {
+        "type": "object",
+        "properties": {
+          "attendees": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "tents": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "budgetMinor": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "venue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "weather": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clarifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Line": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "offerId": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "merchantName": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "TENTS",
+              "CATERING"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "unitMinor": {
+            "type": "integer"
+          },
+          "totalMinor": {
+            "type": "integer"
+          },
+          "paymentIntent": {
+            "enum": [
+              "CAPTURE",
+              "AUTHORIZE"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProductSource"
+          }
+        }
+      },
+      "Assessment": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/Intent"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Line"
+            }
+          },
+          "assessments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Assessment"
+            }
+          },
+          "totalMinor": {
+            "type": "integer"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "merchantName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "amountMinor": {
+            "type": "integer"
+          },
+          "paymentIntent": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "providerOrderId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "captureId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ProviderResult": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "providerOrderId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "captureId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approvalUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amountMinor": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "GateResult": {
+        "type": "object",
+        "description": "AgentSafe's answer and, when forwarded, PayPal's result.",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "execution": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dossierId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "intentHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "intentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ProviderResult"
+          }
+        }
+      },
+      "AgentRequest": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/GateResult"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditEvent": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "previousHash": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          }
+        }
+      },
+      "Workflow": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Order"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEvent"
+            }
+          },
+          "committedMinor": {
+            "type": "integer"
+          },
+          "capturedMinor": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "receiptVerified": {
+            "type": "boolean"
+          },
+          "paymentFrozen": {
+            "type": "boolean"
+          },
+          "agentRequests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentRequest"
+            }
+          }
+        }
+      },
+      "CommandRecord": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "state": {
+            "type": "string"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GateResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "SignedReceipt": {
+        "type": "object",
+        "required": [
+          "payload",
+          "signature"
+        ],
+        "properties": {
+          "payload": {
+            "type": "string",
+            "description": "Base64 JSON receipt"
+          },
+          "signature": {
+            "type": "string",
+            "description": "Base64 Ed25519 signature"
+          }
+        }
+      },
+      "DeliveryFacts": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "venue": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          }
+        }
+      },
+      "LedgerEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "settledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venue": {
+            "type": "string"
+          },
+          "eventAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "merchantName": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "enum": [
+              "ORGANIZER",
+              "AGENT",
+              "SWARMPAY"
+            ]
+          },
+          "amountMinor": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "execution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dossierId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerOrderId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "captureId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AgentGrant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "IssuedAgentToken": {
+        "type": "object",
+        "properties": {
+          "grant": {
+            "$ref": "#/components/schemas/AgentGrant"
+          },
+          "token": {
+            "type": "string",
+            "description": "swp_…; shown once"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "JSESSIONID",
+        "description": "The organizer's session"
+      },
+      "csrf": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-TOKEN",
+        "description": "From /api/session"
+      }
+    },
+    "responses": {
+      "Invalid": {
+        "description": "Refused",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthenticated": {
+        "description": "No organizer session"
+      },
+      "Forbidden": {
+        "description": "Missing CSRF token or wrong origin"
+      }
+    }
+  }
+}

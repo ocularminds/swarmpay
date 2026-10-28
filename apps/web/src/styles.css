@@ -160,3 +160,15 @@
   .try-row{grid-template-columns:36px 1fr}.try-row .button{grid-column:1/-1}
   .budget-strip{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:25;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:#173a31;color:#dfeee6;font-size:14px;box-shadow:0 -8px 24px -12px rgba(0,0,0,.35)}.budget-strip strong{color:#fff;font-size:16px}
   .app-footer{padding:0 16px 84px}.app-footer>div{flex-direction:column;gap:6px}}
+.app-main.app-main-wide{max-width:1180px}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ledger-card{padding:18px}.ledger-tools{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
+.ledger-search{flex:1 1 320px;display:flex;align-items:center;gap:8px;border:1px solid #d6e0db;border-radius:10px;padding:0 12px;background:#fff;color:var(--muted)}
+.ledger-search input{border:0;outline:0;min-height:42px;font-size:15px;padding:0;background:transparent}.ledger-search:focus-within{outline:2px solid #93c9b9}
+.ledger-grid{height:560px}.ledger-grid .ag-row.ledger-agent{background:#fdfaf3}.ledger-grid .ag-row-pinned{font-weight:650}
+.schedule-card .card-head{margin-bottom:12px}.schedule-frame{border:1px solid var(--line);border-radius:12px;overflow:hidden;font-family:'DM Sans',sans-serif}
+.schedule-frame .b-grid-cell strong{display:block;font-size:14px;color:var(--ink)}.schedule-frame .b-grid-cell small{display:block;font-size:12px;color:var(--muted)}
+.schedule-frame .delivery-window{background:rgba(70,161,133,.12)}
+@media(max-width:740px){.ledger-grid{height:480px}.ledger-tools .button{width:100%}}
+.line-source{font-size:13px;line-height:1.5;color:var(--muted);margin-top:4px}.line-source a{color:var(--green);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.buy-note{margin-top:10px;color:#2c6b56}

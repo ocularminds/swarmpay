@@ -1,19 +1,18 @@
-import {StrictMode,useEffect,useRef,useState} from 'react';
+import {StrictMode,Suspense,lazy,useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
+import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Table,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
 import {api,download,login,session} from './api';
 import {PayPalCheckout} from './PayPalCheckout';
 import {AgentAccess} from './AgentAccess';
+import {boundaryLabel,datetime,money,operationLabels} from './labels';
+// The grid and the scheduler load only when shown, so the landing and the plan stay light.
+const Ledger=lazy(()=>import('./Ledger'));
+const PaymentSchedule=lazy(()=>import('./PaymentSchedule'));
 import {Brand,Landing,ModePill,SiteFooter,exampleRequest,signInOutcomes,takePendingRequest} from './Landing';
 import type {Command,Config,GateResult,Intent,Offer,Order,Plan,Session,Workflow} from './types';
 import './styles.css';
 
-const money=(c:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:c%100?2:0}).format(c/100);
-const datetime=(value:string,timeZone?:string)=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone}).format(new Date(value));
 function localInput(date:Date) { return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); }
-/** How the payment boundary answered a request, in the words the organizer sees. */
-const boundaryLabel=(state:string)=>state==='SUCCEEDED'?'Allowed':['ESCALATE','HELD'].includes(state)?'Held by AgentSafe':['BLOCK','BLOCKED'].includes(state)?'Blocked by AgentSafe':state.replaceAll('_',' ').toLowerCase();
-const operationLabels:Record<string,string>={CREATE_ORDER:'Open checkout',CAPTURE_ORDER:'Take payment',AUTHORIZE_ORDER:'Authorize payment',CAPTURE_AUTHORIZATION:'Pay after delivery',VOID_AUTHORIZATION:'Cancel authorization'};
 const sourceLabels:Record<string,string>={HUMAN:'You',APPLICATION:'SwarmPay',AGENTSAFE:'AgentSafe',PHOTO:'Photo','demo-venue-fixture':'Venue (simulated)'};
 const statusLabels:Record<string,string>={APPROVAL_REQUIRED:'Waiting for PayPal approval',AUTHORIZED:'Authorized · pays on delivery',CAPTURED:'Paid',VOIDED:'Cancelled',PENDING:'Confirming with PayPal',DECLINED:'Declined',EXPIRED:'Expired'};
 const retryable=['NOT_EXECUTED','AUTHORITY_UNAVAILABLE'],unsettled=['QUEUED','DISPATCHING','INDETERMINATE','EXECUTION_INDETERMINATE'];
@@ -40,7 +39,7 @@ function App(){
   const [tentOffer,setTentOffer]=useState('');const [foodOffer,setFoodOffer]=useState('');
   const [details,setDetails]=useState<''|'read'|'manual'>('');const [clarifications,setClarifications]=useState<string[]>([]);
   const [consent,setConsent]=useState(false);const [dialog,setDialog]=useState<Order>();
-  const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);const [agentsOpen,setAgentsOpen]=useState(false);
+  const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);const [agentsOpen,setAgentsOpen]=useState(false);const [view,setView]=useState<'plans'|'ledger'>('plans');
   const busyRef=useRef(busy);busyRef.current=busy;
   useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[activeId,user?.authenticated]);
   useEffect(()=>{
@@ -82,16 +81,19 @@ function App(){
   async function createPlan(){
     if(!request.trim())throw new Error('Describe your event in a sentence or two first.');
     if(!venue.trim())throw new Error('Add the venue so the merchants know where to deliver.');
-    if(tentMode!=='RENT')throw new Error('This catalog rents tents. Choose Rent tents to continue.');
-    if(!tentOffer!==!foodOffer)throw new Error('Choose both offers, or let the Sourcing Agent choose both.');
+    if(!tentMode)throw new Error('Choose Rent tents or Buy tents to continue.');
+    if(tentMode==='BUY'&&!config!.tentPurchases)throw new Error('Buying tents isn’t available here. Choose Rent tents to continue.');
+    // Tents to buy come from a fresh Channel3 search, so the Sourcing Agent chooses them.
+    const chosen=tentMode==='RENT'&&!!tentOffer;
+    if(tentMode==='RENT'&&!tentOffer!==!foodOffer)throw new Error('Choose both offers, or let the Sourcing Agent choose both.');
     const amount=Number(budget);if(!/^\d+(?:\.\d{1,2})?$/.test(budget)||!Number.isFinite(amount)||amount<=0)throw new Error('Enter a positive budget with at most two decimal places.');
-    const intent:Intent={request,attendees:guests,tents,budgetMinor:Math.round(amount*100),eventAt:new Date(date).toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,venue,weather,tentMode:'RENT'};
+    const intent:Intent={request,attendees:guests,tents,budgetMinor:Math.round(amount*100),eventAt:new Date(date).toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,venue,weather,tentMode};
     // With no offers chosen, the Sourcing Agent proposes them and the server checks its choice.
-    const p=await api<Plan>('/api/plans','POST',tentOffer?{intent,tentOfferId:tentOffer,cateringOfferId:foodOffer}:{intent});
+    const p=await api<Plan>('/api/plans','POST',chosen?{intent,tentOfferId:tentOffer,cateringOfferId:foodOffer}:{intent});
     setActiveId(p.id);setConsent(false);setPlans(prev=>[p,...prev]);
   }
-  function openPlan(id:string){setFlow(undefined);setCommands([]);setActiveId(id);setConsent(false);setProof(undefined);setAllEvents(false);setError('');setNotice('');}
-  function newPlan(){setActiveId(undefined);setFlow(undefined);setCommands([]);setProof(undefined);setConsent(false);setAllEvents(false);setDetails('');setTentMode('');setClarifications([]);setError('');setNotice('');}
+  function openPlan(id:string){setView('plans');setFlow(undefined);setCommands([]);setActiveId(id);setConsent(false);setProof(undefined);setAllEvents(false);setError('');setNotice('');}
+  function newPlan(){setView('plans');setActiveId(undefined);setFlow(undefined);setCommands([]);setProof(undefined);setConsent(false);setAllEvents(false);setDetails('');setTentMode('');setClarifications([]);setError('');setNotice('');}
   async function approve(){await api(`/api/plans/${plan!.id}/approve`,'POST',{version:plan!.version});await refresh();setNotice(`Plan approved. Your ${money(plan!.totalMinor)} is reserved.`);}
   async function startDemoCheckout(order:Order){const result=await api<GateResult>(`/api/plans/${plan!.id}/orders/${order.id}/checkout`,'POST');await refresh();if(result.state!=='SUCCEEDED')throw new Error(result.message);setDialog({...order,providerOrderId:result.result!.providerOrderId});}
   async function confirmDemo(){const result=await api<GateResult>(`/api/plans/${plan!.id}/orders/${dialog!.id}/buyer-approved`,'POST',{providerOrderId:dialog!.providerOrderId});setDialog(undefined);await refresh();if(result.state!=='SUCCEEDED')throw new Error(result.message);setNotice(result.message);}
@@ -145,12 +147,14 @@ function App(){
             <label><input type="radio" name="tent-mode" checked={tentMode==='RENT'} onChange={()=>setTentMode('RENT')}/>Rent tents</label>
             <label><input type="radio" name="tent-mode" checked={tentMode==='BUY'} onChange={()=>setTentMode('BUY')}/>Buy tents</label>
           </fieldset>
-          {tentMode==='BUY'&&<p className="field-warning"><AlertCircle size={15}/>This catalog only rents tents. Choose Rent tents to continue.</p>}
-          <details className="disclosure"><summary>Choose offers yourself</summary><p className="section-note">By default the Sourcing Agent chooses the offers that fit your budget.</p><div className="field-grid">
+          {tentMode==='BUY'&&(config!.tentPurchases
+            ?<p className="section-note buy-note">The Sourcing Agent picks real tents from Channel3’s product data within your budget. Canopy Collective, a PayPal sandbox merchant, fills the order and is paid at checkout.</p>
+            :<p className="field-warning"><AlertCircle size={15}/>Buying tents needs Channel3 product data, which isn’t set up here. Choose Rent tents to continue.</p>)}
+          {tentMode!=='BUY'&&<details className="disclosure"><summary>Choose offers yourself</summary><p className="section-note">By default the Sourcing Agent chooses the offers that fit your budget.</p><div className="field-grid">
             <label>Tent preference<select value={tentOffer} onChange={e=>setTentOffer(e.target.value)}><option value="">Sourcing Agent chooses</option>{offers.filter(o=>o.category==='TENTS').map(o=><option key={o.id} value={o.id}>{o.title} · {money(o.unitMinor)} each</option>)}</select></label>
             <label>Menu preference<select value={foodOffer} onChange={e=>setFoodOffer(e.target.value)}><option value="">Sourcing Agent chooses</option>{offers.filter(o=>o.category==='CATERING').map(o=><option key={o.id} value={o.id}>{o.title} · {money(o.unitMinor)} per guest</option>)}</select></label>
-          </div></details>
-          <button className="button button-primary next-action full" disabled={!!busy||tentMode!=='RENT'} onClick={()=>void run('Finding offers and checking terms',createPlan)}>Prepare my plan<ArrowRight size={17}/></button>
+          </div></details>}
+          <button className="button button-primary next-action full" disabled={!!busy||!tentMode||(tentMode==='BUY'&&!config!.tentPurchases)} onClick={()=>void run('Finding offers and checking terms',createPlan)}>Prepare my plan<ArrowRight size={17}/></button>
         </div>}
       </section>
     </>;
@@ -182,7 +186,7 @@ function App(){
       if(['DECLINED','EXPIRED'].includes(pending.status)) return card(position,'This checkout can’t continue',`PayPal reports the payment as ${pending.status.toLowerCase()}. Start a new plan to try again.`,
         actions(<button key="new" className="button button-primary next-action" onClick={newPlan}>Start a new plan</button>));
       const tentsOrder=pending.category==='TENTS',verb=tentsOrder?'Pay':'Authorize';
-      return card(position,`${verb} ${pending.merchantName}`,tentsOrder?`${money(pending.amountMinor)} for ${pending.quantity} tent rentals, paid now.`:`${money(pending.amountMinor)} for ${pending.quantity} meals. Authorized now and paid only after delivery is confirmed.`,
+      return card(position,`${verb} ${pending.merchantName}`,tentsOrder?`${money(pending.amountMinor)} for ${pending.quantity} ${p.intent.tentMode==='BUY'?'tents':'tent rentals'}, paid now.`:`${money(pending.amountMinor)} for ${pending.quantity} meals. Authorized now and paid only after delivery is confirmed.`,
         config!.mode==='demo'
           ?actions(<button key="pay" className="button button-primary next-action" disabled={!!busy} onClick={()=>void run('Opening checkout',()=>startDemoCheckout(pending))}>{verb} {money(pending.amountMinor)}<ArrowRight size={17}/></button>,<small key="note">Simulated PayPal checkout</small>)
           :<PayPalCheckout planId={p.id} order={pending} clientId={config!.clientIds[pending.merchantId]} onDone={()=>void refresh()} onError={setError}/>);
@@ -224,7 +228,8 @@ function App(){
           <div className="budget-meta"><span className={remaining<0?'over':''}>{remaining<0?`${money(-remaining)} over budget`:`${money(remaining)} to spare`}</span><span>{money(paid)} paid</span></div></div>
         <ul className="merchant-list">{p.lines.map(line=>{const order=orders.find(o=>o.id===line.id)!;return <li key={line.id}>
           <span className="merchant-icon">{line.category==='TENTS'?<Tent size={19}/>:<UtensilsCrossed size={18}/>}</span>
-          <div><h3>{line.merchantName}</h3><p>{line.quantity} {line.category==='TENTS'?'tent rentals':'catered meals'} × {money(line.unitMinor)} · {line.category==='TENTS'?'paid at checkout':'paid after delivery'}</p></div>
+          <div><h3>{line.merchantName}</h3><p>{line.quantity} {line.category==='TENTS'?(p.intent.tentMode==='BUY'?'tents':'tent rentals'):'catered meals'} × {money(line.unitMinor)} · {line.category==='TENTS'?'paid at checkout':'paid after delivery'}</p>
+            {line.source&&<p className="line-source">{line.title}{line.source.brand?` · ${line.source.brand}`:''}. Product data from {line.source.provider}, listed by {line.source.store}{line.source.productUrl&&<> · <a href={line.source.productUrl} target="_blank" rel="noopener noreferrer">view product</a></>}. {line.merchantName} fills the order.</p>}</div>
           <strong>{money(line.totalMinor)}</strong><Status value={order.status} approved={approved}/></li>;})}</ul>
         {sourcing&&<p className="agent-note"><Sparkles size={16}/><span>{sourcing.summary} <small>Sourcing Agent · {sourcing.source==='DEMO_RULES'?'simulated':sourcing.source}</small></span></p>}
         <details className="disclosure"><summary>Why this plan</summary><div className="assessments">{p.assessments.map(a=><div key={a.role}><h3>{a.role==='Sourcing'?'Sourcing Agent':'Risk and milestone review'}<small>{a.source==='DEMO_RULES'?'Simulated agent':a.source}</small></h3><p>{a.summary}</p><ul>{a.facts.map(f=><li key={f}>{f}</li>)}</ul></div>)}</div></details>
@@ -232,6 +237,7 @@ function App(){
           {actions(<button key="pause" className="button button-white" disabled={!!busy} onClick={()=>void run('Pausing payments',()=>post(`/api/plans/${p.id}/freeze`))}><PauseCircle size={16}/>Pause payments for review</button>,
             <button key="void" className="button button-white" disabled={!!busy||!cateringAuthorized} onClick={()=>void run('Cancelling the catering authorization',voidAuthorization)}>Cancel catering authorization</button>)}</details>}
       </section>
+      {remaining>=0&&<Suspense fallback={<section className="card schedule-card"><p className="quiet-note">Loading the schedule…</p></section>}><PaymentSchedule plan={p} orders={orders} refreshKey={flow!.events.length}/></Suspense>}
       {timeline()}
       <div className="budget-strip" aria-hidden="true"><span><strong>{money(p.totalMinor)}</strong> of {money(p.intent.budgetMinor)}</span><span>{money(paid)} paid</span></div>
     </>;
@@ -264,20 +270,23 @@ function App(){
         <option value="">New plan</option>{plans.map(p=><option key={p.id} value={p.id}>{p.intent.venue} · {money(p.totalMinor)} · {datetime(p.createdAt)}</option>)}</select>}
       <div className="app-header-actions"><ModePill config={config}/>{user.name&&<span className="account-name" title="Signed in">{user.name}</span>}
         {activeId&&<button className="button button-white header-button" aria-label="New plan" onClick={newPlan}><Plus size={16}/><span>New plan</span></button>}
+        <button className="button button-white header-button" aria-label="All payments" title="All payments" aria-pressed={view==='ledger'} onClick={()=>setView(view==='ledger'?'plans':'ledger')}><Table size={16}/><span>Payments</span></button>
         <button className="button button-white header-button" aria-label="Connect an agent" title="Connect an agent" onClick={()=>setAgentsOpen(true)}><Bot size={16}/><span>Agents</span></button>
         <button className="button button-white header-button" aria-label="Sign out" title="Sign out" disabled={!!busy} onClick={()=>void run('Signing out',signOut)}><LogOut size={16}/></button></div>
     </div></header>
-    <main className="app-main">
+    <main className={view==='ledger'?'app-main app-main-wide':'app-main'}>
       {error&&<div className="message error" role="alert"><AlertCircle size={19}/><span>{error}</span><button aria-label="Dismiss error" onClick={()=>setError('')}><X size={17}/></button></div>}
       {notice&&<div className="message notice" role="status"><Check size={18}/><span>{notice}</span><button aria-label="Dismiss notification" onClick={()=>setNotice('')}><X size={17}/></button></div>}
       {busy&&<div className="working" role="status"><LoaderCircle className="spin" size={15}/>{busy}…</div>}
-      {!activeId?describe():flow&&plan?planPage():<div className="loading"><LoaderCircle className="spin"/>Loading your plan…</div>}
+      {view==='ledger'?<><div className="page-title"><h1>All payments</h1><p>Every payment across your plans: what each merchant was paid, and every request AgentSafe held.</p></div>
+        <Suspense fallback={<div className="loading"><LoaderCircle className="spin"/>Loading your payments…</div>}><Ledger/></Suspense></>
+        :!activeId?describe():flow&&plan?planPage():<div className="loading"><LoaderCircle className="spin"/>Loading your plan…</div>}
     </main>
     <SiteFooter config={config} className="app-footer"/>
     {agentsOpen&&<AgentAccess plans={plans} onClose={()=>setAgentsOpen(false)}/>}
     {dialog&&<div className="modal-backdrop"><section className="checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title"><button className="dialog-close" aria-label="Close checkout" onClick={()=>setDialog(undefined)}><X size={20}/></button>
       <span className="tiny-label">SIMULATED PAYPAL CHECKOUT</span><div className="dialog-icon">{dialog.category==='TENTS'?<Tent size={32}/>:<UtensilsCrossed size={29}/>}</div>
-      <h2 id="checkout-title">{dialog.merchantName}</h2><p>{dialog.category==='TENTS'?'Pay for the tent rentals now.':'Authorize catering now. It’s paid after delivery is confirmed.'}</p>
+      <h2 id="checkout-title">{dialog.merchantName}</h2><p>{dialog.category==='TENTS'?'Pay for the tents now.':'Authorize catering now. It’s paid after delivery is confirmed.'}</p>
       <div className="checkout-amount">{money(dialog.amountMinor)}<small>USD · delivery and taxes included</small></div>
       <div className="dialog-note"><AlertCircle size={16}/>This simulates the PayPal approval. No PayPal transaction or real charge occurs.</div>
       <button className="button button-primary full" autoFocus disabled={!!busy} onClick={()=>void run(dialog.category==='TENTS'?'Paying':'Authorizing',confirmDemo)}>{dialog.category==='TENTS'?'Pay':'Authorize'} {money(dialog.amountMinor)}<ArrowRight size={16}/></button>

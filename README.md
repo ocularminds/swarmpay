@@ -11,6 +11,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 | **Video** | _TODO: YouTube link_ |
 | **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Describe the event, then **Continue with PayPal** to create your organizer account with a PayPal sandbox buyer. Payments run in the PayPal sandbox with test money; the catalog and venue are simulated. The sandbox buyer and organizer password logins are in the Devpost private testing instructions. |
 | **Run locally** | [Three commands](#run-it-locally), no accounts needed |
+| **Your own copy** | [Deploy to Render](docs/render.md) with simulated payments, from [`render.yaml`](render.yaml) |
 
 ## PayPal capabilities
 
@@ -39,8 +40,11 @@ Azure OpenAI `gpt-6-astra` through the Responses API ([`modules/agent-workflows`
 - **Intent extraction** turns free text into typed, editable fields (guests, tents, budget in cents, venue, weather, date) and clarifying questions.
 - **Sourcing** chooses one tent and one catering offer through a schema that admits only the catalog's offer IDs; Java checks capacity, dates and budget before a plan exists.
 - **Risk & milestone** review checks the chosen offers against the confirmed event.
+- **Tents to buy** come from [Channel3](https://channel3.ai)'s product data when `CHANNEL3_API_KEY` is set: the server searches in-stock tents that leave room in the budget for catering, and the Sourcing Agent may choose only among those, at Channel3's prices. The plan names the product and where it's listed; the PayPal sandbox tents merchant fills the order and is the seller paid. Without a key, tents are rental-only.
 
 Every call uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents get no payment tools; catalog prices set the amounts, and the organizer approves every value. An agent can ask for the catering payment through the MCP `request_milestone_payment` tool, but that request goes through AgentSafe, which holds it until a verified delivery receipt exists.
+
+**See every payment.** **Payments** in the workspace opens a ledger of every payment and agent request across your plans ([AG Grid](https://www.ag-grid.com/)): search, filter, a total of what was actually paid for the rows shown, and CSV export. Each plan also shows when each merchant is paid on a schedule ([Bryntum Scheduler](https://bryntum.com/products/scheduler/), trial build): tents at checkout, catering held until the venue's delivery window, and any request AgentSafe held.
 
 **Bring your own agent.** In the workspace, **Agents** issues a token for your own MCP client. It acts on your plans only, can never approve one, and can be revoked. The [Postman collection](postman/README.md) plays that agent against SwarmPay's MCP server and checks that AgentSafe holds its early payment request; CI runs it on every change.
 
@@ -115,6 +119,7 @@ Stop with `docker compose down`; the database, authority journal and key volumes
 | `infra/venue` | The simulated venue: the only holder of the venue signing key; signs a receipt for the signed-in organizer's recorded order |
 | `infra/identity` | PayPal sign-in: the only holder of SwarmPay's Log in with PayPal secret; returns who signed in, never a token |
 | `postman` | The agent's view: a Postman collection that plays an agent over MCP, plus local and live environments |
+| `contracts/apimatic` | The OpenAPI 3.1 document APIMatic builds a TypeScript SDK and API docs portal from (`node demo/apimatic.mjs`) |
 | `contracts`, `docs`, `demo` | Wire contracts, operating limits, setup and repeatable validation |
 
 Java 21, Spring Boot 4.1.2, Spring AI 2.0.2, Gradle 8.14.3, PayPal Java Server SDK 2.4.0, and OpenAI Java 4.91.0 are pinned. The model is fixed to `gpt-6-astra`; there is no model fallback. AgentSafe 0.2.5 and its pipeline 0.3.8 are locked. A reviewed Presence dependency override is explained in [security and reliability](docs/security-and-reliability.md).

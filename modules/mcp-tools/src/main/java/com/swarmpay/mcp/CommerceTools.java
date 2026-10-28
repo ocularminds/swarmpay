@@ -14,7 +14,7 @@ public final class CommerceTools {
     public List<Offer> searchOffers(@ToolParam(description="ALL, TENTS or CATERING") String category) { return actions.searchOffers(category); }
     @Tool(name="get_offer",description="Read an allowlisted catalog offer and its server-owned price.")
     public Offer getOffer(String offerId) { return actions.getOffer(offerId); }
-    @Tool(name="propose_checkout",description="Prepare a reviewable plan. Omit both offer IDs to let the Sourcing Agent choose them. Does not authorize funds. Requires confirmed event details and tentMode RENT.")
+    @Tool(name="propose_checkout",description="Prepare a reviewable plan. Omit both offer IDs to let the Sourcing Agent choose them. Does not authorize funds. Requires confirmed event details and tentMode RENT, or BUY where Channel3 tent purchases are offered.")
     public Plan proposeCheckout(Intent intent,
                                 @ToolParam(required=false,description="A TENTS offer ID, or omit both IDs") String tentOfferId,
                                 @ToolParam(required=false,description="A CATERING offer ID, or omit both IDs") String cateringOfferId) {

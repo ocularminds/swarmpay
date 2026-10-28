@@ -64,6 +64,25 @@ test('PayPal sign-in keeps its login secret in the identity service and adds to 
   assert.notEqual(add().status,0,'an existing sign-in secret is never silently rotated');
 });
 
+test('the Channel3 key reaches the application alone and joins an existing bootstrap without rotating it',t=>{
+  const temporary=mkdtempSync(resolve(root,'.local/secret-preparation-test-'));t.after(()=>rmSync(temporary,{recursive:true,force:true}));
+  const source=resolve(temporary,'source.env'),output=resolve(temporary,'bootstrap');
+  const azure='AZURE_OPENAI_API_KEY=fixture-key\nAZURE_OPENAI_ENDPOINT=https://fixture.openai.azure.com/openai/v1\nAZURE_OPENAI_DEPLOYMENT=gpt-6-astra\n';
+  writeFileSync(source,azure,{mode:0o600});
+  assert.equal(spawnSync(process.execPath,['infra/azure/prepare-secrets.mjs',source,output],{cwd:root,encoding:'utf8'}).status,0);
+  const before=readFileSync(resolve(output,'secrets.json'),'utf8');
+  const add=()=>spawnSync(process.execPath,['infra/azure/prepare-secrets.mjs','--catalog-secret',source,output],{cwd:root,encoding:'utf8'});
+  assert.notEqual(add().status,0,'no key, nothing written');assert.equal(existsSync(resolve(output,'catalog-secret.json')),false);
+  writeFileSync(source,`${azure}CHANNEL3_API_KEY=fixture-channel3-key\n`,{mode:0o600});
+  const result=add();assert.equal(result.status,0);assert.ok(!result.stdout.includes('fixture-channel3-key'));
+  const items=JSON.parse(readFileSync(resolve(output,'catalog-secret.json'),'utf8')).items;
+  assert.deepEqual(items.map(i=>i.metadata.name),['swarm-pay-catalog-settings']);
+  assert.equal(Buffer.from(items[0].data.CHANNEL3_API_KEY,'base64').toString(),'fixture-channel3-key');
+  assert.equal(statSync(resolve(output,'catalog-secret.json')).mode&0o077,0);
+  assert.equal(readFileSync(resolve(output,'secrets.json'),'utf8'),before,'existing credentials are untouched');
+  assert.notEqual(add().status,0,'never silently replaced');
+});
+
 test('the venue key reaches only its own secret, and sandbox copies PayPal settings for the executor only',t=>{
   const temporary=mkdtempSync(resolve(root,'.local/secret-preparation-test-'));t.after(()=>rmSync(temporary,{recursive:true,force:true}));
   const source=resolve(temporary,'source.env'),output=resolve(temporary,'bootstrap');

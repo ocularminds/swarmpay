@@ -24,6 +24,7 @@ Successful JSON endpoints normally return 200. `id` is a workflow UUID, `order` 
 | --- | --- |
 | `GET /api/catalog` | Curated `Offer[]` with integer `unitMinor`, capacity and source labels |
 | `POST /api/intent` | `{request, timezone}` → editable suggestions, nullable unknown fields, clarifications and actual AI source |
+| (intent) | `tentMode` is `RENT`, or `BUY` where `GET /api/config` reports `tentPurchases`. Tents to buy come from a fresh Channel3 search and are always chosen by the Sourcing Agent; their plan line carries a `source` naming the product and store |
 | `GET /api/plans` | Up to 30 of the organizer's newest plans |
 | `POST /api/plans` | `{intent, tentOfferId, cateringOfferId}` → immutable draft `Plan` |
 | `GET /api/plans/{id}` | `Workflow`: plan, merchant orders, events, committed/captured cents, payment mode, receipt and freeze flags |
@@ -37,6 +38,7 @@ Successful JSON endpoints normally return 200. `id` is a workflow UUID, `order` 
 | `POST /api/plans/{id}/photo` | Multipart field `file`, PNG/JPEG up to 2,000,000 bytes → supporting evidence in HELD state |
 | `GET /api/plans/{id}/commands` | Array of `{command, state, result}` |
 | `GET /api/plans/{id}/evidence` | Workflow ID, payment mode, events, commands, application-chain verification and proof scope |
+| `GET /api/ledger` | Optional `workflowId`. Every payment command and agent request across the organizer's plans, newest first: `{id, at, settledAt, workflowId, venue, eventAt, merchantName, category, operation, requestedBy, amountMinor, state, execution, message, dossierId, providerOrderId, authorizationId, captureId}`. `requestedBy` is `ORGANIZER`, `AGENT` or `SWARMPAY` |
 | `POST /api/commands/{id}/reconcile` | Empty body → provider/ledger read through the gateway; never initiates a new payment |
 | `POST /api/commands/{id}/retry` | Empty body → same command requeued only after confirmed non-dispatch; requires fresh authority |
 | `GET /api/agent-tokens` | The organizer's active agent tokens: `{id, label, hint, createdAt, lastUsedAt}`, never the token |

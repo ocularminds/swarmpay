@@ -12,8 +12,15 @@ const local = authority === 'local';
 if (!local && (!process.env.DECIONIS_API_KEY_FILE || !process.env.DECIONIS_TENANT_ID || !process.env.DECIONIS_POLICY_VERSION)) {
   throw new Error('Decionis authority requires an owned enforcement key, tenant and policy version');
 }
+/** The executor's address: AGENTSAFE_UPSTREAM, or the host:port a platform's private network gives it. */
+function upstream() {
+  const hostport = process.env.AGENTSAFE_UPSTREAM_HOSTPORT?.trim();
+  if (process.env.AGENTSAFE_UPSTREAM || !hostport) return {};
+  if (!/^[A-Za-z0-9.-]+:\d{1,5}$/.test(hostport)) throw new Error('AGENTSAFE_UPSTREAM_HOSTPORT must be host:port');
+  return { AGENTSAFE_UPSTREAM: `http://${hostport}` };
+}
 const config = GatewayConfigLoader.load({
-  version: '0.2.5', env: { ...process.env, NODE_ENV: local ? 'development' : 'production' },
+  version: '0.2.5', env: { ...process.env, ...upstream(), NODE_ENV: local ? 'development' : 'production' },
   file: {
     version: 1,
     gateway: { listen: '0.0.0.0:8082', upstream: 'http://payment-executor:8081', upstreamInsecure: true, system: 'paypal', environment: mode, upstreamTimeoutMs: 30000 },

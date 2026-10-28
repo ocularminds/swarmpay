@@ -31,32 +31,37 @@ public final class WorkflowService {
         boolean agentChooses=tentOfferId==null && cateringOfferId==null;
         if(!agentChooses && (tentOfferId==null || cateringOfferId==null)) throw CommerceException.invalid("Choose both offers, or let the Sourcing Agent choose both.");
         // Validate counts, dates and prices before paying for any model inference.
+        factory.checkSchedule(intent);
+        // One list for this event, rentals or purchasable tents: every check, the agent's choice and the plan come from it.
+        var offers=catalog.offers(intent);
         if(agentChooses) {
-            factory.checkSchedule(intent);
-            if(catalog.offers().stream().noneMatch(o->o.category()==Category.TENTS && o.capacity()>=intent.tents())
-                || catalog.offers().stream().noneMatch(o->o.category()==Category.CATERING && o.capacity()>=intent.attendees()))
+            if(offers.stream().noneMatch(o->o.category()==Category.TENTS && o.capacity()>=intent.tents())
+                || offers.stream().noneMatch(o->o.category()==Category.CATERING && o.capacity()>=intent.attendees()))
                 throw CommerceException.invalid("No catalog offer has enough capacity for this event");
-        } else factory.create(owner,intent,catalog.get(tentOfferId),catalog.get(cateringOfferId),List.of());
+        } else factory.create(owner,intent,listed(offers,tentOfferId),listed(offers,cateringOfferId),List.of());
         if(!planning.tryAcquire()) throw new CommerceException("BUSY","Two plans are already being prepared. Try again shortly.",429);
         try {
             Offer tents,catering; List<Assessment> assessments;
             if(agentChooses) {
-                var proposal=agents.propose(intent,catalog.offers());
-                tents=proposed(proposal.tentOfferId(),Category.TENTS); catering=proposed(proposal.cateringOfferId(),Category.CATERING);
+                var proposal=agents.propose(intent,offers);
+                tents=proposed(offers,proposal.tentOfferId(),Category.TENTS); catering=proposed(offers,proposal.cateringOfferId(),Category.CATERING);
                 try { factory.create(owner,intent,tents,catering,List.of()); }
                 catch(CommerceException e) { throw rejected(e.getMessage()); }
                 assessments=List.of(proposal.sourcing(),agents.review(intent,List.of(tents,catering)));
             } else {
-                tents=catalog.get(tentOfferId); catering=catalog.get(cateringOfferId);
+                tents=listed(offers,tentOfferId); catering=listed(offers,cateringOfferId);
                 assessments=agents.assess(intent,List.of(tents,catering));
             }
             var plan=factory.create(owner,intent,tents,catering,assessments);
             db.create(plan); return plan;
         } finally { planning.release(); }
     }
-    private Offer proposed(String id,Category category) {
-        return catalog.offers().stream().filter(o->o.id().equals(id) && o.category()==category).findFirst()
+    private static Offer proposed(List<Offer> offers,String id,Category category) {
+        return offers.stream().filter(o->o.id().equals(id) && o.category()==category).findFirst()
             .orElseThrow(()->rejected("It named an offer outside the catalog."));
+    }
+    private static Offer listed(List<Offer> offers,String id) {
+        return offers.stream().filter(o->o.id().equals(id)).findFirst().orElseThrow(()->CommerceException.invalid("Unknown catalog offer"));
     }
     private static CommerceException rejected(String reason) {
         return new CommerceException("AGENT_PROPOSAL_REJECTED","The Sourcing Agent's choice was rejected: "+reason+" Choose the offers yourself.",502);
@@ -193,6 +198,10 @@ public final class WorkflowService {
         var plan=db.owned(id,owner);
         return Map.of("workflowId",id,"mode",mode,"applicationChainVerified",db.verifyChain(id),"events",db.events(id),"commands",commands(id,owner),
             "proofScope","Application hash chain plus AgentSafe correlation IDs. Hosted Decionis signature verification is a separate integration check.");
+    }
+    public List<LedgerEntry> ledger(String owner,UUID workflowId) {
+        var entries=db.ledger(owner);
+        return workflowId==null?entries:entries.stream().filter(e->e.workflowId().equals(workflowId)).toList();
     }
     public List<Map<String,Object>> commands(UUID id,String owner) {
         var plan=db.owned(id,owner);

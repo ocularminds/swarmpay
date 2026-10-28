@@ -9,12 +9,12 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 | | |
 | --- | --- |
 | **Video** | _TODO: YouTube link_ |
-| **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Payments run in the PayPal sandbox with test money; the catalog and venue are simulated. The organizer and PayPal sandbox buyer logins are in the Devpost private testing instructions. |
+| **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Describe the event, then **Continue with PayPal** to create your organizer account with a PayPal sandbox buyer. Payments run in the PayPal sandbox with test money; the catalog and venue are simulated. The sandbox buyer and organizer password logins are in the Devpost private testing instructions. |
 | **Run locally** | [Three commands](#run-it-locally), no accounts needed |
 
 ## PayPal capabilities
 
-Only a private executor holds PayPal credentials; every payment command reaches it through a fail-closed policy gateway (AgentSafe).
+Only a private executor holds the merchants' PayPal credentials; every payment command reaches it through a fail-closed policy gateway (AgentSafe). A separate sign-in service holds only SwarmPay's Log in with PayPal secret.
 
 - **JavaScript SDK Buttons**, with a separate `data-namespace` per merchant so each seller gets its own buyer approval ([`PayPalCheckout.tsx`](apps/web/src/PayPalCheckout.tsx)).
 - **Orders v2**: `CAPTURE` intent for tents, `AUTHORIZE` intent for catering, the seller as payee and a `PayPal-Request-Id` on each write.
@@ -145,9 +145,9 @@ The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol
 
 ### Hosted demo
 
-`swarm.decionis.com` runs seven dedicated `swarm-pay-*` deployments in the existing `decionis` namespace of the `decionis-aks` cluster, with real Azure AI, PayPal sandbox payments, the simulated venue and a local test authority. Sandbox payments use their own database and evidence volumes; the earlier simulated-payments records are preserved. Hosted access requires `SWARM_PUBLIC_ORIGIN` and `SWARM_SESSION_COOKIE_SECURE=true`, which enforce Host/Origin checks, organizer sign-in and secure cookies and disable the one-click local session. Details are linked rather than repeated here:
+`swarm.decionis.com` runs eight dedicated `swarm-pay-*` deployments in the existing `decionis` namespace of the `decionis-aks` cluster, with real Azure AI, PayPal sandbox payments, sign-up with PayPal through SwarmPay's own sandbox app, the simulated venue and a local test authority. Only the `swarm-pay-identity` service holds the PayPal login secret; the agents still have no route to PayPal. Sandbox payments use their own database and evidence volumes; the earlier simulated-payments records are preserved. Hosted access requires `SWARM_PUBLIC_ORIGIN` and `SWARM_SESSION_COOKIE_SECURE=true`, which enforce Host/Origin checks, organizer sign-in and secure cookies and disable the one-click local session. Details are linked rather than repeated here:
 
-- [Azure hosting runbook](docs/azure-hosting.md): CI-bound image releases, the [current release record](infra/azure/releases/2026-10-28.sandbox.json) with its immutable images, network policies, TLS, the local HTTPS rehearsal (`node demo/hosted/run.mjs`), the explicit public acceptance check (`demo/check-deployed.mjs`) and rollback limits.
+- [Azure hosting runbook](docs/azure-hosting.md): CI-bound image releases, the [current release record](infra/azure/releases/2026-10-28.paypal-sign-in.json) with its immutable images (the [sandbox payments record](infra/azure/releases/2026-10-28.sandbox.json) has the payment run), network policies, TLS, the local HTTPS rehearsal (`node demo/hosted/run.mjs`), the explicit public acceptance check (`demo/check-deployed.mjs`) and rollback limits.
 - [Hosted AgentSafe endpoints](docs/azure-hosting.md#hosted-agentsafe-endpoints): neither candidate Decionis endpoint is verified as SwarmPay's enforcement gateway yet, so the demo discloses its local test authority.
 - [Security and reliability](docs/security-and-reliability.md): the authority boundary, payment replay protection, evidence limits and hosted web access rules.
 

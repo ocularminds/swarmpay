@@ -107,7 +107,7 @@ When the separate sandbox executor is available through Azure, route the same pa
 
 **The agent cannot reach PayPal**
 
-The commerce application, which runs the agents, sits on internal Docker networks with no route out. Its only egress is the `egress` service (`infra/egress`), an HTTPS CONNECT proxy that admits the configured model host (the Azure OpenAI endpoint, or `api.openai.com` when `OPENAI_API_KEY` is set) on port 443 and refuses everything else, PayPal by name. The application holds no PayPal secret either. Every payment command therefore goes through AgentSafe to the private executor, the only service with PayPal credentials and a route to `api-m.sandbox.paypal.com`.
+The commerce application, which runs the agents, sits on internal Docker networks with no route out. Its only egress is the `egress` service (`infra/egress`), an HTTPS CONNECT proxy that admits the configured model host (the Azure OpenAI endpoint, or `api.openai.com` when `OPENAI_API_KEY` is set) on port 443 and refuses everything else, PayPal by name. The application holds no PayPal secret either. Every payment command therefore goes through AgentSafe to the private executor, the only service with the merchants' PayPal credentials. The separate sign-in service (below) reaches PayPal's identity API alone and holds no payment credentials.
 
 `node demo/check-isolation.mjs` proves it on a running stack: from the application container, `api-m.paypal.com` and `api-m.sandbox.paypal.com` are unreachable by name, at their resolved addresses, and through the proxy (`403`). The proxy logs each refusal as `EGRESS_REFUSED`.
 

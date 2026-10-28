@@ -1,6 +1,6 @@
 **SwarmPay security and reliability**
 
-This document describes the implemented boundary and its limits. The [capability matrix](implementation-status.md) separates fixture verification from account verification. The application supports one organizer, USD, two curated merchants and one catering milestone. The [Azure demo](azure-hosting.md) is deployed with organizer sign-in, verified TLS and tested network/database isolation in the existing `decionis` namespace. It uses real Azure AI, simulated payments and a local test authority. Production operations and a complete refund/dispute service are outside this core.
+This document describes the implemented boundary and its limits. The [capability matrix](implementation-status.md) separates fixture verification from account verification. The application supports the configured password organizer and organizers who sign up with PayPal, each seeing only their own plans, in USD, with two curated merchants and one catering milestone. Only the separate sign-in service holds the PayPal login secret; the agents have no route to PayPal. The [Azure demo](azure-hosting.md) is deployed with organizer sign-in, verified TLS and tested network/database isolation in the existing `decionis` namespace. It uses real Azure AI, PayPal sandbox payments and a local test authority. Production operations and a complete refund/dispute service are outside this core.
 
 **Authority and credential boundary**
 

@@ -42,8 +42,18 @@
   "catalogSource": "Curated demo catalog and Channel3 product data"
  },
  "channel3": {
-  "keyHeldBy": "swarm-pay-commerce only (swarm-pay-catalog-settings)",
-  "route": "the commerce application's egress proxy, which admits api.trychannel3.com and still refuses PayPal"
+  "keyHeldBy": "swarm-pay-commerce-app only (swarm-pay-catalog-settings)",
+  "route": "the commerce application's egress proxy, which admits api.trychannel3.com and still refuses PayPal",
+  "hostedPlan": {
+   "at": "2026-10-28T17:43:28.707Z",
+   "aiProvider": "azure",
+   "totalMinor": 146995,
+   "budgetMinor": 150000,
+   "tents": "five Homfan 10x20 ft canopies listed by homedepot.com at $113.99 each",
+   "sourcingAndRisk": "Azure OpenAI · gpt-6-astra",
+   "paymentCommands": 0,
+   "approved": false
+  }
  },
  "resources": {
   "deploymentsReady": 8,
@@ -98,6 +108,8 @@
   "kubernetesTokenAbsent": true
  },
  "dataAfter": {
+  "at": "2026-10-28T17:42:27.855Z",
+  "scope": "preservation check before the hosted Channel3 plan",
   "plans": 4,
   "attempts": 6,
   "webhooks": 6,
@@ -117,12 +129,12 @@
  },
  "scope": [
   "The acceptance run stopped at a prepared plan; the payment journey itself is recorded in 2026-10-28.sandbox.json",
-  "A Buy tents plan from Channel3 was prepared locally against the live Channel3 API, not yet on the live site",
+  "Buy tents plans were prepared locally and on the live site against the live Channel3 API, without approval or payment",
   "Payments are still decided by AgentSafe's local test authority; rentals, catering and the venue are simulated",
   "The footer that names Channel3 listings ships with PR #28, after this release"
  ],
  "pending": [
-  "A Buy tents plan and an agent token from Postman on the live site",
+  "An agent token from Postman on the live site",
   "Hosted Decionis enforcement, signed grants and Presence approval/resume",
   "Live sandbox refusal, expiry, duplicate-webhook and ambiguous-response cases",
   "Tents checkout through the PayPal buttons in the UI",

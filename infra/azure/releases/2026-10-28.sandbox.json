@@ -1,0 +1,95 @@
+{
+ "recordedAt": "2026-10-28T01:02:14.183Z",
+ "origin": "https://swarm.decionis.com",
+ "resourceGroup": "decionis-rg",
+ "cluster": "decionis-aks",
+ "namespace": "decionis",
+ "webCommit": "84dda91845fdf1e381e3468dcf951be2d43ec02d",
+ "backendCommit": "01179ea59467738070c6be2b7289769e04c64a38",
+ "backendCodeUnchangedSince": "01179ea",
+ "ciRun": "https://github.com/ocularminds/swarmpay/actions/runs/40610143548",
+ "acrRuns": [
+  "cj3m",
+  "cj3n"
+ ],
+ "images": {
+  "web": "decionisacr.azurecr.io/swarm-pay/web@sha256:f02bce9486fa4efb5a9447e04a9da2f71e8489053704b8907172598526722b24",
+  "commerce-app": "decionisacr.azurecr.io/swarm-pay/commerce-app@sha256:430daf9cf87f2bb938f33001ed0bd02deae5290fe195a5a5979ee34817be5a0a",
+  "payment-executor": "decionisacr.azurecr.io/swarm-pay/payment-executor@sha256:d42d74cbfa4e73ef02a11be5cbb3c0dddd4573339cf49ff7d76a23866293b738",
+  "agentsafe": "decionisacr.azurecr.io/swarm-pay/agentsafe@sha256:0f2f1c632ccf7e3f8a8cd802d18558be92ce49b5ebc63b2bfec8d4d445c20dd9",
+  "egress": "decionisacr.azurecr.io/swarm-pay/egress@sha256:3eed8b091a593fb0a58f517a3da5c1636e04ca7a79a87deb277977d46f620596",
+  "venue": "decionisacr.azurecr.io/swarm-pay/venue@sha256:f0216a0efa2b1d61e4fb688710efb61d8ba6814d03b778c1fb50951ca924713a"
+ },
+ "modes": {
+  "ai": "azure",
+  "payments": "sandbox",
+  "authority": "local/demo"
+ },
+ "gateway": {
+  "agentSafeVersion": "0.2.5",
+  "mode": "ENFORCEMENT",
+  "failurePolicy": "FAIL_CLOSED"
+ },
+ "resources": {
+  "deploymentsReady": 7,
+  "sandboxDatabaseAndEvidenceClaims": "separate from the demo claims, which were preserved and restore-tested",
+  "otherDeploymentsUnchanged": 27
+ },
+ "sandboxTest": {
+  "at": "2026-10-28T00:56:17.232Z",
+  "agentAssessments": [
+   "Sourcing: Azure OpenAI · gpt-6-astra",
+   "Risk & milestones: Azure OpenAI · gpt-6-astra"
+  ],
+  "paypal": [
+   {
+    "merchant": "tents",
+    "orderId": "23N55770SK1159819",
+    "authorizationId": null,
+    "captureId": "9JJ483087H808781G",
+    "status": "COMPLETED",
+    "amount": "500.00 USD",
+    "captures": 1,
+    "payeeMatches": true
+   },
+   {
+    "merchant": "catering",
+    "orderId": "7F931246DX155571M",
+    "authorizationId": "76F230656E5431143",
+    "captureId": "8LX13782L6474070M",
+    "status": "COMPLETED",
+    "amount": "900.00 USD",
+    "captures": 1,
+    "payeeMatches": true
+   }
+  ],
+  "capturedTotal": "1400.00 USD",
+  "earlyAgentRequest": "ESCALATE / HELD by AgentSafe; not queued as a payment; no capture before delivery",
+  "venue": "Simulated venue with a separate Ed25519 signing key",
+  "receiptReplay": {
+   "httpStatus": 200,
+   "commandsBefore": 5,
+   "commandsAfter": 5,
+   "capturesUnchanged": true,
+   "eventsUnchanged": true
+  },
+  "verifiedWebhookNotifications": 6,
+  "applicationChainVerified": true,
+  "agentSafeJournal": {
+   "records": 30,
+   "findings": 0
+  },
+  "scope": [
+   "Real PayPal sandbox calls with test money; the catalog and venue are simulated",
+   "AgentSafe decided every payment with its local test authority; hosted Decionis policy evaluation and signatures were not part of this run",
+   "The tents checkout was created and confirmed through the application API, with buyer approval in PayPal sandbox; catering used the native PayPal SDK flow end to end",
+   "Delivery confirmation and the evidence export used the deployed UI"
+  ]
+ },
+ "pending": [
+  "Hosted Decionis enforcement, signed grants and Presence approval/resume",
+  "Live sandbox refusal, expiry, duplicate-webhook and ambiguous-response cases",
+  "Tents checkout through the PayPal buttons in the UI",
+  "Backup, restore and monitoring ownership"
+ ]
+}

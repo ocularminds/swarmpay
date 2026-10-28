@@ -9,7 +9,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 | | |
 | --- | --- |
 | **Video** | _TODO: YouTube link_ |
-| **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Organizer login and testing steps are in the Devpost private testing instructions. Payments there are simulated and labeled. |
+| **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Payments run in the PayPal sandbox with test money; the catalog and venue are simulated. The organizer and PayPal sandbox buyer logins are in the Devpost private testing instructions. |
 | **Run locally** | [Three commands](#run-it-locally), no accounts needed |
 
 ## PayPal capabilities
@@ -22,7 +22,15 @@ Only a private executor holds PayPal credentials; every payment command reaches 
 - **Webhook signature verification** per seller ([`PayPalWebhookVerifier.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalWebhookVerifier.java)).
 - **PayPal Java Server SDK** 2.4.0 for all Orders and Payments calls ([`PayPalPaymentProvider.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalPaymentProvider.java)).
 
-> **TODO: update once sandbox execution is verified.** Both sandbox seller apps and their webhook registrations pass PayPal's API checks. A full sandbox buyer approval, capture and void has not been verified yet, so the hosted demo uses simulated payments. See [implementation status](docs/implementation-status.md).
+**Verified in the PayPal sandbox on October 28, 2026**, on the live demo:
+
+- Tents: $500 captured at checkout (capture `9JJ483087H808781G`) for the tents seller.
+- Catering: $900 authorized (authorization `76F230656E5431143`), held through delivery, then captured after the venue's signed receipt (capture `8LX13782L6474070M`) for the catering seller.
+- Before delivery, AgentSafe held the agent's request to pay catering; no payment was queued or sent.
+- Replaying the receipt created no second payment: one capture per seller.
+- Six PayPal webhook notifications passed signature verification, and both evidence chains verified.
+
+AgentSafe decided these payments with a local test authority, not hosted Decionis, and the catalog and venue are simulated. The tents checkout was created through the application API with buyer approval in PayPal; catering used the PayPal buttons end to end. The [release record](infra/azure/releases/2026-10-28.sandbox.json) lists the deployed images and results.
 
 ## AI
 
@@ -137,9 +145,9 @@ The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol
 
 ### Hosted demo
 
-`swarm.decionis.com` runs five dedicated `swarm-pay-*` services in the existing `decionis` namespace of the `decionis-aks` cluster, with real Azure AI, simulated payments and a local test authority. Hosted access requires `SWARM_PUBLIC_ORIGIN` and `SWARM_SESSION_COOKIE_SECURE=true`, which enforce Host/Origin checks, organizer sign-in and secure cookies and disable the one-click local session. Details are linked rather than repeated here:
+`swarm.decionis.com` runs seven dedicated `swarm-pay-*` deployments in the existing `decionis` namespace of the `decionis-aks` cluster, with real Azure AI, PayPal sandbox payments, the simulated venue and a local test authority. Sandbox payments use their own database and evidence volumes; the earlier simulated-payments records are preserved. Hosted access requires `SWARM_PUBLIC_ORIGIN` and `SWARM_SESSION_COOKIE_SECURE=true`, which enforce Host/Origin checks, organizer sign-in and secure cookies and disable the one-click local session. Details are linked rather than repeated here:
 
-- [Azure hosting runbook](docs/azure-hosting.md): CI-bound image releases, the [recorded immutable images](infra/azure/releases/d3ea860.images.json), network policies, TLS, the local HTTPS rehearsal (`node demo/hosted/run.mjs`), the explicit public acceptance check (`demo/check-deployed.mjs`) and rollback limits.
+- [Azure hosting runbook](docs/azure-hosting.md): CI-bound image releases, the [current release record](infra/azure/releases/2026-10-28.sandbox.json) with its immutable images, network policies, TLS, the local HTTPS rehearsal (`node demo/hosted/run.mjs`), the explicit public acceptance check (`demo/check-deployed.mjs`) and rollback limits.
 - [Hosted AgentSafe endpoints](docs/azure-hosting.md#hosted-agentsafe-endpoints): neither candidate Decionis endpoint is verified as SwarmPay's enforcement gateway yet, so the demo discloses its local test authority.
 - [Security and reliability](docs/security-and-reliability.md): the authority boundary, payment replay protection, evidence limits and hosted web access rules.
 

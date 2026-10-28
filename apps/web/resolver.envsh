@@ -3,4 +3,28 @@ if [ "$SWARM_NGINX_RESOLVER" = auto ]; then
   SWARM_NGINX_RESOLVER=$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf)
   case "$SWARM_NGINX_RESOLVER" in *:*) SWARM_NGINX_RESOLVER="[$SWARM_NGINX_RESOLVER]" ;; esac
   export SWARM_NGINX_RESOLVER
+
+  # Nginx's asynchronous resolver ignores resolv.conf search domains. Resolve
+  # aliases through libc first, then let Nginx refresh the canonical DNS names.
+  # Keep names rather than IPs so service address changes remain discoverable.
+  swarm_resolve_nginx_upstream() {
+    swarm_address=$2
+    swarm_host=${swarm_address%:*}
+    swarm_port=${swarm_address##*:}
+    case "$swarm_host" in '['*']') return 0 ;; esac
+    swarm_answer=$(getent hosts "$swarm_host") || {
+      printf 'Cannot resolve Nginx upstream %s with the system resolver\n' "$swarm_host" >&2
+      return 1
+    }
+    swarm_canonical=$(printf '%s\n' "$swarm_answer" | awk 'NR == 1 { print $2 }')
+    case "$swarm_canonical" in ''|*[!A-Za-z0-9._-]*)
+      printf 'Invalid canonical DNS name for Nginx upstream %s\n' "$swarm_host" >&2
+      return 1 ;;
+    esac
+    export "$1=$swarm_canonical:$swarm_port"
+  }
+  swarm_resolve_nginx_upstream SWARM_COMMERCE_UPSTREAM "$SWARM_COMMERCE_UPSTREAM"
+  swarm_resolve_nginx_upstream SWARM_EXECUTOR_UPSTREAM "$SWARM_EXECUTOR_UPSTREAM"
+  swarm_resolve_nginx_upstream SWARM_VENUE_UPSTREAM "$SWARM_VENUE_UPSTREAM"
+  unset swarm_address swarm_host swarm_port swarm_answer swarm_canonical
 fi

@@ -35,8 +35,23 @@ await request(`${path}/orders/${plan.lines[0].id}/checkout`,{method:'POST',expec
 await Promise.all(Array.from({length:6},()=>request(`${path}/approve`,{method:'POST',body:{version:1}})));
 for(const line of plan.lines){
   const results=await Promise.all(Array.from({length:4},()=>request(`${path}/orders/${line.id}/checkout`,{method:'POST'})));
-  const known=results.find(r=>r.result?.providerOrderId);
-  assert.ok(known,'At least one checkout request confirms an order');
+  assert.ok(results.every(r=>['QUEUED','SUCCEEDED'].includes(r.state)),`Unexpected checkout outcomes: ${JSON.stringify(results)}`);
+  // The scheduled worker may claim the command before all four HTTP callers.
+  // Observe that one command to completion; do not resubmit a payment request.
+  let known;
+  const deadline=Date.now()+20000;
+  do {
+    const checkouts=(await request(path+'/commands')).filter(c=>c.command.orderId===line.id&&c.command.operation==='CREATE_ORDER');
+    assert.equal(checkouts.length,1,'Concurrent checkouts create exactly one command');
+    const checkout=checkouts[0];
+    if(checkout.result) {
+      assert.equal(checkout.result.state,'SUCCEEDED',`Checkout failed: ${JSON.stringify(checkout.result)}`);
+      known=checkout.result;break;
+    }
+    assert.ok(['QUEUED','DISPATCHING'].includes(checkout.state),`Unexpected command state: ${checkout.state}`);
+    await new Promise(resolve=>setTimeout(resolve,100));
+  } while(Date.now()<deadline);
+  assert.ok(known?.result?.providerOrderId,'The single checkout command confirms an order before the deadline');
   await request(`${path}/orders/${line.id}/buyer-approved`,{method:'POST',body:{providerOrderId:'CHANGED-ORDER'},expect:409});
   const approved=await request(`${path}/orders/${line.id}/buyer-approved`,{method:'POST',body:{providerOrderId:known.result.providerOrderId}});
   assert.equal(approved.state,'SUCCEEDED');assert.ok(approved.dossierId);assert.match(approved.intentHash,/^sha256:[a-f0-9]{64}$/);

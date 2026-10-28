@@ -1,0 +1,131 @@
+{
+ "recordedAt": "2026-10-28T18:05:45.000Z",
+ "origin": "https://swarm.decionis.com",
+ "resourceGroup": "decionis-rg",
+ "cluster": "decionis-aks",
+ "namespace": "decionis",
+ "commit": "aebd48ffbc12d0eba8f3b8682076281668368351",
+ "pullRequests": [
+  23,
+  24,
+  25,
+  26,
+  27
+ ],
+ "ciRuns": {
+  "master": "https://github.com/ocularminds/swarmpay/actions/runs/40732134027"
+ },
+ "acrRuns": [
+  "cj3r"
+ ],
+ "images": {
+  "web": "decionisacr.azurecr.io/swarm-pay/web@sha256:974d2b9a69c3c16b3401db233de2aba189cab49c50ccab837e817a41f41609b5",
+  "commerce-app": "decionisacr.azurecr.io/swarm-pay/commerce-app@sha256:0ad7a86c4657a5b8beb93985f4202d7e0bcd1852f1087c085cea30494003deac",
+  "payment-executor": "decionisacr.azurecr.io/swarm-pay/payment-executor@sha256:d99ddd3c2c0616ab59749e818e35dac1f197bb46a8b20f0eb8efd8995ed54ec5",
+  "agentsafe": "decionisacr.azurecr.io/swarm-pay/agentsafe@sha256:fb8f0cfa1f32a34150f16aae113b0246e281efc6e02e3c81e8f993315a23bcb8",
+  "egress": "decionisacr.azurecr.io/swarm-pay/egress@sha256:07dadf75a8c89731fa7bf077ab663048729329e2be6d5e08b44177ec512f8b13",
+  "venue": "decionisacr.azurecr.io/swarm-pay/venue@sha256:99759017286be2184676f2b57f4e9270d8b7c8ea194e7b950e522e26f5fbe5e5",
+  "identity": "decionisacr.azurecr.io/swarm-pay/identity@sha256:626126069641aeeed850eeb92258fe5089e23c4ea3c3c439632ede40054fee82"
+ },
+ "modes": {
+  "ai": "azure",
+  "payments": "sandbox",
+  "authority": "local/demo",
+  "paypalSignIn": true,
+  "tentPurchases": true
+ },
+ "features": {
+  "agentTokens": "organizers issue, list and revoke their own MCP agent tokens under Agents (migration V6, table agent_tokens)",
+  "ledger": "AG Grid ledger of every payment and held agent request across the organizer's plans",
+  "schedule": "Bryntum Scheduler trial showing when each merchant is paid against the delivery window",
+  "tentsToBuy": "Buy tents from Channel3 product data; the sandbox tents merchant is paid at the listed price",
+  "catalogSource": "Curated demo catalog and Channel3 product data"
+ },
+ "channel3": {
+  "keyHeldBy": "swarm-pay-commerce only (swarm-pay-catalog-settings)",
+  "route": "the commerce application's egress proxy, which admits api.trychannel3.com and still refuses PayPal"
+ },
+ "resources": {
+  "deploymentsReady": 8,
+  "liveImagesMatchRelease": true,
+  "addedSecrets": [
+   "swarm-pay-catalog-settings"
+  ],
+  "existingSecretsUnchanged": 7,
+  "otherDeploymentsUnchanged": 21,
+  "sandboxSettingsUnchanged": true,
+  "storageServicesNetworkPoliciesAndIngressPreserved": true,
+  "runtimeAndVenueKeyPreserved": true
+ },
+ "backups": {
+  "at": "2026-10-28T17:13:01.145Z",
+  "databaseRestoreVerified": true,
+  "agentSafeJournalVerified": true
+ },
+ "acceptance": {
+  "at": "2026-10-28T17:40:14.847Z",
+  "script": "demo/check-deployed.mjs with SWARM_EXPECTED_PAYMENTS=sandbox",
+  "elapsedMs": 28789,
+  "results": {
+   "publicTls": true,
+   "httpsRedirect": true,
+   "secureCookies": true,
+   "organizerLoginLogout": true,
+   "anonymousModelDenial": true,
+   "originRejection": true,
+   "privateRoutesRejected": true,
+   "landingDescriptionRead": true,
+   "paypalSignInVerified": true,
+   "azureSourcingAndRisk": true,
+   "stoppedBeforeCheckout": true,
+   "mobileLayout": true,
+   "browserErrors": 0
+  },
+  "notRun": [
+   "the login rate limit"
+  ],
+  "plan": "prepared and left unapproved; no PayPal order was created"
+ },
+ "isolation": {
+  "at": "2026-10-28T17:46:25.228Z",
+  "appToExecutorDenied": true,
+  "gatewayToExecutorAllowed": true,
+  "paypalDirectNameAndAddressDenied": true,
+  "paypalProxyDenied": true,
+  "paymentDatabaseRoleIsolated": true,
+  "paymentAndSigningSecretsAbsentFromCommerce": true,
+  "catalogKeyPresent": true,
+  "kubernetesTokenAbsent": true
+ },
+ "dataAfter": {
+  "plans": 4,
+  "attempts": 6,
+  "webhooks": 6,
+  "agentTokensTable": true,
+  "paymentCountsUnchanged": true
+ },
+ "evidence": {
+  "agentSafeJournal": {
+   "records": 38,
+   "findings": 0
+  }
+ },
+ "spotCheck": {
+  "ledgerAndSchedule": "both rendered the October 28 sandbox payments for the signed-in organizer; the ledger filtered to the catering merchant totalled $900 in one payment and exported CSV",
+  "liveConfig": "tentPurchases true; catalogSource names Channel3 product data",
+  "anonymousMcp": "POST /mcp without a token returns 401"
+ },
+ "scope": [
+  "The acceptance run stopped at a prepared plan; the payment journey itself is recorded in 2026-10-28.sandbox.json",
+  "A Buy tents plan from Channel3 was prepared locally against the live Channel3 API, not yet on the live site",
+  "Payments are still decided by AgentSafe's local test authority; rentals, catering and the venue are simulated",
+  "The footer that names Channel3 listings ships with PR #28, after this release"
+ ],
+ "pending": [
+  "A Buy tents plan and an agent token from Postman on the live site",
+  "Hosted Decionis enforcement, signed grants and Presence approval/resume",
+  "Live sandbox refusal, expiry, duplicate-webhook and ambiguous-response cases",
+  "Tents checkout through the PayPal buttons in the UI",
+  "Backup, restore and monitoring ownership"
+ ]
+}

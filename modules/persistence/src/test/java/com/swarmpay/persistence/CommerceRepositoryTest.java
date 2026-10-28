@@ -30,6 +30,7 @@ class CommerceRepositoryTest {
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V3__monotonic_order_projection.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V4__agent_requests.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V5__organizer_accounts.sql")));
+            statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V6__agent_tokens.sql")));
         }
     }
     Plan plan(long budget) {
@@ -151,6 +152,24 @@ class CommerceRepositoryTest {
         assertEquals(1,sql.queryForObject("SELECT count(*) FROM commerce.organizer_accounts WHERE provider_user_id=?",Integer.class,userId));
         assertNotEquals(first.id(),accounts.signInWithPayPal(userId+"-other",null,null,false).id());
         assertThrows(IllegalArgumentException.class,()->accounts.signInWithPayPal(" ",null,null,false));
+    }
+    @Test void anAgentTokenActsForItsOrganizerOnlyIsStoredHashedAndCanBeRevoked() {
+        var agents=new AgentTokens(source);var owner="paypal:"+UUID.randomUUID();
+        var issued=agents.issue(owner,"Postman");
+        assertTrue(issued.token().startsWith(AgentTokens.PREFIX));assertEquals(issued.token().substring(issued.token().length()-4),issued.grant().hint());
+        assertEquals(owner,agents.owner(issued.token()).orElseThrow());
+        assertTrue(agents.owner(issued.token()+"x").isEmpty());assertTrue(agents.owner("not-a-token").isEmpty());assertTrue(agents.owner(null).isEmpty());
+        var stored=sql.queryForObject("SELECT token_sha256 FROM commerce.agent_tokens WHERE id=?",String.class,issued.grant().id());
+        assertEquals(AgentTokens.sha256(issued.token()),stored);assertFalse(stored.contains(issued.token()),"only a hash is kept");
+        assertNotNull(agents.active(owner).getFirst().lastUsedAt(),"use is recorded");
+        assertTrue(agents.active("someone-else").isEmpty());
+        assertThrows(CommerceException.class,()->agents.revoke("someone-else",issued.grant().id()),"nobody else can revoke it");
+        for(int i=1;i<AgentTokens.ACTIVE_LIMIT;i++)agents.issue(owner,null);
+        assertEquals("AGENT_LIMIT",assertThrows(CommerceException.class,()->agents.issue(owner,"one too many")).code());
+        agents.revoke(owner,issued.grant().id());
+        assertTrue(agents.owner(issued.token()).isEmpty(),"a revoked token signs no agent in");
+        assertEquals(AgentTokens.ACTIVE_LIMIT-1,agents.active(owner).size());
+        assertThrows(CommerceException.class,()->agents.issue(owner,"x".repeat(61)));
     }
     PaymentCommand command(Plan plan,Line line,long amount) {return new PaymentCommand(UUID.randomUUID(),plan.id(),1,line.id(),Operation.CREATE_ORDER,"tents",amount,"USD",null,null,plan.id().toString(),"test-v1");}
 }

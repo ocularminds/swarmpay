@@ -86,18 +86,24 @@ const awaitingLine=awaiting.lines.find(line=>line.category==='CATERING');
 const awaitingCheckout=await request(`${awaitingPath}/orders/${awaitingLine.id}/checkout`,{method:'POST'});
 await request(`${awaitingPath}/orders/${awaitingLine.id}/buyer-approved`,{method:'POST',body:{providerOrderId:awaitingCheckout.result.providerOrderId}});
 const env=Object.fromEntries(readFileSync(resolve(root,'.env'),'utf8').split('\n').filter(l=>l.includes('=')&&!l.startsWith('#')).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1)]));
+// One MCP session per bearer: the operator's token, or an organizer's own agent token.
+function mcpClient(bearer){
 let mcpSession='',protocol='2025-11-25';
-async function mcp(payload){
-  const r=await fetch(base+'/mcp',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',Authorization:`Bearer ${env.MCP_TOKEN}`,...(mcpSession?{'Mcp-Session-Id':mcpSession,'MCP-Protocol-Version':protocol}:{})},body:JSON.stringify(payload),signal:AbortSignal.timeout(10000)});
+// Later requests carry the protocol version the server agreed in its initialize reply.
+const agreed=value=>{if(value?.result?.protocolVersion)protocol=value.result.protocolVersion;return value;};
+return async function mcp(payload){
+  const r=await fetch(base+'/mcp',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',Authorization:`Bearer ${bearer}`,...(mcpSession?{'Mcp-Session-Id':mcpSession,'MCP-Protocol-Version':protocol}:{})},body:JSON.stringify(payload),signal:AbortSignal.timeout(10000)});
   assert.ok(r.status===200||r.status===202,`MCP response ${r.status}`);mcpSession=r.headers.get('mcp-session-id')??mcpSession;const text=await r.text();
   if(!text)return null;
   if(r.headers.get('content-type')?.includes('text/event-stream')) {
     const frames=text.split(/\r?\n\r?\n/).map(frame=>frame.split(/\r?\n/).filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n')).filter(Boolean).map(value=>JSON.parse(value));
-    const response=frames.find(frame=>frame.id===payload.id);assert.ok(response,'MCP stream contains the requested response');return response;
+    const response=frames.find(frame=>frame.id===payload.id);assert.ok(response,'MCP stream contains the requested response');return agreed(response);
   }
-  return JSON.parse(text);
+  return agreed(JSON.parse(text));
+};
 }
-const initialized=await mcp({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:protocol,capabilities:{},clientInfo:{name:'swarm-pay-smoke',version:'1.0'}}});protocol=initialized.result.protocolVersion;
+const mcp=mcpClient(env.MCP_TOKEN);
+const initialized=await mcp({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'swarm-pay-smoke',version:'1.0'}}});
 await mcp({jsonrpc:'2.0',method:'notifications/initialized'});
 const listed=await mcp({jsonrpc:'2.0',id:2,method:'tools/list',params:{}});assert.equal(listed.result.tools.length,7);
 assert.equal(listed.result.tools.some(t=>t.name==='approve_plan'||t.name==='buyer_approve'),false);
@@ -109,6 +115,20 @@ const asked=await mcp({jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'requ
 assert.equal(asked.result.isError??false,false);assert.match(asked.result.content[0].text,/"state":"ESCALATE"/);
 assert.equal((await request(awaitingPath)).capturedMinor,0);
 console.log('PASS: the MCP milestone tool reaches AgentSafe, which holds a request without a delivery receipt');
+// An organizer's own agent token acts for that organizer, is shown once, and stops working when revoked.
+const issued=await request('/api/agent-tokens',{method:'POST',body:{label:'Smoke agent'}});
+assert.match(issued.token,/^swp_[A-Za-z0-9_-]{43}$/);
+const grants=await request('/api/agent-tokens');assert.ok(grants.some(g=>g.id===issued.grant.id)&&grants.every(g=>!('token' in g)));
+const own=mcpClient(issued.token);
+await own({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'swarm-pay-smoke-own-agent',version:'1.0'}}});
+await own({jsonrpc:'2.0',method:'notifications/initialized'});
+const ownStatus=await own({jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'get_workflow_status',arguments:{workflowId:awaiting.id}}});
+assert.equal(ownStatus.result.isError??false,false,JSON.stringify(ownStatus.result));assert.ok(ownStatus.result.content[0].text.includes(awaiting.id));
+const minted=await fetch(base+'/api/agent-tokens',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${issued.token}`},body:'{}'});assert.ok([401,403].includes(minted.status),`an agent token cannot mint another (${minted.status})`);
+await request(`/api/agent-tokens/${issued.grant.id}`,{method:'DELETE',expect:204});
+const revoked=await fetch(base+'/mcp',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',Authorization:`Bearer ${issued.token}`},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'revoked',version:'1.0'}}})});
+assert.equal(revoked.status,401);
+console.log('PASS: an organizer\'s own agent token reads their plan over MCP, cannot mint another, and is refused once revoked');
 const venue=(headers={})=>fetch(base+'/venue/deliveries',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie,'X-CSRF-TOKEN':csrf,...headers},body:JSON.stringify({workflowId:awaiting.id}),signal:AbortSignal.timeout(30000)});
 // Without the organizer's session, the application refuses (its CSRF check answers first) and nothing is signed.
 assert.ok([401,403].includes((await venue({Cookie:''})).status));

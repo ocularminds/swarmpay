@@ -56,6 +56,7 @@ jobs:
       - name: Exercise REST, MCP, isolation and restart behavior
         run: |
           node demo/smoke.mjs
+          npx --yes newman@6.2.1 run postman/SwarmPay-agent.postman_collection.json -e postman/SwarmPay-local.postman_environment.json
           node demo/check-isolation.mjs
           SWARM_WEBHOOK_PUBLIC_URL=http://127.0.0.1:5173 node demo/check-webhook-ingress.mjs
           node demo/check-restart.mjs

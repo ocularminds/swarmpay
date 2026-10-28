@@ -1,6 +1,7 @@
 package com.swarmpay.app;
 
 import com.swarmpay.integrations.RuntimeSettings;
+import com.swarmpay.persistence.AgentTokens;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.springframework.context.annotation.*;
@@ -30,9 +31,9 @@ class WebSecurity {
         return new InMemoryUserDetailsManager(User.withUsername(RuntimeSettings.required("ORGANIZER_USERNAME"))
             .password(encoder.encode(RuntimeSettings.secret("ORGANIZER_PASSWORD"))).roles("HUMAN").build());
     }
-    @Bean @Order(1) SecurityFilterChain mcp(HttpSecurity http) throws Exception {
+    @Bean @Order(1) SecurityFilterChain mcp(HttpSecurity http,AgentTokens agents) throws Exception {
         byte[] token=("Bearer "+RuntimeSettings.secret("MCP_TOKEN")).getBytes(StandardCharsets.UTF_8);
-        String owner=RuntimeSettings.required("ORGANIZER_USERNAME");
+        String organizer=RuntimeSettings.required("ORGANIZER_USERNAME");
         return http.securityMatcher("/mcp","/mcp/**").csrf(c -> c.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a.anyRequest().hasRole("MCP"))
@@ -42,7 +43,10 @@ class WebSecurity {
                 protected boolean shouldNotFilterAsyncDispatch() { return false; }
                 protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain) throws ServletException,IOException {
                     String auth=request.getHeader("Authorization");
-                    if(auth==null || !MessageDigest.isEqual(token,auth.getBytes(StandardCharsets.UTF_8))) { response.sendError(401); return; }
+                    // The operator's token acts for the configured organizer; an organizer's own agent token acts for that organizer alone.
+                    String owner=auth==null?null:MessageDigest.isEqual(token,auth.getBytes(StandardCharsets.UTF_8))?organizer
+                        :auth.startsWith("Bearer ")?agents.owner(auth.substring(7)).orElse(null):null;
+                    if(owner==null) { response.sendError(401); return; }
                     var context=SecurityContextHolder.createEmptyContext();
                     context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(owner,null,List.of(new SimpleGrantedAuthority("ROLE_MCP"))));
                     SecurityContextHolder.setContext(context);

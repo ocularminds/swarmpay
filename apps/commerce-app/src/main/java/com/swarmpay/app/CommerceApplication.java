@@ -5,6 +5,7 @@ import com.swarmpay.domain.Commerce.*;
 import com.swarmpay.domain.PlanFactory;
 import com.swarmpay.integrations.*;
 import com.swarmpay.mcp.CommerceTools;
+import com.swarmpay.persistence.AgentTokens;
 import com.swarmpay.persistence.CommerceRepository;
 import com.swarmpay.persistence.OrganizerAccounts;
 import com.swarmpay.persistence.RuntimeBinding;
@@ -28,6 +29,7 @@ public class CommerceApplication {
     @Bean PlanFactory planFactory(Clock clock) { return new PlanFactory(clock); }
     @Bean CommerceRepository repository(DataSource db) { return new CommerceRepository(db); }
     @Bean OrganizerAccounts organizerAccounts(DataSource db) { return new OrganizerAccounts(db); }
+    @Bean AgentTokens agentTokens(DataSource db) { return new AgentTokens(db); }
     @Bean org.springframework.boot.ApplicationRunner bindMode(DataSource db,String runtimeMode) {
         return args -> RuntimeBinding.verify(db,"commerce",runtimeMode);
     }
@@ -44,6 +46,6 @@ public class CommerceApplication {
             RuntimeSettings.optionalSecret("AGENTSAFE_TENANT_KEY"));
     }
     @Bean ToolCallbackProvider commerceTools(WorkflowService workflows) {
-        return MethodToolCallbackProvider.builder().toolObjects(new CommerceTools(workflows.forAgent(RuntimeSettings.required("ORGANIZER_USERNAME")))).build();
+        return MethodToolCallbackProvider.builder().toolObjects(new CommerceTools(new CurrentAgent(workflows))).build();
     }
 }

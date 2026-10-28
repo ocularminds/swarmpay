@@ -4,7 +4,7 @@ This document describes the implemented boundary and its limits. The [capability
 
 **Authority and credential boundary**
 
-The public Java application owns intent, plans, consent and budget reservations. Its authenticated MCP tools call the same workflow service as REST. Human approval requires an organizer session and CSRF token; the MCP bearer credential cannot approve a plan. Spring Security also carries authentication into asynchronous MCP dispatch. Tokens are server configuration, never model arguments.
+The public Java application owns intent, plans, consent and budget reservations. Its authenticated MCP tools call the same workflow service as REST. Human approval requires an organizer session and CSRF token; no MCP bearer credential can approve a plan. Spring Security also carries authentication into asynchronous MCP dispatch, and each tool call acts for the organizer its token belongs to. An organizer can issue up to five revocable agent tokens from the workspace; only their SHA-256 is stored, each acts for that organizer alone, and none can reach the human REST API or mint another token. The operator's `MCP_TOKEN` stays server configuration for the configured organizer. Tokens are never model arguments.
 
 The application requests payment execution through the published AgentSafe gateway. AgentSafe runs in enforcement mode with a fail-closed policy and overwrites caller-supplied authority headers. The exact command binds merchant, integer amount, currency, operation, plan version, reservation, provider resource and receipt digest. The private executor rechecks persisted consent, reservation, order state and receipt before invoking PayPal. Both Java services refuse to relabel an existing database from demo to sandbox or vice versa.
 

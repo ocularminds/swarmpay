@@ -39,6 +39,9 @@ Successful JSON endpoints normally return 200. `id` is a workflow UUID, `order` 
 | `GET /api/plans/{id}/evidence` | Workflow ID, payment mode, events, commands, application-chain verification and proof scope |
 | `POST /api/commands/{id}/reconcile` | Empty body → provider/ledger read through the gateway; never initiates a new payment |
 | `POST /api/commands/{id}/retry` | Empty body → same command requeued only after confirmed non-dispatch; requires fresh authority |
+| `GET /api/agent-tokens` | The organizer's active agent tokens: `{id, label, hint, createdAt, lastUsedAt}`, never the token |
+| `POST /api/agent-tokens` | `{label}` → `{grant, token}`; the token (`swp_…`) is shown once. Up to five active; 409 beyond that |
+| `DELETE /api/agent-tokens/{id}` | 204; the token stops working at once |
 
 `GateResult` has `state`, `execution`, `decisionId`, `dossierId`, `intentHash`, `intentId`, `message`, and nullable `result`. The provider result holds status, provider order/authorization/capture IDs, approval URL, amount, currency, merchant and source. Treat authority state and provider state separately: `SUCCEEDED` means the gated operation returned a result; only `CAPTURED` confirms the full payment. `PENDING` and `INDETERMINATE` retain their reservations.
 
@@ -58,7 +61,7 @@ The only public executor routes are `POST /webhooks/paypal/tents` and `POST /web
 
 **MCP**
 
-Connect a Streamable HTTP client to `http://localhost:5173/mcp` using `Authorization: Bearer <MCP_TOKEN from local configuration>`. Send `Accept: application/json, text/event-stream`, initialize the MCP session, and retain the returned session/protocol headers. The smoke client demonstrates protocol `2025-11-25` and parses SSE responses. Credentials bind to the server-configured organizer; tool arguments cannot select another owner.
+Connect a Streamable HTTP client to `http://localhost:5173/mcp` using `Authorization: Bearer <agent token>`: an organizer's own token from **Agents** in the workspace (or `POST /api/agent-tokens`), or the operator's `MCP_TOKEN` from local configuration, which acts for the configured password organizer. Send `Accept: application/json, text/event-stream`, initialize the MCP session, and retain the returned session/protocol headers. The smoke client demonstrates protocol `2025-11-25` and parses SSE responses. A token acts only for the organizer it belongs to; tool arguments cannot select another owner, and no token can approve a plan. [`postman/`](../postman/README.md) has a collection that drives these tools.
 
 | Tool | Arguments and effect |
 | --- | --- |

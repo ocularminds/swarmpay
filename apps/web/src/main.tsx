@@ -1,8 +1,9 @@
 import {StrictMode,useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertCircle,ArrowDownToLine,ArrowRight,CalendarDays,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
+import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
 import {api,download,login,session} from './api';
 import {PayPalCheckout} from './PayPalCheckout';
+import {AgentAccess} from './AgentAccess';
 import {Brand,Landing,ModePill,SiteFooter,exampleRequest,signInOutcomes,takePendingRequest} from './Landing';
 import type {Command,Config,GateResult,Intent,Offer,Order,Plan,Session,Workflow} from './types';
 import './styles.css';
@@ -39,7 +40,7 @@ function App(){
   const [tentOffer,setTentOffer]=useState('');const [foodOffer,setFoodOffer]=useState('');
   const [details,setDetails]=useState<''|'read'|'manual'>('');const [clarifications,setClarifications]=useState<string[]>([]);
   const [consent,setConsent]=useState(false);const [dialog,setDialog]=useState<Order>();
-  const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);
+  const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);const [agentsOpen,setAgentsOpen]=useState(false);
   const busyRef=useRef(busy);busyRef.current=busy;
   useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[activeId,user?.authenticated]);
   useEffect(()=>{
@@ -263,6 +264,7 @@ function App(){
         <option value="">New plan</option>{plans.map(p=><option key={p.id} value={p.id}>{p.intent.venue} · {money(p.totalMinor)} · {datetime(p.createdAt)}</option>)}</select>}
       <div className="app-header-actions"><ModePill config={config}/>{user.name&&<span className="account-name" title="Signed in">{user.name}</span>}
         {activeId&&<button className="button button-white header-button" aria-label="New plan" onClick={newPlan}><Plus size={16}/><span>New plan</span></button>}
+        <button className="button button-white header-button" aria-label="Connect an agent" title="Connect an agent" onClick={()=>setAgentsOpen(true)}><Bot size={16}/><span>Agents</span></button>
         <button className="button button-white header-button" aria-label="Sign out" title="Sign out" disabled={!!busy} onClick={()=>void run('Signing out',signOut)}><LogOut size={16}/></button></div>
     </div></header>
     <main className="app-main">
@@ -272,6 +274,7 @@ function App(){
       {!activeId?describe():flow&&plan?planPage():<div className="loading"><LoaderCircle className="spin"/>Loading your plan…</div>}
     </main>
     <SiteFooter config={config} className="app-footer"/>
+    {agentsOpen&&<AgentAccess plans={plans} onClose={()=>setAgentsOpen(false)}/>}
     {dialog&&<div className="modal-backdrop"><section className="checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title"><button className="dialog-close" aria-label="Close checkout" onClick={()=>setDialog(undefined)}><X size={20}/></button>
       <span className="tiny-label">SIMULATED PAYPAL CHECKOUT</span><div className="dialog-icon">{dialog.category==='TENTS'?<Tent size={32}/>:<UtensilsCrossed size={29}/>}</div>
       <h2 id="checkout-title">{dialog.merchantName}</h2><p>{dialog.category==='TENTS'?'Pay for the tent rentals now.':'Authorize catering now. It’s paid after delivery is confirmed.'}</p>

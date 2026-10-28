@@ -35,6 +35,15 @@
 .paypal-button{width:100%;background:#0070ba;color:#fff;box-shadow:0 8px 20px -10px rgba(0,112,186,.6)}.paypal-button:hover:not(:disabled){background:#005ea6}
 .signin-or{display:flex;align-items:center;gap:12px;margin:18px 0 14px;font-size:13px;color:var(--muted)}.signin-or::before,.signin-or::after{content:'';flex:1;height:1px;background:var(--line)}
 .landing-signin{display:grid;gap:14px}
+.agent-dialog{width:min(560px,calc(100% - 32px))}.agent-dialog h3{font-size:15px;margin:22px 0 8px;color:var(--ink)}
+.agent-field{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#f7f9f8;margin-top:10px}
+.agent-field>span{font-size:12px;font-weight:650;color:var(--muted);white-space:nowrap}.agent-field code,.agent-list code{font-size:13px;color:var(--ink);word-break:break-all}
+.copy-button{display:inline-flex;align-items:center;gap:6px;border:1px solid #dbe6df;background:#fff;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600;color:#456858;white-space:nowrap}
+.agent-create{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;margin-top:14px}.agent-create label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--ink)}
+.agent-create input{height:44px;border:1px solid #d6e0db;border-radius:10px;padding:0 12px;font-size:15px}.agent-create .button{min-height:44px;gap:8px;font-size:14px}
+.agent-issued{margin-top:14px;padding:12px 14px;border-radius:10px;background:#edf6e8;color:#2d6431;font-size:14px;line-height:1.5}.agent-issued .agent-field{background:#fff}
+.agent-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}.agent-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.agent-list li>div{display:flex;flex-direction:column;gap:2px;min-width:0}.agent-list strong{font-size:14px;color:var(--ink)}.agent-list small{font-size:12px;color:var(--muted)}
 .landing-signin label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600;color:var(--ink)}
 .landing-signin input{height:48px;border:1px solid #d6e0db;border-radius:10px;padding:0 14px;font-size:15px;background:#fff;color:var(--ink)}
 .landing-signin .landing-cta{margin-top:4px;width:100%}
@@ -63,7 +72,7 @@
 @media(max-width:980px){.landing-main{grid-template-columns:1fr;gap:48px;padding-top:16px}.landing-example{max-width:560px}}
 @media(max-width:600px){.landing-header,.landing-main,.landing-footer{padding-left:16px;padding-right:16px}.landing-header{padding-top:18px;padding-bottom:18px}.landing-header .brand{font-size:21px}.landing-mode{font-size:12px;padding:6px 11px}
   .landing-header-actions{gap:12px}.landing-signin-link{font-size:14px}
-  .landing-pitch h1{font-size:35px;letter-spacing:-1.3px}.landing-lede{font-size:16px;margin:18px 0 26px}.signin-body{padding:28px 22px}.composer-bar{gap:8px;padding:6px}.composer-example{padding:7px 10px}.landing .composer-send{padding:0 16px}.landing-outcomes{margin-top:36px}.landing-example{padding:20px}.example-row{grid-template-columns:38px minmax(0,1fr)}.example-row em{grid-column:2;justify-self:start}
+  .landing-pitch h1{font-size:35px;letter-spacing:-1.3px}.landing-lede{font-size:16px;margin:18px 0 26px}.signin-body{padding:28px 22px}.agent-create{grid-template-columns:1fr}.agent-field{grid-template-columns:1fr auto}.agent-field>span{grid-column:1/-1}.composer-bar{gap:8px;padding:6px}.composer-example{padding:7px 10px}.landing .composer-send{padding:0 16px}.landing-outcomes{margin-top:36px}.landing-example{padding:20px}.example-row{grid-template-columns:38px minmax(0,1fr)}.example-row em{grid-column:2;justify-self:start}
   .landing-mode em{display:none}.landing-footer>div{flex-direction:column;gap:6px}}
 .app{min-height:100vh;display:flex;flex-direction:column;background:#f7f9f8}
 .app-header{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}

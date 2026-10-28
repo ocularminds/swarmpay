@@ -1,0 +1,1150 @@
+{
+  "info": {
+    "name": "SwarmPay · be the agent",
+    "description": "Play the agent against SwarmPay's agent interface (MCP over HTTP) and see the payment boundary hold.\n\n**Against the live site or any SwarmPay:** sign in, open **Agents** in the workspace header, create an agent token, and copy it and a plan ID into the environment as `agentToken` and `workflowId`. Run **2 · Be the agent** only. Approve the plan and authorize catering in the SwarmPay UI first; the agent's early request for the catering payment is then held by AgentSafe.\n\n**Against a local simulated demo** (`docker compose up`, see the README): run the whole collection with the *SwarmPay local* environment. **1 · Organizer setup** plays the human, from sign-in to an authorized catering payment, and issues the agent token; **3 · Clean up** revokes it.\n\nThe agent's token acts for its organizer only and can never approve a plan; every payment it asks for goes through AgentSafe.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// MCP over HTTP: keep the session the server issued, and start a new one on initialize.",
+          "if (pm.request.url.getPath().endsWith('/mcp') && pm.request.body && pm.request.body.raw) {",
+          "  const message = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+          "  if (message.method === 'initialize') { pm.collectionVariables.unset('mcpSession'); }",
+          "  else if (pm.collectionVariables.get('mcpSession')) {",
+          "    pm.request.headers.upsert({ key: 'Mcp-Session-Id', value: pm.collectionVariables.get('mcpSession') });",
+          "    pm.request.headers.upsert({ key: 'MCP-Protocol-Version', value: pm.collectionVariables.get('mcpProtocol') || '2025-11-25' });",
+          "  }",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Read an MCP reply whether it came as JSON or as a server-sent event stream.",
+          "if (pm.request.url.getPath().endsWith('/mcp') && pm.response.code === 200) {",
+          "  const session = pm.response.headers.get('Mcp-Session-Id');",
+          "  if (session) { pm.collectionVariables.set('mcpSession', session); }",
+          "  const text = pm.response.text();",
+          "  if (text) {",
+          "    const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+          "    const frames = (pm.response.headers.get('Content-Type') || '').includes('text/event-stream')",
+          "      ? text.split(/\\r?\\n\\r?\\n/).map(f => f.split(/\\r?\\n/).filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('\\n')).filter(Boolean).map(f => JSON.parse(f))",
+          "      : [JSON.parse(text)];",
+          "    const reply = frames.find(f => f.id === sent.id) || frames[0];",
+          "    pm.variables.set('rpc', JSON.stringify(reply));",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "csrfHeader",
+      "value": ""
+    },
+    {
+      "key": "csrfToken",
+      "value": ""
+    },
+    {
+      "key": "planVersion",
+      "value": ""
+    },
+    {
+      "key": "tentsLine",
+      "value": ""
+    },
+    {
+      "key": "cateringLine",
+      "value": ""
+    },
+    {
+      "key": "providerOrderId",
+      "value": ""
+    },
+    {
+      "key": "agentTokenId",
+      "value": ""
+    },
+    {
+      "key": "mcpSession",
+      "value": ""
+    },
+    {
+      "key": "mcpProtocol",
+      "value": ""
+    },
+    {
+      "key": "capturedBefore",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1 · Organizer setup (local simulated demo)",
+      "description": "The human's part, through the REST API with simulated payments. Skip this folder against the live site: there the organizer approves in the UI and in PayPal.",
+      "item": [
+        {
+          "name": "Config: a local simulated demo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "config"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('this setup runs only against the local simulated demo', () => {",
+                  "  const c = pm.response.json();",
+                  "  pm.expect(c.mode, 'simulated payments').to.eql('demo');",
+                  "  pm.expect(c.demoSessionEnabled, 'one-click local session').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "session"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('session answers', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.collectionVariables.set('csrfHeader', s.csrfHeader);",
+                  "pm.collectionVariables.set('csrfToken', s.csrfToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Open the demo organizer session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/demo-session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "demo-session"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('demo organizer signed in', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session after sign-in",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "session"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('session answers', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.collectionVariables.set('csrfHeader', s.csrfHeader);",
+                  "pm.collectionVariables.set('csrfToken', s.csrfToken);",
+                  "pm.test('signed in', () => pm.expect(s.authenticated).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prepare a plan (the Sourcing Agent chooses)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/plans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "plans"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intent\": {\n    \"request\": \"An outdoor tech meetup for 30 people at Riverside Pavilion. Rain is forecast. Five tents and catering, $1,500 in total.\",\n    \"attendees\": 30,\n    \"tents\": 5,\n    \"budgetMinor\": 150000,\n    \"eventAt\": \"{{eventAt}}\",\n    \"timezone\": \"UTC\",\n    \"venue\": \"Riverside Pavilion\",\n    \"weather\": \"Rain expected\",\n    \"tentMode\": \"RENT\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// An event about an hour ahead, like the README walkthrough.",
+                  "pm.variables.set('eventAt', new Date(Date.now() + 3600000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('a $1,400 plan within the $1,500 budget', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const plan = pm.response.json();",
+                  "  pm.expect(plan.totalMinor).to.eql(140000);",
+                  "  pm.environment.set('workflowId', plan.id);",
+                  "  pm.collectionVariables.set('planVersion', plan.version);",
+                  "  pm.collectionVariables.set('tentsLine', plan.lines.find(l => l.category === 'TENTS').id);",
+                  "  pm.collectionVariables.set('cateringLine', plan.lines.find(l => l.category === 'CATERING').id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve the plan (the human's step)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/plans/{{workflowId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "plans",
+                "{{workflowId}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"version\": {{planVersion}} }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('approved by the organizer', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().status).to.eql('APPROVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tents: open checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/plans/{{workflowId}}/orders/{{tentsLine}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "plans",
+                "{{workflowId}}",
+                "orders",
+                "{{tentsLine}}",
+                "checkout"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('checkout opened through AgentSafe', () => { const r = pm.response.json(); pm.expect(r.state).to.eql('SUCCEEDED'); pm.collectionVariables.set('providerOrderId', r.result.providerOrderId); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tents: buyer approves, paid at checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/plans/{{workflowId}}/orders/{{tentsLine}}/buyer-approved",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "plans",
+                "{{workflowId}}",
+                "orders",
+                "{{tentsLine}}",
+                "buyer-approved"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"providerOrderId\": \"{{providerOrderId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('tents captured', () => pm.expect(pm.response.json().state).to.eql('SUCCEEDED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catering: open checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/plans/{{workflowId}}/orders/{{cateringLine}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "plans",
+                "{{workflowId}}",
+                "orders",
+                "{{cateringLine}}",
+                "checkout"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('checkout opened through AgentSafe', () => { const r = pm.response.json(); pm.expect(r.state).to.eql('SUCCEEDED'); pm.collectionVariables.set('providerOrderId', r.result.providerOrderId); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catering: buyer approves, authorized only",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/plans/{{workflowId}}/orders/{{cateringLine}}/buyer-approved",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "plans",
+                "{{workflowId}}",
+                "orders",
+                "{{cateringLine}}",
+                "buyer-approved"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"providerOrderId\": \"{{providerOrderId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('catering authorized, not taken', () => pm.expect(pm.response.json().state).to.eql('SUCCEEDED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Issue an agent token for Postman",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agent-tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "agent-tokens"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"label\": \"Postman\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('a token for this organizer, shown once', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const r = pm.response.json();",
+                  "  pm.expect(r.token).to.match(/^swp_/);",
+                  "  pm.environment.set('agentToken', r.token);",
+                  "  pm.collectionVariables.set('agentTokenId', r.grant.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 · Be the agent",
+      "description": "Only the agent's token: connect over MCP, read the plan, and ask to pay the caterer before delivery.",
+      "item": [
+        {
+          "name": "Connect (initialize)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"initialize\",\n  \"id\": 1,\n  \"params\": {\n    \"protocolVersion\": \"2025-11-25\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"postman-agent\",\n      \"version\": \"1.0\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the agent connects with its own token', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const rpc = JSON.parse(pm.variables.get('rpc'));",
+                  "  pm.expect(rpc.result.serverInfo.name).to.eql('swarm-pay-commerce');",
+                  "  pm.collectionVariables.set('mcpProtocol', rpc.result.protocolVersion);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connected (notifications/initialized)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"notifications/initialized\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the server accepts the notification', () => pm.expect(pm.response.code).to.be.oneOf([200, 202]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List the tools",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"tools/list\",\n  \"id\": 2,\n  \"params\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const tools = JSON.parse(pm.variables.get('rpc')).result.tools.map(t => t.name);",
+                  "pm.test('seven tools', () => pm.expect(tools).to.have.lengthOf(7));",
+                  "pm.test('no tool can approve a plan or a payment', () => {",
+                  "  pm.expect(tools.filter(t => /approve|consent|buyer/i.test(t))).to.eql([]);",
+                  "});",
+                  "pm.test('the agent can ask for a milestone payment', () => pm.expect(tools).to.include('request_milestone_payment'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "search_offers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"tools/call\",\n  \"id\": 3,\n  \"params\": {\n    \"name\": \"search_offers\",\n    \"arguments\": {\n      \"category\": \"ALL\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const result = JSON.parse(pm.variables.get('rpc')).result;",
+                  "pm.test('the catalog answers with server-owned prices', () => {",
+                  "  pm.expect(result.isError || false).to.eql(false);",
+                  "  pm.expect(result.content[0].text).to.include('Canopy Collective');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "get_workflow_status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"tools/call\",\n  \"id\": 4,\n  \"params\": {\n    \"name\": \"get_workflow_status\",\n    \"arguments\": {\n      \"workflowId\": \"{{workflowId}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const result = JSON.parse(pm.variables.get('rpc')).result;",
+                  "pm.test('the agent reads its organizer\\'s plan', () => pm.expect(result.isError || false).to.eql(false));",
+                  "const flow = JSON.parse(result.content[0].text);",
+                  "pm.test('catering is authorized and waiting for delivery', () => {",
+                  "  pm.expect(flow.orders.find(o => o.category === 'CATERING').status).to.eql('AUTHORIZED');",
+                  "  pm.expect(flow.receiptVerified).to.eql(false);",
+                  "});",
+                  "pm.collectionVariables.set('capturedBefore', flow.capturedMinor);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "request_milestone_payment before delivery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"tools/call\",\n  \"id\": 5,\n  \"params\": {\n    \"name\": \"request_milestone_payment\",\n    \"arguments\": {\n      \"workflowId\": \"{{workflowId}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "The agent asks to pay the caterer now. There is no delivery receipt, so AgentSafe holds the request and no payment is sent."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const result = JSON.parse(pm.variables.get('rpc')).result;",
+                  "const gate = JSON.parse(result.content[0].text);",
+                  "pm.test('AgentSafe holds the early request', () => {",
+                  "  pm.expect(gate.state).to.eql('ESCALATE');",
+                  "  pm.expect(gate.execution).to.eql('HELD');",
+                  "});",
+                  "pm.test('with a dossier, and no payment result', () => {",
+                  "  pm.expect(gate.dossierId).to.be.a('string').and.not.empty;",
+                  "  pm.expect(gate.result).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "get_workflow_status after the request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"tools/call\",\n  \"id\": 6,\n  \"params\": {\n    \"name\": \"get_workflow_status\",\n    \"arguments\": {\n      \"workflowId\": \"{{workflowId}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const flow = JSON.parse(JSON.parse(pm.variables.get('rpc')).result.content[0].text);",
+                  "pm.test('nothing more was captured', () => pm.expect(flow.capturedMinor).to.eql(Number(pm.collectionVariables.get('capturedBefore'))));",
+                  "pm.test('the held request is on the record', () => pm.expect(flow.agentRequests.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "get_payment_evidence",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"tools/call\",\n  \"id\": 7,\n  \"params\": {\n    \"name\": \"get_payment_evidence\",\n    \"arguments\": {\n      \"workflowId\": \"{{workflowId}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const events = JSON.parse(JSON.parse(pm.variables.get('rpc')).result.content[0].text);",
+                  "pm.test('the audit chain records AgentSafe\\'s decision', () => pm.expect(events.some(e => e.source === 'AGENTSAFE')).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 · Clean up (local simulated demo)",
+      "item": [
+        {
+          "name": "Revoke the agent token",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeader}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agent-tokens/{{agentTokenId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "agent-tokens",
+                "{{agentTokenId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('revoked', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A revoked token is refused",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"initialize\",\n  \"id\": 1,\n  \"params\": {\n    \"protocolVersion\": \"2025-11-25\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"postman-agent\",\n      \"version\": \"1.0\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the agent can no longer connect', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

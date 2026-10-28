@@ -42,6 +42,8 @@ Azure OpenAI `gpt-6-astra` through the Responses API ([`modules/agent-workflows`
 
 Every call uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents get no payment tools; catalog prices set the amounts, and the organizer approves every value. An agent can ask for the catering payment through the MCP `request_milestone_payment` tool, but that request goes through AgentSafe, which holds it until a verified delivery receipt exists.
 
+**Bring your own agent.** In the workspace, **Agents** issues a token for your own MCP client. It acts on your plans only, can never approve one, and can be revoked. The [Postman collection](postman/README.md) plays that agent against SwarmPay's MCP server and checks that AgentSafe holds its early payment request; CI runs it on every change.
+
 ## Run it locally
 
 Needs Docker with Compose v2 and Node.js 22. No PayPal or Azure account is required.
@@ -111,6 +113,8 @@ Stop with `docker compose down`; the database, authority journal and key volumes
 | `infra/agentsafe` | Pinned published gateway, synthetic policy and adversarial boundary tests |
 | `infra/egress` | The agent's only route out: an HTTPS proxy that admits the configured model host and refuses PayPal |
 | `infra/venue` | The simulated venue: the only holder of the venue signing key; signs a receipt for the signed-in organizer's recorded order |
+| `infra/identity` | PayPal sign-in: the only holder of SwarmPay's Log in with PayPal secret; returns who signed in, never a token |
+| `postman` | The agent's view: a Postman collection that plays an agent over MCP, plus local and live environments |
 | `contracts`, `docs`, `demo` | Wire contracts, operating limits, setup and repeatable validation |
 
 Java 21, Spring Boot 4.1.2, Spring AI 2.0.2, Gradle 8.14.3, PayPal Java Server SDK 2.4.0, and OpenAI Java 4.91.0 are pinned. The model is fixed to `gpt-6-astra`; there is no model fallback. AgentSafe 0.2.5 and its pipeline 0.3.8 are locked. A reviewed Presence dependency override is explained in [security and reliability](docs/security-and-reliability.md).

@@ -81,9 +81,13 @@ try {
   await page.goto('/');
   await expect(page.getByLabel('Describe your event')).toBeVisible();
   await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
-  await expect(page.getByText(payments==='sandbox'
-    ? /Payments run in the PayPal sandbox\. The catalog and venue are simulated\./
-    : /Payments, catalog and venue are simulated in this demo\./)).toBeVisible();
+  if(config.tentPurchases) {
+    await expect(page.getByText(payments==='sandbox'
+      ? /Payments run in the PayPal sandbox\./ : /Payments are simulated in this demo\./)).toBeVisible();
+    await expect(page.getByText(/Tent purchases use Channel3 listings\. Rentals, catering and the venue are simulated\./)).toBeVisible();
+  } else await expect(page.getByText(payments==='sandbox'
+      ? /Payments run in the PayPal sandbox\. The catalog and venue are simulated\./
+      : /Payments, catalog and venue are simulated in this demo\./)).toBeVisible();
   const cookie=(await context.cookies()).find(c=>c.name==='JSESSIONID');
   assert.ok(cookie?.secure&&cookie?.httpOnly&&cookie?.sameSite==='Strict','A secure, HttpOnly, SameSite=Strict session is required');
   const anonymous=await page.evaluate(async()=>{

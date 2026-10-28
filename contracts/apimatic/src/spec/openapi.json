@@ -59,7 +59,8 @@
           }
         },
         "description": "Payment mode, AI provider, authority, whether PayPal sign-in and tent purchases are offered, and the merchants' public PayPal client IDs. No secrets.",
-        "security": []
+        "security": [],
+        "operationId": "getConfiguration"
       }
     },
     "/api/session": {
@@ -81,7 +82,8 @@
           }
         },
         "description": "Call before any state-changing request and send the returned CSRF header on it.",
-        "security": []
+        "security": [],
+        "operationId": "getSession"
       }
     },
     "/api/login": {
@@ -127,7 +129,9 @@
           "429": {
             "description": "Too many attempts"
           }
-        }
+        },
+        "operationId": "login",
+        "description": "Authenticates the organizer with the submitted username and password and establishes a session cookie. Obtain the CSRF token from the current session before submitting this request."
       }
     },
     "/api/logout": {
@@ -146,7 +150,9 @@
           "204": {
             "description": "Signed out"
           }
-        }
+        },
+        "operationId": "logout",
+        "description": "Ends the current organizer session. Subsequent protected API requests require sign-in."
       }
     },
     "/api/demo-session": {
@@ -176,7 +182,8 @@
           }
         },
         "description": "Local simulated demo only; 404 when hosted or with PayPal sandbox payments.",
-        "security": []
+        "security": [],
+        "operationId": "createDemoSession"
       }
     },
     "/api/paypal/start": {
@@ -194,7 +201,8 @@
           "404": {
             "description": "Not configured"
           }
-        }
+        },
+        "operationId": "startPayPalSignIn"
       }
     },
     "/api/paypal/return": {
@@ -225,7 +233,8 @@
           "302": {
             "description": "To / on success, or /?signin=paypal-cancelled|paypal-failed"
           }
-        }
+        },
+        "operationId": "completePayPalSignIn"
       }
     },
     "/api/catalog": {
@@ -262,7 +271,9 @@
           {
             "session": []
           }
-        ]
+        ],
+        "operationId": "listCatalogOffers",
+        "description": "Returns the curated tent rental and catering offers. Purchasable tents are fetched from Channel3 when preparing a BUY plan."
       }
     },
     "/api/intent": {
@@ -319,7 +330,9 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "extractIntent",
+        "description": "Uses the configured planning provider to extract editable event details and clarifying questions from the description. This request does not approve a plan or create a payment."
       }
     },
     "/api/plans": {
@@ -356,7 +369,9 @@
           {
             "session": []
           }
-        ]
+        ],
+        "operationId": "listPlans",
+        "description": "Lists recent plans owned by the signed-in organizer."
       },
       "post": {
         "summary": "Prepare a plan",
@@ -420,7 +435,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "createPlan"
       }
     },
     "/api/plans/{id}": {
@@ -466,7 +482,9 @@
           {
             "session": []
           }
-        ]
+        ],
+        "operationId": "getPlan",
+        "description": "Returns the organizer-owned plan with its merchant orders, payment progress, delivery evidence and recorded agent requests."
       }
     },
     "/api/plans/{id}/approve": {
@@ -532,7 +550,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "approvePlan"
       }
     },
     "/api/plans/{id}/orders/{order}/checkout": {
@@ -590,7 +609,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "createCheckout"
       }
     },
     "/api/plans/{id}/orders/{order}/buyer-approved": {
@@ -666,7 +686,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "confirmBuyerApproval"
       }
     },
     "/api/plans/{id}/milestone": {
@@ -713,7 +734,9 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "requestMilestonePayment",
+        "description": "Requests capture of the catering authorization only after a signed venue receipt has been verified and AgentSafe permits the payment."
       }
     },
     "/api/plans/{id}/agent-milestone": {
@@ -761,7 +784,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "requestAgentMilestonePayment"
       }
     },
     "/api/plans/{id}/void": {
@@ -808,7 +832,9 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "voidCateringAuthorization",
+        "description": "Requests an AgentSafe-guarded void of the outstanding catering authorization. Captured payments cannot be voided."
       }
     },
     "/api/plans/{id}/freeze": {
@@ -860,7 +886,9 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "freezePayments",
+        "description": "Freezes the plan for review so further captures are refused. An outstanding catering authorization may still be voided through AgentSafe."
       }
     },
     "/api/plans/{id}/receipt": {
@@ -917,7 +945,9 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "submitPlanReceipt",
+        "description": "Verifies the venue signature and the recorded order facts, then requests the guarded catering capture. Replaying the same receipt does not create another payment."
       }
     },
     "/api/plans/{id}/photo": {
@@ -992,7 +1022,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "uploadDeliveryPhoto"
       }
     },
     "/api/plans/{id}/venue-request": {
@@ -1040,7 +1071,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "prepareVenueReceipt"
       }
     },
     "/api/venue/receipts": {
@@ -1079,7 +1111,9 @@
           "409": {
             "description": "Rejected: altered, stale or replayed"
           }
-        }
+        },
+        "operationId": "submitVenueReceipt",
+        "description": "Accepts a signed receipt from the venue, verifies it against the recorded order, and uses the same guarded payment release path as an organizer receipt upload."
       }
     },
     "/api/plans/{id}/commands": {
@@ -1128,7 +1162,9 @@
           {
             "session": []
           }
-        ]
+        ],
+        "operationId": "listPlanCommands",
+        "description": "Returns the payment commands recorded for an organizer-owned plan, including their execution states and authority decisions."
       }
     },
     "/api/plans/{id}/evidence": {
@@ -1176,7 +1212,8 @@
           {
             "session": []
           }
-        ]
+        ],
+        "operationId": "getPlanEvidence"
       }
     },
     "/api/commands/{id}/reconcile": {
@@ -1223,7 +1260,9 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "reconcilePaymentCommand",
+        "description": "Checks the recorded command against the payment provider and updates its recorded state without creating a new payment."
       }
     },
     "/api/commands/{id}/retry": {
@@ -1271,7 +1310,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "retryPaymentCommand"
       }
     },
     "/api/ledger": {
@@ -1318,7 +1358,9 @@
           {
             "session": []
           }
-        ]
+        ],
+        "operationId": "listLedgerEntries",
+        "description": "Lists payment records and agent requests across the signed-in organizer's plans, optionally filtered by a search query."
       }
     },
     "/api/agent-tokens": {
@@ -1355,7 +1397,9 @@
           {
             "session": []
           }
-        ]
+        ],
+        "operationId": "listAgentTokens",
+        "description": "Lists the signed-in organizer's active agent tokens without returning their secret values."
       },
       "post": {
         "summary": "Issue an agent token",
@@ -1408,7 +1452,8 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "createAgentToken"
       }
     },
     "/api/agent-tokens/{id}": {
@@ -1451,7 +1496,9 @@
             "session": [],
             "csrf": []
           }
-        ]
+        ],
+        "operationId": "revokeAgentToken",
+        "description": "Revokes an organizer-owned agent token so it can no longer call authenticated MCP tools."
       }
     }
   },

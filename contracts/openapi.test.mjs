@@ -21,6 +21,16 @@ test('every route the application serves is documented, and nothing else', () =>
   assert.deepEqual([...documented].filter(r => !served.has(r)).sort(), [], 'documented but not served');
 });
 
+test('every operation can generate a named SDK method and has a description', () => {
+  const ids = new Set();
+  for (const [path, ops] of Object.entries(spec.paths)) for (const [verb, op] of Object.entries(ops)) {
+    assert.match(op.operationId ?? '', /^[a-z][A-Za-z0-9]+$/, `${verb} ${path} needs a stable SDK method name`);
+    assert.ok(!ids.has(op.operationId), `Duplicate operationId: ${op.operationId}`);
+    ids.add(op.operationId);
+    assert.ok(op.description?.trim(), `${verb} ${path} needs a description for APIMatic validation`);
+  }
+});
+
 test('every reference resolves and every operation says how it authenticates', () => {
   const text = JSON.stringify(spec);
   for (const [, kind, name] of text.matchAll(/"#\/components\/(schemas|responses)\/([A-Za-z]+)"/g))

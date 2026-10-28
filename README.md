@@ -14,7 +14,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 ## PayPal capabilities
 
-Only a private executor holds PayPal credentials; every payment command reaches it through a fail-closed policy gateway (AgentSafe).
+Only a private executor holds the merchants' PayPal credentials; every payment command reaches it through a fail-closed policy gateway (AgentSafe). A separate sign-in service holds only SwarmPay's Log in with PayPal secret.
 
 - **JavaScript SDK Buttons**, with a separate `data-namespace` per merchant so each seller gets its own buyer approval ([`PayPalCheckout.tsx`](apps/web/src/PayPalCheckout.tsx)).
 - **Orders v2**: `CAPTURE` intent for tents, `AUTHORIZE` intent for catering, the seller as payee and a `PayPal-Request-Id` on each write.

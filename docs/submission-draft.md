@@ -89,7 +89,7 @@ The same services also deploy to Render from a Blueprint, as a copy with simulat
 
 In this run AgentSafe decided payments with a local test authority, and the catalog and venue are simulated. The same day, the ledger, the schedule, agent tokens and **Buy tents** went live on the same site, and the ledger and schedule show these sandbox payments.
 
-Every change runs 160 Java tests (PostgreSQL through Testcontainers), 49 Node tests plus five AgentSafe tests, the Postman collection, a Render-wired rehearsal and browser journeys on desktop, phone and an HTTPS rehearsal of the hosted setup in CI.
+Every change runs 160 Java tests (PostgreSQL through Testcontainers), 52 Node tests plus five AgentSafe tests, the Postman collection, a Render-wired rehearsal and browser journeys on desktop, phone and an HTTPS rehearsal of the hosted setup in CI.
 
 [TODO: attach the completed-plan and PayPal sandbox screenshots.]
 

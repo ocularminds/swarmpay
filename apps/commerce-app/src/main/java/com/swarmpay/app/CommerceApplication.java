@@ -25,7 +25,11 @@ public class CommerceApplication {
     public static void main(String[] args) { SpringApplication.run(CommerceApplication.class,args); }
     @Bean Clock clock() { return Clock.systemUTC(); }
     @Bean String runtimeMode() { return RuntimeSettings.mode(); }
-    @Bean Catalog catalog() { return new DemoCatalog(); }
+    /** Curated rentals and catering; with a Channel3 key, tents to buy from Channel3's product data as well. */
+    @Bean Catalog catalog() {
+        var channel3=RuntimeSettings.optionalSecret("CHANNEL3_API_KEY");
+        return channel3==null?new DemoCatalog():new Channel3Catalog(new DemoCatalog(),channel3);
+    }
     @Bean PlanFactory planFactory(Clock clock) { return new PlanFactory(clock); }
     @Bean CommerceRepository repository(DataSource db) { return new CommerceRepository(db); }
     @Bean OrganizerAccounts organizerAccounts(DataSource db) { return new OrganizerAccounts(db); }

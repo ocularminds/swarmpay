@@ -36,7 +36,7 @@ jobs:
       - name: Java invariants and PostgreSQL recovery tests
         run: ./gradlew verify --no-daemon --console=plain
       - name: Verify preflight, deployment configuration and release packaging without external services
-        run: node --test demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/venue/venue.test.mjs infra/identity/identity.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
+        run: node --test contracts/openapi.test.mjs demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/venue/venue.test.mjs infra/identity/identity.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
       - name: Build the web application
         run: |
           npm --prefix apps/web ci

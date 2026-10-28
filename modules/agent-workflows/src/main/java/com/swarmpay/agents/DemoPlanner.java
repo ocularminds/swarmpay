@@ -9,10 +9,11 @@ import java.util.Locale;
 
 public final class DemoPlanner implements AgentPlanner {
     public String source() { return "DEMO_RULES"; }
+    private static String tents(Intent intent) { return intent.tents() + ("BUY".equals(intent.tentMode()) ? " tents to buy" : " tent rentals"); }
     public List<Assessment> assess(Intent intent, List<Offer> offers) {
         return List.of(
             new Assessment("Sourcing", "Two merchants cover the event. All displayed prices include delivery and taxes.",
-                List.of(intent.tents() + " tent rentals", intent.attendees() + " catered meals", "Catalog stock is simulated"), source()),
+                List.of(tents(intent), intent.attendees() + " catered meals", "Catalog stock is simulated"), source()),
             review(intent, offers));
     }
     /** Deterministic sourcing: the fullest combination within budget, or the lowest total when none fits. */
@@ -33,7 +34,7 @@ public final class DemoPlanner implements AgentPlanner {
             "Chose " + choice.tents().title() + " and the " + choice.catering().title() + (affordable.isEmpty()
                 ? ". No combination fits the budget, so this is the lowest total for your review."
                 : ": the fullest service that stays within your budget."),
-            List.of(intent.tents() + " tent rentals and " + intent.attendees() + " catered meals",
+            List.of(tents(intent) + " and " + intent.attendees() + " catered meals",
                 total + " of a " + budget + " budget",
                 affordable.size() + " of " + pairs.size() + " combinations fit the budget",
                 "Catalog stock is simulated"), source());

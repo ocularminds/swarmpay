@@ -105,6 +105,10 @@ Public tunneling remains pending local ngrok account setup. No ngrok callback UR
 
 When the separate sandbox executor is available through Azure, route the same paths at `https://swarm.decionis.com`, update each seller's webhook registration and saved ID if necessary, verify the subscriptions with `--callback-origin https://swarm.decionis.com`, and verify real signature delivery before stopping any local ngrok process. DNS and TLS are already provisioned; the remaining gate is the account-backed runtime and its enforcement configuration.
 
+**Tents to buy with Channel3**
+
+Add a [Channel3](https://channel3.ai) API key to the private environment file as `CHANNEL3_API_KEY` and restart `commerce-app`. **Buy tents** then searches Channel3 for in-stock pop-up tents that leave room in the budget for catering; the Sourcing Agent chooses among them, and the plan names the product and the store that lists it. The tents merchant still fills the order and is the seller paid through PayPal. The application reaches `api.trychannel3.com` through the egress proxy, like the model; PayPal stays refused. Without the key, tents are rental-only.
+
 **The agent cannot reach PayPal**
 
 The commerce application, which runs the agents, sits on internal Docker networks with no route out. Its only egress is the `egress` service (`infra/egress`), an HTTPS CONNECT proxy that admits the configured model host (the Azure OpenAI endpoint, or `api.openai.com` when `OPENAI_API_KEY` is set) on port 443 and refuses everything else, PayPal by name. The application holds no PayPal secret either. Every payment command therefore goes through AgentSafe to the private executor, the only service with PayPal credentials and a route to `api-m.sandbox.paypal.com`.

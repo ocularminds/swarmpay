@@ -108,13 +108,14 @@ export function render(target,images,venuePublicKey) {
     {exec:{command:['node','-e',"fetch('http://localhost:8082/_agentsafe/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}});
   // The app's one route out: HTTPS through the egress proxy, which admits the
   // model host and, when hosted, the gateway host. Cluster services stay direct.
-  deployment('egress',images.egress,1000,hosted?{EGRESS_ALLOW_HOSTS:hosted.host}:{},'egress-settings',[],[],'96Mi',
+  // Channel3's API supplies tents to buy; PayPal stays refused by name whatever this list says.
+  deployment('egress',images.egress,1000,{EGRESS_ALLOW_HOSTS:[...(hosted?[hosted.host]:[]),'api.trychannel3.com'].join(',')},'egress-settings',[],[],'96Mi',
     {httpGet:{path:'/healthz',port:3128}});
   deployment('commerce-app',images['commerce-app'],10001,{DATABASE_URL:`jdbc:postgresql://${host('postgres')}:5432/swarm`,DATABASE_USER:'swarm_app',
     AGENTSAFE_URL:hosted?hosted.url:`http://${host('agentsafe')}:8082`,
     JAVA_TOOL_OPTIONS:`-Dhttps.proxyHost=${host('egress')} -Dhttps.proxyPort=3128 -Dhttp.nonProxyHosts=localhost|127.0.0.1|*.svc.cluster.local`,
     ORGANIZER_USERNAME:'organizer',SWARM_AI_PROVIDER:'azure',SWARM_PUBLIC_ORIGIN:`https://${target.publicHost}`,SWARM_SESSION_COOKIE_SECURE:'true',
-    VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem',IDENTITY_URL:`http://${host('identity')}:8085`},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080),['login-client']);
+    VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem',IDENTITY_URL:`http://${host('identity')}:8085`},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080),['login-client','catalog-settings']);
   // PayPal sign-in: the only workload holding the login secret. It answers the app alone and reaches PayPal's identity API.
   deployment('identity',images.identity,1000,{PAYPAL_API_BASE:'https://api-m.sandbox.paypal.com'},null,[],[],'96Mi',
     {httpGet:{path:'/healthz',port:8085}},['identity-secrets']);

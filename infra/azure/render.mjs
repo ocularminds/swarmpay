@@ -4,7 +4,7 @@ import {isIP} from 'node:net';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
-const components=['web','commerce-app','payment-executor','agentsafe','egress','venue'];
+const components=['web','commerce-app','payment-executor','agentsafe','egress','venue','identity'];
 const postgresImage='postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929';
 const partOf={'app.kubernetes.io/part-of':'swarm-pay'};
 const labels=component=>({...partOf,'app.kubernetes.io/component':component});
@@ -77,13 +77,15 @@ export function render(target,images,venuePublicKey) {
   for(const [volume,size] of [[dataVolume,'8Gi'],...(hosted?[]:[[evidenceVolume,'4Gi']])])
     items.push(object('v1','PersistentVolumeClaim',volume,{spec:{storageClassName:target.storageClass,accessModes:['ReadWriteOnce'],resources:{requests:{storage:size}}}}));
 
-  const secretEnv=secret=>[{configMapRef:{name:resourceName('runtime')}},...(secret?[{secretRef:{name:resourceName(secret)}}]:[])];
+  // Optional secrets let a workload start before they exist: PayPal sign-in stays off until its credentials are applied.
+  const secretEnv=(secret,optional=[])=>[{configMapRef:{name:resourceName('runtime')}},...(secret?[{secretRef:{name:resourceName(secret)}}]:[]),
+    ...optional.map(name=>({secretRef:{name:resourceName(name),optional:true}}))];
   const env=values=>Object.entries(values).map(([name,value])=>({name,value}));
   const publicKey={name:'venue-public',configMap:{name:resourceName('venue-public-key'),defaultMode:0o444}};
   const publicKeyMount={name:'venue-public',mountPath:'/run/secrets/venue',readOnly:true};
   const temporary=name=>({name,emptyDir:{sizeLimit:'64Mi'}});
-  function deployment(component,image,user,environment,secret,volumes,mounts,memory,probe) {
-    const container={name:component,image,imagePullPolicy:'IfNotPresent',env:env(environment),envFrom:secretEnv(secret),
+  function deployment(component,image,user,environment,secret,volumes,mounts,memory,probe,optional=[]) {
+    const container={name:component,image,imagePullPolicy:'IfNotPresent',env:env(environment),envFrom:secretEnv(secret,optional),
       securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:['ALL']}},
       resources:{requests:{cpu:'100m',memory},limits:{cpu:'1',memory}},volumeMounts:[...mounts,{name:'tmp',mountPath:'/tmp'}],
       startupProbe:{...probe,periodSeconds:5,failureThreshold:60},readinessProbe:{...probe,periodSeconds:5,timeoutSeconds:3},
@@ -112,7 +114,10 @@ export function render(target,images,venuePublicKey) {
     AGENTSAFE_URL:hosted?hosted.url:`http://${host('agentsafe')}:8082`,
     JAVA_TOOL_OPTIONS:`-Dhttps.proxyHost=${host('egress')} -Dhttps.proxyPort=3128 -Dhttp.nonProxyHosts=localhost|127.0.0.1|*.svc.cluster.local`,
     ORGANIZER_USERNAME:'organizer',SWARM_AI_PROVIDER:'azure',SWARM_PUBLIC_ORIGIN:`https://${target.publicHost}`,SWARM_SESSION_COOKIE_SECURE:'true',
-    VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem'},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080));
+    VENUE_PUBLIC_KEY_FILE:'/run/secrets/venue/venue-public.pem',IDENTITY_URL:`http://${host('identity')}:8085`},'commerce-secrets',[publicKey],[publicKeyMount],'768Mi',javaProbe(8080),['login-client']);
+  // PayPal sign-in: the only workload holding the login secret. It answers the app alone and reaches PayPal's identity API.
+  deployment('identity',images.identity,1000,{PAYPAL_API_BASE:'https://api-m.sandbox.paypal.com'},null,[],[],'96Mi',
+    {httpGet:{path:'/healthz',port:8085}},['identity-secrets']);
   // The simulated venue holds its own signing key and reaches only the application.
   deployment('venue',images.venue,1000,{COMMERCE_URL:`http://${host('commerce-app')}:8080`},'venue-secrets',[],[],'96Mi',
     {httpGet:{path:'/healthz',port:8084}});
@@ -123,7 +128,7 @@ export function render(target,images,venuePublicKey) {
     [temporary('nginx-cache'),temporary('nginx-run'),temporary('nginx-config'),{name:'nginx-template',configMap:{name:resourceName('nginx-template'),defaultMode:0o444}}],
     [{name:'nginx-cache',mountPath:'/var/cache/nginx'},{name:'nginx-run',mountPath:'/var/run'},{name:'nginx-config',mountPath:'/etc/nginx/conf.d'},{name:'nginx-template',mountPath:'/etc/nginx/templates',readOnly:true}],
     '96Mi',{httpGet:{path:'/',port:8080}});
-  for(const [component,number] of [['postgres',5432],['payment-executor',8081],...(hosted?[]:[['agentsafe',8082]]),['commerce-app',8080],['web',8080],['egress',3128],['venue',8084]])
+  for(const [component,number] of [['postgres',5432],['payment-executor',8081],...(hosted?[]:[['agentsafe',8082]]),['commerce-app',8080],['web',8080],['egress',3128],['venue',8084],['identity',8085]])
     items.push(object('v1','Service',component,{spec:{type:'ClusterIP',selector:labels(component),ports:[{name:'service',port:number,targetPort:number}]}}));
 
   items.push(object('networking.k8s.io/v1','NetworkPolicy','default-deny',{spec:{podSelector:{matchLabels:partOf},policyTypes:['Ingress','Egress']}}));
@@ -136,12 +141,13 @@ export function render(target,images,venuePublicKey) {
   // everything else is closed; the egress proxy decides which hosts it reaches.
   for(const [component,ingress,egress] of [
     ['web',[{from:[ingressPeer],ports:[port(8080)]}],[dns,to('commerce-app',8080),to('payment-executor',8081),to('venue',8084)]],
-    ['commerce-app',[from(['web','venue'],8080)],[dns,to('postgres',5432),...(hosted?[]:[to('agentsafe',8082)]),to('egress',3128)]],
+    ['commerce-app',[from(['web','venue'],8080)],[dns,to('postgres',5432),...(hosted?[]:[to('agentsafe',8082)]),to('egress',3128),to('identity',8085)]],
     ...(hosted?[]:[['agentsafe',[from(['commerce-app'],8082)],[dns,to('payment-executor',8081),externalHttps]]]),
     ['payment-executor',[hosted?{from:[peer('web'),ingressPeer],ports:[port(8081)]}:from(['agentsafe','web'],8081)],[dns,to('postgres',5432),externalHttps]],
     ['postgres',[from(['commerce-app','payment-executor'],5432)],[]],
     ['egress',[from(['commerce-app'],3128)],[dns,externalHttps]],
-    ['venue',[from(['web'],8084)],[dns,to('commerce-app',8080)]]
+    ['venue',[from(['web'],8084)],[dns,to('commerce-app',8080)]],
+    ['identity',[from(['commerce-app'],8085)],[dns,externalHttps]]
   ])items.push(object('networking.k8s.io/v1','NetworkPolicy',component,{spec:{podSelector:selector(component),policyTypes:['Ingress','Egress'],ingress,egress}}));
 
   const ingress=object('networking.k8s.io/v1','Ingress','ingress',{spec:{ingressClassName:target.ingressClass,

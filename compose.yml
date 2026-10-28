@@ -98,6 +98,10 @@ services:
       VENUE_ISSUER: ${VENUE_ISSUER}
       PAYPAL_TENTS_CLIENT_ID: ${PAYPAL_TENTS_CLIENT_ID:-}
       PAYPAL_CATERING_CLIENT_ID: ${PAYPAL_CATERING_CLIENT_ID:-}
+      # Sign-in with PayPal: the public client ID only. The login secret stays in identity.
+      PAYPAL_LOGIN_CLIENT_ID: ${PAYPAL_LOGIN_CLIENT_ID:-}
+      IDENTITY_URL: http://identity:8085
+      IDENTITY_TOKEN: ${IDENTITY_TOKEN:-}
       # The agent's networks are internal: its only route out is the egress
       # proxy, which admits the model endpoint alone. PayPal is unreachable
       # from here, by name or by address; payments go through AgentSafe.
@@ -109,6 +113,7 @@ services:
       postgres: {condition: service_healthy}
       agentsafe: {condition: service_healthy}
       egress: {condition: service_healthy}
+      identity: {condition: service_healthy}
     healthcheck:
       test: [CMD, curl, -fsS, http://localhost:8080/actuator/health]
       interval: 5s
@@ -141,6 +146,22 @@ services:
       timeout: 3s
       retries: 20
     mem_limit: 96m
+  # Sign-in with PayPal: the only service holding the SwarmPay app's login secret.
+  # It reaches PayPal's identity API alone; the app hands it the one-time code
+  # PayPal returned to the browser and gets back who signed in, never a token.
+  identity:
+    build: ./infra/identity
+    environment:
+      PAYPAL_LOGIN_CLIENT_ID: ${PAYPAL_LOGIN_CLIENT_ID:-}
+      PAYPAL_LOGIN_CLIENT_SECRET: ${PAYPAL_LOGIN_CLIENT_SECRET:-}
+      IDENTITY_TOKEN: ${IDENTITY_TOKEN:-}
+    networks: [agent, login]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:8085/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 96m
   egress:
     build: ./infra/egress
     environment:
@@ -161,6 +182,7 @@ volumes:
 networks:
   agent: {internal: true}
   egress:
+  login:
   workload:
   execution:
   commerce-data: {internal: true}

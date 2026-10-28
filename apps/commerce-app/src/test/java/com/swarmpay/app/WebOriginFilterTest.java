@@ -85,7 +85,7 @@ class WebOriginFilterTest {
 
     @Test void hostedDemoCannotCreateAnAnonymousOrganizerSession() {
         var request = request("/api/demo-session", "swarm.decionis.com");
-        var controller = new SessionController("demo", null, hosted);
+        var controller = new SessionController("demo", null, hosted, null);
         var error = assertThrows(CommerceException.class, () -> controller.demo(request, new MockHttpServletResponse()));
         assertEquals("DEMO_DISABLED", error.code());
         assertNull(request.getSession(false));

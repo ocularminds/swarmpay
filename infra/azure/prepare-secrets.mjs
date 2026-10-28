@@ -11,7 +11,30 @@ const secretItem=(name,data)=>({apiVersion:'v1',kind:'Secret',type:'Opaque',meta
 // Only the simulated venue's deployment mounts this secret; it is kept out of secrets.json.
 const venueSecret=privateKey=>secretList([secretItem('venue-secrets',{VENUE_PRIVATE_KEY:privateKey.export({type:'pkcs8',format:'der'}).toString('base64')})]);
 
+/**
+ * PayPal sign-in, kept apart like the venue key: the identity service gets the login secret and the
+ * app gets only the public client ID and the token it asks the service with. Null when not configured.
+ */
+function identitySecret(configured) {
+  const clientId=configured.PAYPAL_LOGIN_CLIENT_ID?.trim(),clientSecret=configured.PAYPAL_LOGIN_CLIENT_SECRET?.trim();
+  if(!clientId&&!clientSecret)return null;
+  if(!clientId||!clientSecret)throw new Error('Sign-in with PayPal needs both PAYPAL_LOGIN_CLIENT_ID and PAYPAL_LOGIN_CLIENT_SECRET.');
+  const token=randomBytes(32).toString('hex');
+  return secretList([secretItem('identity-secrets',{PAYPAL_LOGIN_CLIENT_ID:clientId,PAYPAL_LOGIN_CLIENT_SECRET:clientSecret,IDENTITY_TOKEN:token}),
+    secretItem('login-client',{PAYPAL_LOGIN_CLIENT_ID:clientId,IDENTITY_TOKEN:token})]);
+}
+const privateSource=file=>{if((statSync(file).mode&0o077)!==0)throw new Error('The source environment file must be private to its owner.');return parseEnv(readFileSync(file,'utf8'));};
+
 const [first,second,option]=process.argv.slice(2);
+if(first==='--identity-secret') {
+  // An existing bootstrap: add PayPal sign-in without touching any other credential.
+  if(!second||!option)throw new Error('Usage: node infra/azure/prepare-secrets.mjs --identity-secret private-source.env existing-private-directory');
+  const secret=identitySecret(privateSource(second));
+  if(!secret)throw new Error('The source has no PAYPAL_LOGIN_CLIENT_ID and PAYPAL_LOGIN_CLIENT_SECRET.');
+  writeFileSync(resolve(option,'identity-secret.json'),secret,{mode:0o600,flag:'wx'});
+  console.log('Prepared the PayPal sign-in secrets. No cloud resource was changed.');
+  process.exit(0);
+}
 if(first==='--venue-secret') {
   // An existing bootstrap: add the venue's secret from the key the deployment already admits.
   if(!second)throw new Error('Usage: node infra/azure/prepare-secrets.mjs --venue-secret existing-private-directory');
@@ -28,8 +51,8 @@ if(existsSync(destination))throw new Error('The output directory already exists;
 const root=fileURLToPath(new URL('../../',import.meta.url));
 if(spawnSync('git',['check-ignore','-q',resolve(destination,'secrets.json')],{cwd:root}).status!==0)
   throw new Error('Choose an ignored private output directory, such as .local/azure/bootstrap.');
-if((statSync(source).mode&0o077)!==0)throw new Error('The source environment file must be private to its owner.');
-const configured=parseEnv(readFileSync(source,'utf8'));
+const configured=privateSource(source);
+const identity=identitySecret(configured);
 const key=configured.AZURE_OPEANAI_KEY||configured.AZURE_OPENAI_API_KEY;
 const endpoint=configured.AZURE_OPENAI_ENDPOINT||configured.AZURE_OPENAI_URL;
 const deployment=configured.AZURE_OPENAI_DEPLOYMENT||configured.AZURE_OPENAI_LLM;
@@ -56,6 +79,7 @@ mkdirSync(destination,{recursive:true,mode:0o700});
 writeFileSync(resolve(destination,'secrets.json'),secretList(Object.entries(values).map(([name,data])=>secretItem(name,data))),{mode:0o600,flag:'wx'});
 const pair=generateKeyPairSync('ed25519');
 writeFileSync(resolve(destination,'venue-secret.json'),venueSecret(pair.privateKey),{mode:0o600,flag:'wx'});
+if(identity)writeFileSync(resolve(destination,'identity-secret.json'),identity,{mode:0o600,flag:'wx'});
 writeFileSync(resolve(destination,'venue-private.pem'),pair.privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600,flag:'wx'});
 writeFileSync(resolve(destination,'venue-public.pem'),pair.publicKey.export({type:'spki',format:'pem'}),{mode:0o644,flag:'wx'});
 writeFileSync(resolve(destination,'organizer.env'),`SWARM_PUBLIC_ORIGIN=https://swarm.decionis.com\nORGANIZER_USERNAME=organizer\nORGANIZER_PASSWORD=${organizer}\nMCP_TOKEN=${mcp}\n`,{mode:0o600,flag:'wx'});

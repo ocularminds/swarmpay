@@ -52,7 +52,7 @@ node demo/doctor.mjs
 docker compose up --build -d --wait
 ```
 
-Open <http://localhost:5173> and choose **Plan my event**. Let the Sourcing Agent choose the offers, approve the $1,400 plan and pay both merchants. Then watch AgentSafe hold the agent's early request to pay catering, and release catering only when the simulated venue confirms delivery with a signed receipt. The [walkthrough](demo/walkthrough.md) has the full script.
+Open <http://localhost:5173>, describe your event in the box under the headline (or choose **Use an example**) and choose **Plan my event**. Let the Sourcing Agent choose the offers, approve the $1,400 plan and pay both merchants. Then watch AgentSafe hold the agent's early request to pay catering, and release catering only when the simulated venue confirms delivery with a signed receipt. The [walkthrough](demo/walkthrough.md) has the full script.
 
 ## Architecture
 
@@ -78,11 +78,11 @@ One plan and budget, two merchant approvals. Authorize-then-capture pays each se
 
 ### Local demo details
 
-Use Node.js 22.23.2, the version in `.node-version`. Java is provided by the Docker build; no host JDK is needed for this path, and the initial build downloads dependencies. The UI and a separate webhook listener on port 5184 bind only to loopback. `demo/setup.mjs` generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and configures no external accounts. If your `.env` predates the simulated venue, run `node demo/setup.mjs` again: it adds the venue's signing key, which only the venue container receives.
+Use Node.js 22.23.2, the version in `.node-version`. Java is provided by the Docker build; no host JDK is needed for this path, and the initial build downloads dependencies. The UI and a separate webhook listener on port 5184 bind only to loopback. `demo/setup.mjs` generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and configures no external accounts. If your `.env` predates the simulated venue or PayPal sign-in, run `node demo/setup.mjs` again: it adds the venue's signing key, which only the venue container receives, and the token the app uses to ask the PayPal sign-in service. Sign-up with PayPal stays off until SwarmPay's own PayPal app is configured ([sandbox setup](docs/sandbox-setup.md)).
 
 Each screen offers one next action in its **Next step** card.
 
-1. Choose **Plan with AI**, keep the event about an hour ahead, and choose **Rent tents**. Leave the offers to the Sourcing Agent and choose **Prepare my plan** for 30 guests and five tents.
+1. On the landing, choose **Use an example** and **Plan my event**. The workspace opens with the description already read into editable details. Keep the event about an hour ahead and choose **Rent tents**. Leave the offers to the Sourcing Agent and choose **Prepare my plan** for 30 guests and five tents.
 2. The Sourcing Agent chooses the $500 tent rental and $900 catering, the fullest combination within the $1,500 budget, and the server checks its choice. Choose **Approve $1,400**.
 3. Choose **Pay $500**, then **Authorize $900**, each in a simulated PayPal checkout. Tents show paid; catering shows authorized and paying on delivery.
 4. Under **Try it**, choose **Let the agent ask**: the milestone agent asks for the catering payment before delivery, and AgentSafe holds the request. No payment command is queued. A delivery photo, under **Other ways to confirm**, cannot release catering on its own.

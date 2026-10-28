@@ -11,5 +11,5 @@ export type GateResult={state:string;execution:string;decisionId:string|null;dos
 export type Command={command:{id:string;orderId:string;operation:string;merchantId:string;amountMinor:number};state:string;result:GateResult|null};
 /** An agent's payment request the authority decided; never queued as a payment. */
 export type AgentRequest={command:{id:string;operation:string;merchantId:string;amountMinor:number};result:GateResult;at:string};
-export type Config={mode:'demo'|'sandbox';demoSessionEnabled:boolean;aiProvider:'demo'|'azure'|'openai';model:string;authority:string;catalogSource:string;receiptIssuer:string;clientIds:Record<string,string>;policyVersion:string};
-export type Session={authenticated:boolean;username:string;csrfToken:string;csrfHeader:string};
+export type Config={mode:'demo'|'sandbox';demoSessionEnabled:boolean;paypalSignIn:boolean;aiProvider:'demo'|'azure'|'openai';model:string;authority:string;catalogSource:string;receiptIssuer:string;clientIds:Record<string,string>;policyVersion:string};
+export type Session={authenticated:boolean;username:string;name:string;csrfToken:string;csrfHeader:string};

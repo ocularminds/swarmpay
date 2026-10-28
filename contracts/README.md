@@ -6,13 +6,15 @@ The Java records in `Commerce.java` and the controllers are the runtime source o
 
 | Method/path | Behavior |
 | --- | --- |
-| `GET /api/config` | Public payment mode, AI provider/model label, authority label, catalog source, receipt issuer, public PayPal client IDs and policy version. No secret values. |
-| `GET /api/session` | `{authenticated, username, csrfToken, csrfHeader}`. Establish the session before a state-changing request. |
+| `GET /api/config` | Public payment mode, whether PayPal sign-in is offered (`paypalSignIn`), AI provider/model label, authority label, catalog source, receipt issuer, public PayPal client IDs and policy version. No secret values. |
+| `GET /api/session` | `{authenticated, username, name, csrfToken, csrfHeader}`; `name` is the PayPal name for a PayPal account. Establish the session before a state-changing request. |
+| `GET /api/paypal/start` | Browser navigation only: 302 to PayPal's sandbox sign-in for SwarmPay's app, with a 10-minute `SWARM_PAYPAL_STATE` cookie (HttpOnly, SameSite=Lax, path `/api/paypal`). 404 when not configured. |
+| `GET /api/paypal/return` | PayPal's redirect back. A state matching that cookie and a code the sign-in service confirms create or refresh the organizer account and a fresh session, then 302 to `/`; anything else 302 to `/?signin=paypal-cancelled` or `/?signin=paypal-failed` and signs no one in. |
 | `POST /api/demo-session` | Local demo login; requires CSRF and returns 404 in sandbox mode. |
 | `POST /api/login` | Form-encoded `username` and `password` plus CSRF; returns 204 on success. |
 | `POST /api/logout` | CSRF-protected session logout; 204 on success. |
 
-Keep the `JSESSIONID` cookie and refresh `/api/session` after login. Send the returned CSRF header/token on human POST requests. Only the configured organizer is supported. `/api/**` endpoints require that human session except the metadata/login routes and the signed venue ingress. The MCP bearer token is not a human session.
+Keep the `JSESSIONID` cookie and refresh `/api/session` after login. Send the returned CSRF header/token on human POST requests. The configured password organizer and organizers who signed up with PayPal are supported; each sees only their own plans (PayPal accounts are filed as `paypal:<account id>`). `/api/**` endpoints require that human session except the metadata/login routes and the signed venue ingress. The MCP bearer token is not a human session.
 
 **Organizer endpoints**
 

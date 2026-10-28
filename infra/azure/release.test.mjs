@@ -21,7 +21,7 @@ function fixture(t) {
   const write=(file,text)=>{mkdirSync(resolve(repo,file,'..'),{recursive:true});writeFileSync(resolve(repo,file),text);};
   write('.gitignore','.local/\n.env\n');
   write('.gitattributes','* text=auto eol=lf\n*.bat text eol=crlf\n');
-  for(const file of ['apps/web/Dockerfile','infra/java.Dockerfile','infra/agentsafe/Dockerfile','infra/egress/Dockerfile','infra/venue/Dockerfile'])write(file,'FROM scratch\n');
+  for(const file of ['apps/web/Dockerfile','infra/java.Dockerfile','infra/agentsafe/Dockerfile','infra/egress/Dockerfile','infra/venue/Dockerfile','infra/identity/Dockerfile'])write(file,'FROM scratch\n');
   write('gradlew','#!/bin/sh\nexit 0\n');chmodSync(resolve(repo,'gradlew'),0o755);
   write('gradlew.bat','@rem Committed with LF\nexit 0\n');
   write('fixture.bin',Buffer.from([0,255,128,10,13,0]));
@@ -54,8 +54,8 @@ test('the uploaded context comes from Git, preserves executable files, and exclu
   assert.ok(!existsSync(resolve(f.output,'context/source/.env')));assert.ok(!existsSync(resolve(f.output,'context/source/.local')));
   assert.equal(release.files.find(file=>file.path==='source/gradlew').mode,0o755);
   const task=JSON.parse(readFileSync(resolve(f.output,'context/task.yaml'),'utf8'));
-  assert.ok(task.env.includes('DOCKER_BUILDKIT=1'));assert.equal(task.steps.length,7);
-  assert.equal(task.steps[6].push.length,6);assert.ok(task.steps[0].build.includes(`org.opencontainers.image.revision=${f.sha}`));
+  assert.ok(task.env.includes('DOCKER_BUILDKIT=1'));assert.equal(task.steps.length,8);
+  assert.equal(task.steps[7].push.length,7);assert.ok(task.steps[0].build.includes(`org.opencontainers.image.revision=${f.sha}`));
   for(const step of task.steps.filter(s=>s.build))assert.ok(existsSync(resolve(f.output,'context',step.build.split(' -f ')[1].split(' ')[0])));
   assert.throws(()=>prepareRelease(f.sha,f.output,{repo:f.repo}),/preserved/);
 });
@@ -123,7 +123,7 @@ test('a build only yields deployable images when all six run identities and regi
   const result=complete(release),adapter=cloud(f,{result});
   const completeRelease=collectRelease(f.output,adapter);assert.equal(completeRelease.state,'PUBLISHED');
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(resolve(f.output,'images.json')))),components);
-  assert.equal(adapter.calls.filter(c=>c.args[1]==='repository').length,6);
+  assert.equal(adapter.calls.filter(c=>c.args[1]==='repository').length,7);
   const wrong=cloud(f,{result,registryDigest:`sha256:${'f'.repeat(64)}`});assert.throws(()=>collectRelease(f.output,wrong),/Registry manifest/);
   for(const change of [
     r=>r.status='Running',r=>r.platform.architecture='arm64',r=>r.outputImages.pop(),

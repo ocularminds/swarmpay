@@ -6,8 +6,8 @@ Start with the [README](../README.md). For a repeatable recording or test, use `
 
 | Time | Action | Evidence to show |
 | --- | --- | --- |
-| 0:00–0:20 | Open the organizer workspace. Describe a rainy outdoor meetup for 30 people, five tent rentals and a $1,500 budget. | Absolute event date, venue, rental confirmation and editable quantities. Clearly identify local payment/authority fixtures. |
-| 0:20–0:40 | Use **Plan with AI**, choose **Rent tents**, leave the offers to the Sourcing Agent, then **Prepare my plan**. Keep the event about one hour ahead. | The Sourcing Agent's choice and reasons, then the risk review, each with its actual provider label. The server checks the choice: $500 tents and $900 catering. |
+| 0:00–0:20 | On the landing, describe a rainy outdoor meetup for 30 people, five tent rentals and a $1,500 budget (or choose **Use an example**), then **Plan my event**. | The workspace opens with the description read into an absolute event date, venue, rental confirmation and editable quantities. Clearly identify local payment/authority fixtures. |
+| 0:20–0:40 | Choose **Rent tents**, leave the offers to the Sourcing Agent, then **Prepare my plan**. Keep the event about one hour ahead. | The Sourcing Agent's choice and reasons, then the risk review, each with its actual provider label. The server checks the choice: $500 tents and $900 catering. |
 | 0:40–1:00 | Review the exact $1,400 plan and choose **Approve $1,400**. Follow the next step: **Pay $500**, then **Authorize $900**, each in a simulated checkout. | Tent payment is captured; catering is authorized. Confirmed paid is $500, committed is $1,400. |
 | 1:00–1:20 | Under **Try it**, choose **Let the agent ask**. Optionally add a small image under **Other ways to confirm**. | A photo does not satisfy the receipt condition. The agent's early request reaches AgentSafe, which holds it with a dossier ID; no payment command is queued. |
 | 1:20–1:45 | Choose **Confirm delivery as the venue**. | The separate venue signs a receipt with its own key; it passes exact contract checks, and the same boundary allows a fresh catering capture. Confirmed paid reaches $1,400. |

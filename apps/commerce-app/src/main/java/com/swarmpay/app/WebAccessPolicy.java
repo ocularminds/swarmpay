@@ -8,15 +8,24 @@ import java.util.Set;
 final class WebAccessPolicy {
     private static final Set<String> LOOPBACK = Set.of("localhost", "127.0.0.1", "[::1]");
     private final Origin publicOrigin;
+    private final String configured;
 
     WebAccessPolicy(String configuredOrigin, boolean secureCookie) {
         publicOrigin = configuredOrigin == null || configuredOrigin.isBlank() ? null : parse(configuredOrigin, true);
+        configured = publicOrigin == null ? null : configuredOrigin.replaceAll("/$", "");
         if (publicOrigin != null && (!publicOrigin.scheme().equals("https") || !secureCookie))
             throw new IllegalArgumentException("Hosted access requires an HTTPS SWARM_PUBLIC_ORIGIN and SWARM_SESSION_COOKIE_SECURE=true");
     }
 
     boolean hosted() { return publicOrigin != null; }
     boolean demoSessionEnabled(String mode) { return mode.equals("demo") && !hosted(); }
+
+    /** The site's own origin: the configured one when hosted, else the loopback host the request was checked against. */
+    String origin(String host) {
+        if (hosted()) return configured;
+        if (!allowsHost(host)) throw invalid();
+        return "http://" + host;
+    }
 
     boolean allowsHost(String host) {
         try {

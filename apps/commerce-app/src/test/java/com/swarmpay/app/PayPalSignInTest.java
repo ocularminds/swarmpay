@@ -8,9 +8,11 @@ import org.springframework.mock.web.*;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.net.URI;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 class PayPalSignInTest {
     final List<String> codes=new ArrayList<>();
@@ -57,9 +59,10 @@ class PayPalSignInTest {
     }
 
     @Test void cancellingAtPayPalReturnsToTheLanding() {
-        var back=signIn.back(null,"issued-state","issued-state",request("/api/paypal/return"),new MockHttpServletResponse());
+        var response=new MockHttpServletResponse();
+        var back=signIn.back(null,"issued-state","issued-state",request("/api/paypal/return"),response);
         assertEquals("/?signin=paypal-cancelled",back.getHeaders().getLocation().toString());
-        assertTrue(back.getHeaders().getFirst("Set-Cookie").contains("Max-Age=0"));
+        assertTrue(response.getHeader("Set-Cookie").contains("Max-Age=0"));
     }
 
     @Test void aMatchingStateCreatesTheOrganizerSessionFromTheirPayPalAccount() {
@@ -75,6 +78,21 @@ class PayPalSignInTest {
         var context=(SecurityContext)session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
         assertEquals("paypal:"+account,context.getAuthentication().getName());
         assertTrue(context.getAuthentication().getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_HUMAN")));
+    }
+
+    @Test void theReturnPreservesTheSessionCookieWhenClearingTheStateCookie() throws Exception {
+        // The servlet container has already set this header when the controller creates the session.
+        var mvc=MockMvcBuilders.standaloneSetup(signIn).addFilters((request,response,chain)->{
+            ((jakarta.servlet.http.HttpServletResponse)response).addHeader("Set-Cookie","JSESSIONID=new-session; Path=/; Secure; HttpOnly; SameSite=Strict");
+            chain.doFilter(request,response);
+        }).build();
+        var response=mvc.perform(get("/api/paypal/return").header("Host","swarm.decionis.com")
+            .param("code","C21-code").param("state","issued-state").cookie(new Cookie(PayPalSignIn.STATE_COOKIE,"issued-state")))
+            .andReturn().getResponse();
+        assertEquals(302,response.getStatus());
+        var cookies=response.getHeaders("Set-Cookie");
+        assertTrue(cookies.stream().anyMatch(c->c.startsWith("JSESSIONID=new-session;")),"The new organizer session must reach the browser");
+        assertTrue(cookies.stream().anyMatch(c->c.startsWith(PayPalSignIn.STATE_COOKIE+"=;")&&c.contains("Max-Age=0")),"The one-time state must be cleared too");
     }
 
     @Test void locallyItReturnsToTheLoopbackHostTheBrowserUsed() {

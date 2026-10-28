@@ -274,15 +274,24 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('a $1,400 plan within the $1,500 budget', () => {",
-                  "  pm.response.to.have.status(200);",
-                  "  const plan = pm.response.json();",
-                  "  pm.expect(plan.totalMinor).to.eql(140000);",
-                  "  pm.environment.set('workflowId', plan.id);",
-                  "  pm.collectionVariables.set('planVersion', plan.version);",
-                  "  pm.collectionVariables.set('tentsLine', plan.lines.find(l => l.category === 'TENTS').id);",
-                  "  pm.collectionVariables.set('cateringLine', plan.lines.find(l => l.category === 'CATERING').id);",
-                  "});"
+                  "// Planning is rate-limited per client (20 a minute, burst 5). Right after other planning traffic,",
+                  "// such as the smoke test in CI, wait for the limit and send the same request again.",
+                  "const retries = Number(pm.variables.get('planRetries') || 0);",
+                  "if (pm.response.code === 429 && retries < 5) {",
+                  "  pm.variables.set('planRetries', retries + 1);",
+                  "  pm.execution.setNextRequest(pm.info.requestName);",
+                  "  setTimeout(() => {}, 4000);",
+                  "} else {",
+                  "  pm.test('a $1,400 plan within the $1,500 budget', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const plan = pm.response.json();",
+                  "    pm.expect(plan.totalMinor).to.eql(140000);",
+                  "    pm.environment.set('workflowId', plan.id);",
+                  "    pm.collectionVariables.set('planVersion', plan.version);",
+                  "    pm.collectionVariables.set('tentsLine', plan.lines.find(l => l.category === 'TENTS').id);",
+                  "    pm.collectionVariables.set('cateringLine', plan.lines.find(l => l.category === 'CATERING').id);",
+                  "  });",
+                  "}"
                 ]
               }
             }

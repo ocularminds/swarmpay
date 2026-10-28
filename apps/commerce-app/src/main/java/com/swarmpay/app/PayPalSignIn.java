@@ -75,13 +75,13 @@ class PayPalSignIn {
     /** PayPal's redirect back. Every outcome returns to the landing; only a matching state and a confirmed code sign anyone in. */
     @GetMapping("/api/paypal/return") ResponseEntity<Void> back(@RequestParam(required = false) String code, @RequestParam(required = false) String state,
         @CookieValue(name = STATE_COOKIE, required = false) String expected, HttpServletRequest request, HttpServletResponse response) {
-        if (!enabled()) return home("paypal-failed");
+        if (!enabled()) return home("paypal-failed", response);
         // PayPal returns without a code when the organizer cancels.
-        if (code == null || code.isBlank()) return home("paypal-cancelled");
+        if (code == null || code.isBlank()) return home("paypal-cancelled", response);
         if (state == null || expected == null || !MessageDigest.isEqual(state.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8)))
-            return home("paypal-failed");
+            return home("paypal-failed", response);
         Identity who;
-        try { who = identity(code); } catch (RuntimeException e) { return home("paypal-failed"); }
+        try { who = identity(code); } catch (RuntimeException e) { return home("paypal-failed", response); }
         var account = account(who);
         // A fresh session for this organizer: nothing from before sign-in carries over.
         var previous = request.getSession(false);
@@ -92,7 +92,7 @@ class PayPalSignIn {
         SecurityContextHolder.setContext(context);
         new HttpSessionSecurityContextRepository().saveContext(context, request, response);
         new HttpSessionCsrfTokenRepository().saveToken(null, request, response);
-        return home(null);
+        return home(null, response);
     }
 
     OrganizerAccounts.Account account(Identity who) { return accounts.signInWithPayPal(who.userId(), who.name(), who.email(), who.emailVerified()); }
@@ -118,9 +118,11 @@ class PayPalSignIn {
         // Lax, unlike the session cookie: PayPal's redirect back is a cross-site navigation, and the state must ride along.
         return ResponseCookie.from(STATE_COOKIE, value).httpOnly(true).secure(secureCookie).sameSite("Lax").path("/api/paypal").maxAge(age).build();
     }
-    private ResponseEntity<Void> home(String outcome) {
+    private ResponseEntity<Void> home(String outcome, HttpServletResponse response) {
+        // A Set-Cookie on ResponseEntity replaces the session cookie the container just created.
+        response.addHeader(HttpHeaders.SET_COOKIE, stateCookie("", Duration.ZERO).toString());
         return ResponseEntity.status(HttpStatus.FOUND).header(HttpHeaders.LOCATION, outcome == null ? "/" : "/?signin=" + outcome)
-            .header(HttpHeaders.SET_COOKIE, stateCookie("", Duration.ZERO).toString()).header(HttpHeaders.CACHE_CONTROL, "no-store").build();
+            .header(HttpHeaders.CACHE_CONTROL, "no-store").build();
     }
     private static String encode(Map<String, String> query) {
         return query.entrySet().stream().map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8).replace("+", "%20")).collect(Collectors.joining("&"));

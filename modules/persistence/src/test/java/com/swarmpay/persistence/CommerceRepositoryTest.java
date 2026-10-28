@@ -153,6 +153,28 @@ class CommerceRepositoryTest {
         assertNotEquals(first.id(),accounts.signInWithPayPal(userId+"-other",null,null,false).id());
         assertThrows(IllegalArgumentException.class,()->accounts.signInWithPayPal(" ",null,null,false));
     }
+    @Test void theLedgerListsAnOrganizersCommandsAndAgentRequestsNewestFirstAndNoOneElses() {
+        var owner="ledger-"+UUID.randomUUID();
+        var plan=factory.create(owner,new Intent("Meetup",30,5,150000,Instant.now().plusSeconds(3600),"UTC","Ledger pavilion","Rain","RENT"),
+            new Offer("tents-standard","tents","Canopy Collective",Category.TENTS,"Canopy","",10000,10,""),
+            new Offer("catering-seasonal","catering","Gather Kitchen",Category.CATERING,"Menu","",3000,80,""),List.of());
+        repository.create(plan);repository.approve(plan.id(),owner,1,factory);
+        var tents=plan.lines().stream().filter(l->l.category()==Category.TENTS).findFirst().orElseThrow();
+        var catering=plan.lines().stream().filter(l->l.category()==Category.CATERING).findFirst().orElseThrow();
+        var paid=repository.enqueue(command(plan,tents,50000));
+        repository.finish(paid,new GateResult("SUCCEEDED","FORWARDED","decision","dossier-1","a".repeat(64),null,"Captured",new ProviderResult("CAPTURED","ORDER-1",null,"CAPTURE-1",null,50000,"USD","tents","TEST")));
+        var early=new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.CAPTURE_AUTHORIZATION,"catering",90000,"USD",null,null,plan.id().toString(),"test-v1");
+        repository.recordAgentRequest(early,new GateResult("ESCALATE","HELD",null,"dossier-2",null,null,"Held: no delivery receipt",null),"AGENT_REQUEST_HELD");
+        var ledger=repository.ledger(owner);
+        assertEquals(2,ledger.size());
+        var held=ledger.getFirst();
+        assertEquals("AGENT",held.requestedBy());assertEquals("ESCALATE",held.state());assertEquals("HELD",held.execution());
+        assertEquals("Gather Kitchen",held.merchantName());assertEquals(90000,held.amountMinor());assertNull(held.captureId());
+        var capture=ledger.get(1);
+        assertEquals("ORGANIZER",capture.requestedBy());assertEquals(Operation.CREATE_ORDER,capture.operation());assertEquals("SUCCEEDED",capture.state());
+        assertEquals("Ledger pavilion",capture.venue());assertFalse(capture.settledAt().isBefore(capture.at()));assertEquals("CAPTURE-1",capture.captureId());assertEquals("ORDER-1",capture.providerOrderId());
+        assertTrue(repository.ledger("someone-else").isEmpty(),"one organizer never sees another's payments");
+    }
     @Test void anAgentTokenActsForItsOrganizerOnlyIsStoredHashedAndCanBeRevoked() {
         var agents=new AgentTokens(source);var owner="paypal:"+UUID.randomUUID();
         var issued=agents.issue(owner,"Postman");

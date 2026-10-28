@@ -194,6 +194,10 @@ public final class WorkflowService {
         return Map.of("workflowId",id,"mode",mode,"applicationChainVerified",db.verifyChain(id),"events",db.events(id),"commands",commands(id,owner),
             "proofScope","Application hash chain plus AgentSafe correlation IDs. Hosted Decionis signature verification is a separate integration check.");
     }
+    public List<LedgerEntry> ledger(String owner,UUID workflowId) {
+        var entries=db.ledger(owner);
+        return workflowId==null?entries:entries.stream().filter(e->e.workflowId().equals(workflowId)).toList();
+    }
     public List<Map<String,Object>> commands(UUID id,String owner) {
         var plan=db.owned(id,owner);
         return db.commandsFor(plan).stream().map(c -> { var m=new LinkedHashMap<String,Object>(); m.put("command",c); m.put("state",db.commandState(c.id())); m.put("result",db.commandResult(c.id())); return (Map<String,Object>)m; }).toList();

@@ -7,7 +7,9 @@ test('one next action per step: agent sourcing, both checkouts, an agent request
   await page.setViewportSize({width:1366,height:950});
   await signIntoWorkspace(page,request);
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.getByLabel('Venue',{exact:true}).fill('Browser test pavilion');
+  // A venue unique to this run, so the ledger's total covers this plan alone.
+  const venue=`Browser test pavilion ${Date.now()}`;
+  await page.getByLabel('Venue',{exact:true}).fill(venue);
   await expect(page.getByLabel('Tent preference')).toHaveValue('');
   await page.getByRole('radio',{name:'Rent tents'}).check();
   await page.getByRole('button',{name:'Prepare my plan'}).click();
@@ -22,6 +24,7 @@ test('one next action per step: agent sourcing, both checkouts, an agent request
   await dialog.getByRole('button',{name:'Pay $500'}).click();
   await expect(next.getByRole('heading',{name:'Authorize Gather Kitchen'})).toBeVisible();
   await expect(plan.getByText('Paid',{exact:true})).toBeVisible();
+  await expect(page.locator('.schedule-card')).toContainText('Paid $500',{timeout:10000});
   await next.getByRole('button',{name:'Authorize $900'}).click();await dialog.getByRole('button',{name:'Authorize $900'}).click();
   await expect(next.getByRole('heading',{name:'Confirm the catering delivery'})).toBeVisible();
   await expect(plan).toContainText('Authorized · pays on delivery');
@@ -41,6 +44,17 @@ test('one next action per step: agent sourcing, both checkouts, an agent request
   const downloaded=page.waitForEvent('download');await next.getByRole('button',{name:'Download evidence'}).click();
   const evidence=JSON.parse(readFileSync((await(await downloaded).path())!,'utf8'));expect(evidence.applicationChainVerified).toBe(true);expect(evidence.commands).toHaveLength(5);
   await expect(page.getByText('The record chain verifies')).toBeVisible();
+  await page.getByRole('button',{name:'All payments'}).click();
+  await expect(page.getByRole('heading',{level:1,name:'All payments'})).toBeVisible();
+  const ledger=page.locator('.ledger-grid');
+  await page.getByLabel('Search payments').fill(venue);
+  await expect(ledger).toContainText('Held by AgentSafe');
+  await expect(ledger).toContainText('$1,400 · 2 payments');
+  // Every word must match: the caterer's rows alone, and only its payment after delivery counts as paid.
+  await page.getByLabel('Search payments').fill(`${venue} Gather`);
+  await expect(ledger).toContainText('$900 · 1 payment');
+  await page.getByRole('button',{name:'All payments'}).click();
+  await expect(page.getByRole('heading',{level:1,name:'Your event is booked and paid.'})).toBeVisible();
   expect(errors).toEqual([]);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath('desktop-completed.png'),fullPage:true});
 });
 test('a description that names no venue or weather leaves them blank, and planning asks for the venue',async({page,request})=>{

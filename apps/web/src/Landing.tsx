@@ -79,7 +79,10 @@ function SignInDialog({paypal,request,busy,error,onDismiss,onClose,onSignIn}:{pa
 
 /** What is real and what is simulated, said once at the foot of every page. */
 export function SiteFooter({config,className}:{config:Config;className:string}) {
-  return <footer className={className}><div><p>{config.mode==='sandbox'?'Payments run in the PayPal sandbox. The catalog and venue are simulated.':'Payments, catalog and venue are simulated in this demo.'} {config.aiProvider==='demo'?'Agent responses are simulated.':`Planning uses ${config.model}.`} {config.authority==='AgentSafe · local test authority'?'AgentSafe checks payments with a local test authority.':`${config.authority} decides every payment.`}</p><span>Built for the PayPal AI Hackathon</span></div></footer>;
+  const disclosure=config.tentPurchases
+    ? `${config.mode==='sandbox'?'Payments run in the PayPal sandbox.':'Payments are simulated in this demo.'} Tent purchases use Channel3 listings. Rentals, catering and the venue are simulated.`
+    : config.mode==='sandbox'?'Payments run in the PayPal sandbox. The catalog and venue are simulated.':'Payments, catalog and venue are simulated in this demo.';
+  return <footer className={className}><div><p>{disclosure} {config.aiProvider==='demo'?'Agent responses are simulated.':`Planning uses ${config.model}.`} {config.authority==='AgentSafe · local test authority'?'AgentSafe checks payments with a local test authority.':`${config.authority} decides every payment.`}</p><span>Built for the PayPal AI Hackathon</span></div></footer>;
 }
 /** The mode pill shared by the landing and the workspace. */
 export function ModePill({config}:{config:Config}) {

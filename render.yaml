@@ -141,6 +141,8 @@ services:
     envVars:
       - key: PORT
         value: "8082"
+      - key: AGENTSAFE_LISTEN
+        value: 0.0.0.0:8082
       - key: SWARM_MODE
         value: demo
       - key: SWARM_AUTHORITY

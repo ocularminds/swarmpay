@@ -20,6 +20,8 @@ services:
       VENUE_PUBLIC_KEY: ${SWARM_RENDER_VENUE_PUBLIC_KEY:?Run node demo/render/check.mjs}
   agentsafe:
     environment:
+      PORT: ${SWARM_RENDER_GATEWAY_PORT:?Run node demo/render/check.mjs}
+      AGENTSAFE_LISTEN: ${SWARM_RENDER_GATEWAY_LISTEN:?Run node demo/render/check.mjs}
       AGENTSAFE_UPSTREAM_HOSTPORT: payment-executor:8081
   venue:
     environment:

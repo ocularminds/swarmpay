@@ -1,5 +1,6 @@
 import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {BryntumScheduler} from '@bryntum/scheduler-react';
+import {DateHelper} from '@bryntum/scheduler';
 import '@bryntum/scheduler/scheduler.css';
 import '@bryntum/scheduler/svalbard-light.css';
 import {api} from './api';
@@ -44,9 +45,12 @@ export default function PaymentSchedule({plan,orders,refreshKey}:{plan:Plan;orde
     const first=Math.min(...times),last=Math.max(...times),pad=Math.max(hour/2,(last-first)*0.12);
     const startDate=new Date(first-pad),endDate=new Date(last+Math.max(hour/4,(last-first)*0.05));
     const span=(endDate.getTime()-startDate.getTime())/hour;
-    // Hour ticks just wide enough for their labels, so a phone counts every few hours instead of running them together.
-    const step=[1,2,3,4,6,12].find(n=>n*(fit.width-nameWidth)/span>=3.5*fit.em)??12;
-    const hours=step===1?'hourAndDay':{base:'hourAndDay',headers:[{unit:'day',dateFormat:'ddd MM/DD'},{unit:'hour',increment:step,dateFormat:'LST'}]};
+    // Hour ticks just wide enough for their labels, so a phone counts every few hours instead of running them together,
+    // and a day that only begins at the edge of the axis goes unnamed rather than cut off.
+    const px=fit.width-nameWidth,step=[1,2,3,4,6,12].find(n=>n*px/span>=3.5*fit.em)??12;
+    const day=(start:Date,end:Date,_:unknown,__:number,axis:{startDate:Date;endDate:Date})=>
+      (Math.min(+end,+axis.endDate)-Math.max(+start,+axis.startDate))/(+axis.endDate-+axis.startDate)*px<6*fit.em?'':DateHelper.format(start,'ddd MM/DD');
+    const hours={base:'hourAndDay',headers:[{unit:'day',renderer:day},{unit:'hour',increment:step,dateFormat:'LST'}]};
     return {resources,bars,startDate,endDate,viewPreset:span<=16?hours:span<=24*5?'dayAndWeek':'weekAndDay',
       timeRanges:[{id:'delivery',name:'Venue can confirm delivery',startDate:new Date(event.getTime()-deliveryOpens),endDate:new Date(event.getTime()+deliveryCloses),cls:'delivery-window'}]};
   },[plan,orders,entries,fit.width,fit.em,nameWidth]);

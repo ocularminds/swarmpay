@@ -1,19 +1,18 @@
-import {StrictMode,useEffect,useRef,useState} from 'react';
+import {StrictMode,Suspense,lazy,useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
+import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Table,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
 import {api,download,login,session} from './api';
 import {PayPalCheckout} from './PayPalCheckout';
 import {AgentAccess} from './AgentAccess';
+import {boundaryLabel,datetime,money,operationLabels} from './labels';
+// The grid and the scheduler load only when shown, so the landing and the plan stay light.
+const Ledger=lazy(()=>import('./Ledger'));
+const PaymentSchedule=lazy(()=>import('./PaymentSchedule'));
 import {Brand,Landing,ModePill,SiteFooter,exampleRequest,signInOutcomes,takePendingRequest} from './Landing';
 import type {Command,Config,GateResult,Intent,Offer,Order,Plan,Session,Workflow} from './types';
 import './styles.css';
 
-const money=(c:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:c%100?2:0}).format(c/100);
-const datetime=(value:string,timeZone?:string)=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone}).format(new Date(value));
 function localInput(date:Date) { return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); }
-/** How the payment boundary answered a request, in the words the organizer sees. */
-const boundaryLabel=(state:string)=>state==='SUCCEEDED'?'Allowed':['ESCALATE','HELD'].includes(state)?'Held by AgentSafe':['BLOCK','BLOCKED'].includes(state)?'Blocked by AgentSafe':state.replaceAll('_',' ').toLowerCase();
-const operationLabels:Record<string,string>={CREATE_ORDER:'Open checkout',CAPTURE_ORDER:'Take payment',AUTHORIZE_ORDER:'Authorize payment',CAPTURE_AUTHORIZATION:'Pay after delivery',VOID_AUTHORIZATION:'Cancel authorization'};
 const sourceLabels:Record<string,string>={HUMAN:'You',APPLICATION:'SwarmPay',AGENTSAFE:'AgentSafe',PHOTO:'Photo','demo-venue-fixture':'Venue (simulated)'};
 const statusLabels:Record<string,string>={APPROVAL_REQUIRED:'Waiting for PayPal approval',AUTHORIZED:'Authorized · pays on delivery',CAPTURED:'Paid',VOIDED:'Cancelled',PENDING:'Confirming with PayPal',DECLINED:'Declined',EXPIRED:'Expired'};
 const retryable=['NOT_EXECUTED','AUTHORITY_UNAVAILABLE'],unsettled=['QUEUED','DISPATCHING','INDETERMINATE','EXECUTION_INDETERMINATE'];
@@ -40,7 +39,7 @@ function App(){
   const [tentOffer,setTentOffer]=useState('');const [foodOffer,setFoodOffer]=useState('');
   const [details,setDetails]=useState<''|'read'|'manual'>('');const [clarifications,setClarifications]=useState<string[]>([]);
   const [consent,setConsent]=useState(false);const [dialog,setDialog]=useState<Order>();
-  const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);const [agentsOpen,setAgentsOpen]=useState(false);
+  const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);const [agentsOpen,setAgentsOpen]=useState(false);const [view,setView]=useState<'plans'|'ledger'>('plans');
   const busyRef=useRef(busy);busyRef.current=busy;
   useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[activeId,user?.authenticated]);
   useEffect(()=>{
@@ -90,8 +89,8 @@ function App(){
     const p=await api<Plan>('/api/plans','POST',tentOffer?{intent,tentOfferId:tentOffer,cateringOfferId:foodOffer}:{intent});
     setActiveId(p.id);setConsent(false);setPlans(prev=>[p,...prev]);
   }
-  function openPlan(id:string){setFlow(undefined);setCommands([]);setActiveId(id);setConsent(false);setProof(undefined);setAllEvents(false);setError('');setNotice('');}
-  function newPlan(){setActiveId(undefined);setFlow(undefined);setCommands([]);setProof(undefined);setConsent(false);setAllEvents(false);setDetails('');setTentMode('');setClarifications([]);setError('');setNotice('');}
+  function openPlan(id:string){setView('plans');setFlow(undefined);setCommands([]);setActiveId(id);setConsent(false);setProof(undefined);setAllEvents(false);setError('');setNotice('');}
+  function newPlan(){setView('plans');setActiveId(undefined);setFlow(undefined);setCommands([]);setProof(undefined);setConsent(false);setAllEvents(false);setDetails('');setTentMode('');setClarifications([]);setError('');setNotice('');}
   async function approve(){await api(`/api/plans/${plan!.id}/approve`,'POST',{version:plan!.version});await refresh();setNotice(`Plan approved. Your ${money(plan!.totalMinor)} is reserved.`);}
   async function startDemoCheckout(order:Order){const result=await api<GateResult>(`/api/plans/${plan!.id}/orders/${order.id}/checkout`,'POST');await refresh();if(result.state!=='SUCCEEDED')throw new Error(result.message);setDialog({...order,providerOrderId:result.result!.providerOrderId});}
   async function confirmDemo(){const result=await api<GateResult>(`/api/plans/${plan!.id}/orders/${dialog!.id}/buyer-approved`,'POST',{providerOrderId:dialog!.providerOrderId});setDialog(undefined);await refresh();if(result.state!=='SUCCEEDED')throw new Error(result.message);setNotice(result.message);}
@@ -232,6 +231,7 @@ function App(){
           {actions(<button key="pause" className="button button-white" disabled={!!busy} onClick={()=>void run('Pausing payments',()=>post(`/api/plans/${p.id}/freeze`))}><PauseCircle size={16}/>Pause payments for review</button>,
             <button key="void" className="button button-white" disabled={!!busy||!cateringAuthorized} onClick={()=>void run('Cancelling the catering authorization',voidAuthorization)}>Cancel catering authorization</button>)}</details>}
       </section>
+      {remaining>=0&&<Suspense fallback={<section className="card schedule-card"><p className="quiet-note">Loading the schedule…</p></section>}><PaymentSchedule plan={p} orders={orders} refreshKey={flow!.events.length}/></Suspense>}
       {timeline()}
       <div className="budget-strip" aria-hidden="true"><span><strong>{money(p.totalMinor)}</strong> of {money(p.intent.budgetMinor)}</span><span>{money(paid)} paid</span></div>
     </>;
@@ -264,14 +264,17 @@ function App(){
         <option value="">New plan</option>{plans.map(p=><option key={p.id} value={p.id}>{p.intent.venue} · {money(p.totalMinor)} · {datetime(p.createdAt)}</option>)}</select>}
       <div className="app-header-actions"><ModePill config={config}/>{user.name&&<span className="account-name" title="Signed in">{user.name}</span>}
         {activeId&&<button className="button button-white header-button" aria-label="New plan" onClick={newPlan}><Plus size={16}/><span>New plan</span></button>}
+        <button className="button button-white header-button" aria-label="All payments" title="All payments" aria-pressed={view==='ledger'} onClick={()=>setView(view==='ledger'?'plans':'ledger')}><Table size={16}/><span>Payments</span></button>
         <button className="button button-white header-button" aria-label="Connect an agent" title="Connect an agent" onClick={()=>setAgentsOpen(true)}><Bot size={16}/><span>Agents</span></button>
         <button className="button button-white header-button" aria-label="Sign out" title="Sign out" disabled={!!busy} onClick={()=>void run('Signing out',signOut)}><LogOut size={16}/></button></div>
     </div></header>
-    <main className="app-main">
+    <main className={view==='ledger'?'app-main app-main-wide':'app-main'}>
       {error&&<div className="message error" role="alert"><AlertCircle size={19}/><span>{error}</span><button aria-label="Dismiss error" onClick={()=>setError('')}><X size={17}/></button></div>}
       {notice&&<div className="message notice" role="status"><Check size={18}/><span>{notice}</span><button aria-label="Dismiss notification" onClick={()=>setNotice('')}><X size={17}/></button></div>}
       {busy&&<div className="working" role="status"><LoaderCircle className="spin" size={15}/>{busy}…</div>}
-      {!activeId?describe():flow&&plan?planPage():<div className="loading"><LoaderCircle className="spin"/>Loading your plan…</div>}
+      {view==='ledger'?<><div className="page-title"><h1>All payments</h1><p>Every payment across your plans: what each merchant was paid, and every request AgentSafe held.</p></div>
+        <Suspense fallback={<div className="loading"><LoaderCircle className="spin"/>Loading your payments…</div>}><Ledger/></Suspense></>
+        :!activeId?describe():flow&&plan?planPage():<div className="loading"><LoaderCircle className="spin"/>Loading your plan…</div>}
     </main>
     <SiteFooter config={config} className="app-footer"/>
     {agentsOpen&&<AgentAccess plans={plans} onClose={()=>setAgentsOpen(false)}/>}

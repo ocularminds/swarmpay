@@ -38,6 +38,7 @@ class WorkflowController {
     @GetMapping("/api/plans/{id}/commands") List<Map<String,Object>> commands(@PathVariable UUID id,Principal user) { return flows.commands(id,user.getName()); }
     @PostMapping("/api/commands/{id}/reconcile") GateResult reconcile(@PathVariable UUID id,Principal user) { return flows.reconcile(id,user.getName()); }
     @PostMapping("/api/commands/{id}/retry") GateResult retry(@PathVariable UUID id,Principal user) { return flows.retry(id,user.getName()); }
+    @GetMapping("/api/ledger") List<LedgerEntry> ledger(@RequestParam(required=false) UUID workflowId,Principal user) { return flows.ledger(user.getName(),workflowId); }
     @GetMapping("/api/plans/{id}/evidence") Map<String,Object> evidence(@PathVariable UUID id,Principal user) { return flows.evidence(id,user.getName()); }
 }
 @RestControllerAdvice

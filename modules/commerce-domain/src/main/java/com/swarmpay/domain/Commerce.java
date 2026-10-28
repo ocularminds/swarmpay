@@ -49,6 +49,10 @@ public final class Commerce {
                            List<AgentRequest> agentRequests) {}
     /** An agent's payment request that the authority decided without queuing a payment. */
     public record AgentRequest(PaymentCommand command, GateResult result, Instant at) {}
+    /** One row of an organizer's payment ledger: a payment command, or an agent's request the authority decided. {@code requestedBy} is ORGANIZER, AGENT or SWARMPAY. */
+    public record LedgerEntry(UUID id, Instant at, Instant settledAt, UUID workflowId, String venue, Instant eventAt, String merchantName, Category category,
+                              Operation operation, String requestedBy, long amountMinor, String state, String execution, String message,
+                              String dossierId, String providerOrderId, String authorizationId, String captureId) {}
     public record PaymentCommand(UUID id, UUID workflowId, int planVersion, UUID orderId, Operation operation,
                                  String merchantId, long amountMinor, String currency,
                                  String providerResourceId, String evidenceDigest, String reservationId, String policyVersion) {

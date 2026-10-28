@@ -194,6 +194,38 @@ public final class CommerceRepository {
             return null;
         });
     }
+    /** Every payment command and agent request across the organizer's plans, newest first. */
+    public List<LedgerEntry> ledger(String owner) {
+        var entries = new ArrayList<LedgerEntry>();
+        db.query("""
+            SELECT c.id,c.created_at,c.state,c.command_json,c.result_json,p.plan_json,c.updated_at FROM commerce.commands c
+            JOIN commerce.plans p ON p.id=c.workflow_id WHERE p.owner_id=? ORDER BY c.created_at DESC LIMIT 500
+            """, (org.springframework.jdbc.core.RowCallbackHandler) r -> {
+            var command = DbJson.read(r.getString(4), PaymentCommand.class);
+            var result = r.getString(5) == null ? null : DbJson.read(r.getString(5), GateResult.class);
+            // The catering capture after a verified receipt is SwarmPay's; every other command follows the organizer's action.
+            entries.add(entry(r.getObject(1, UUID.class), r.getTimestamp(2).toInstant(), r.getTimestamp(7).toInstant(), DbJson.read(r.getString(6), Plan.class), command,
+                command.operation() == Operation.CAPTURE_AUTHORIZATION ? "SWARMPAY" : "ORGANIZER", r.getString(3), result));
+        }, owner);
+        db.query("""
+            SELECT a.id,a.created_at,a.command_json,a.result_json,p.plan_json FROM commerce.agent_requests a
+            JOIN commerce.plans p ON p.id=a.workflow_id WHERE p.owner_id=? ORDER BY a.created_at DESC LIMIT 500
+            """, (org.springframework.jdbc.core.RowCallbackHandler) r -> {
+            var result = DbJson.read(r.getString(4), GateResult.class);
+            entries.add(entry(r.getObject(1, UUID.class), r.getTimestamp(2).toInstant(), r.getTimestamp(2).toInstant(), DbJson.read(r.getString(5), Plan.class),
+                DbJson.read(r.getString(3), PaymentCommand.class), "AGENT", result.state(), result));
+        }, owner);
+        entries.sort(Comparator.comparing(LedgerEntry::at).reversed());
+        return entries;
+    }
+    private static LedgerEntry entry(UUID id, Instant at, Instant settledAt, Plan plan, PaymentCommand command, String requestedBy, String state, GateResult result) {
+        var line = plan.lines().stream().filter(l -> l.id().equals(command.orderId())).findFirst().orElseThrow();
+        var provider = result == null ? null : result.result();
+        return new LedgerEntry(id, at, settledAt, plan.id(), plan.intent().venue(), plan.intent().eventAt(), line.merchantName(), line.category(),
+            command.operation(), requestedBy, command.amountMinor(), state, result == null ? null : result.execution(),
+            result == null ? null : result.message(), result == null ? null : result.dossierId(),
+            provider == null ? null : provider.providerOrderId(), provider == null ? null : provider.authorizationId(), provider == null ? null : provider.captureId());
+    }
     public List<AgentRequest> agentRequests(UUID workflowId) {
         return db.query("SELECT command_json,result_json,created_at FROM commerce.agent_requests WHERE workflow_id=? ORDER BY created_at", (r,n) ->
             new AgentRequest(DbJson.read(r.getString(1), PaymentCommand.class), DbJson.read(r.getString(2), GateResult.class), r.getTimestamp(3).toInstant()), workflowId);

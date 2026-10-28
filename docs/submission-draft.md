@@ -7,7 +7,7 @@ _Maintainer note, not for pasting: paste everything below the line into Devpost 
 **Give agents a budget. Pay merchants only on agreed terms.**
 
 - **Video:** [TODO: public YouTube URL, under three minutes]
-- **Live demo:** https://swarm.decionis.com (organizer sign-in; see the testing instructions)
+- **Live demo:** https://swarm.decionis.com (organizer sign-in; PayPal sandbox payments with test money; see the testing instructions)
 - **Code:** [TODO: public repository URL], Apache-2.0
 
 ## Inspiration
@@ -34,7 +34,17 @@ A Java 21 / Spring Boot monorepo with a React UI. The commerce app plans and rec
 - Webhook signature verification for each seller.
 - PayPal Java Server SDK 2.4.0 for all server calls, with bounded timeouts and retries disabled.
 
-**Sandbox evidence:** [TODO: sandbox order, authorization and capture IDs plus screenshots once the end-to-end sandbox run is verified. Until then, say plainly that the hosted demo uses simulated, clearly labeled payments.]
+**Sandbox evidence.** Verified on the live demo on October 28, 2026, with real PayPal sandbox calls and test money:
+
+- Tents: order `23N55770SK1159819`, $500 captured at checkout (capture `9JJ483087H808781G`).
+- Catering: order `7F931246DX155571M`, $900 authorized (`76F230656E5431143`) and captured only after the venue's signed delivery receipt (capture `8LX13782L6474070M`).
+- Before delivery, the agent asked to pay catering early; AgentSafe held the request and no payment was sent.
+- Replaying the same receipt created no second payment: one capture per seller, $1,400 in total.
+- Six PayPal webhook notifications passed signature verification.
+
+In this run AgentSafe decided payments with a local test authority, and the catalog and venue are simulated.
+
+[TODO: attach the completed-plan and PayPal sandbox screenshots.]
 
 ## Challenges
 
@@ -45,7 +55,7 @@ A Java 21 / Spring Boot monorepo with a React UI. The commerce app plans and rec
 
 ## What's next
 
-- Complete the account-backed PayPal sandbox run and hosted Decionis enforcement, including held-payment approval and resume.
+- Hosted Decionis enforcement in place of the local test authority, including approval and resume of held payments.
 - Real venue integrations and a dispute process, plus refunds and budget reallocation after cancellation.
 - Scoped multi-user MCP credentials, more merchants and multi-milestone contracts.
 
@@ -54,7 +64,8 @@ A Java 21 / Spring Boot monorepo with a React UI. The commerce app plans and rec
 [TODO: supply privately in Devpost's testing-instructions field; never commit these:
 
 - Organizer login for https://swarm.decionis.com
-- PayPal sandbox buyer login, once the sandbox runtime is live
-- The delivery step on the hosted demo is the **Confirm delivery as the venue** button, once the venue deployment is live there
+- PayPal sandbox buyer login, for approving both merchants' payments in PayPal
+- Keep the event about an hour ahead: the venue can confirm delivery from two hours before the event
+- The delivery step is the **Confirm delivery as the venue** button
 
 Anyone can run the full simulated journey locally with three commands; see the repository README.]

@@ -155,6 +155,13 @@ kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --
 
 `swarm-pay-identity-secrets` goes to the sign-in service alone; `swarm-pay-login-client` gives the application only the public client ID and its token for the service. Both are optional references, so a release that adds `swarm-pay-identity` rolls out with PayPal sign-in off until they exist; restart `swarm-pay-identity` and `swarm-pay-commerce-app` after applying them. The account table arrives through the application's ordinary Flyway migration.
 
+**Add tents to buy with Channel3.** Put `CHANNEL3_API_KEY` in the private source file, prepare its secret beside the bootstrap and apply it; the application references `swarm-pay-catalog-settings` as an optional secret, so restart `swarm-pay-commerce-app` afterwards. The egress proxy already admits `api.trychannel3.com`.
+
+```sh
+node infra/azure/prepare-secrets.mjs --catalog-secret .env.sandbox .local/azure/bootstrap-sandbox
+kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay -f .local/azure/bootstrap-sandbox/catalog-secret.json
+```
+
 **The agent's only route out**
 
 The commerce application (the agents) reaches nothing outside the cluster directly: its NetworkPolicy admits DNS, PostgreSQL, its gateway, the `swarm-pay-egress` proxy on 3128 and the PayPal sign-in service `swarm-pay-identity` on 8085, and nothing else, PayPal included. `swarm-pay-identity` admits the application alone, holds the only PayPal login secret and reaches PayPal's identity API over HTTPS; it answers with who signed in, never a token. The JVM sends HTTPS through the proxy (`JAVA_TOOL_OPTIONS`); `java.net.http` and the OpenAI client both honour it. The proxy admits the Azure OpenAI host from `swarm-pay-egress-settings` and, on the hosted gateway, `swarm.decionisedge.com`; it refuses every other host, PayPal by name. A deployment prepared before this change lacks that secret; create it from the endpoint without printing anything:

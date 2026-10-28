@@ -24,6 +24,7 @@ Successful JSON endpoints normally return 200. `id` is a workflow UUID, `order` 
 | --- | --- |
 | `GET /api/catalog` | Curated `Offer[]` with integer `unitMinor`, capacity and source labels |
 | `POST /api/intent` | `{request, timezone}` → editable suggestions, nullable unknown fields, clarifications and actual AI source |
+| (intent) | `tentMode` is `RENT`, or `BUY` where `GET /api/config` reports `tentPurchases`. Tents to buy come from a fresh Channel3 search and are always chosen by the Sourcing Agent; their plan line carries a `source` naming the product and store |
 | `GET /api/plans` | Up to 30 of the organizer's newest plans |
 | `POST /api/plans` | `{intent, tentOfferId, cateringOfferId}` → immutable draft `Plan` |
 | `GET /api/plans/{id}` | `Workflow`: plan, merchant orders, events, committed/captured cents, payment mode, receipt and freeze flags |

@@ -1,5 +1,6 @@
 package com.swarmpay.app;
 
+import com.swarmpay.domain.Commerce.Catalog;
 import com.swarmpay.domain.CommerceException;
 import com.swarmpay.agents.AstraSettings;
 import com.swarmpay.integrations.RuntimeSettings;
@@ -20,8 +21,9 @@ class SessionController {
     private final AstraSettings ai;
     private final WebAccessPolicy access;
     private final PayPalSignIn paypal;
-    SessionController(String runtimeMode,AstraSettings ai,WebAccessPolicy access,PayPalSignIn paypal) {
-        mode=runtimeMode;this.ai=ai;this.access=access;this.paypal=paypal;
+    private final Catalog catalog;
+    SessionController(String runtimeMode,AstraSettings ai,WebAccessPolicy access,PayPalSignIn paypal,Catalog catalog) {
+        mode=runtimeMode;this.ai=ai;this.access=access;this.paypal=paypal;this.catalog=catalog;
         authority=authority(RuntimeSettings.value("AGENTSAFE_URL",null),RuntimeSettings.authority(mode));
     }
     @GetMapping("/api/session") Map<String,Object> session(Authentication auth,CsrfToken csrf,HttpServletRequest request) {
@@ -47,10 +49,11 @@ class SessionController {
         return authority.equals("local")?"AgentSafe · local test authority":"AgentSafe · Decionis";
     }
     @GetMapping("/api/config") Map<String,Object> config() {
-        return Map.of("mode",mode,"demoSessionEnabled",access.demoSessionEnabled(mode),"paypalSignIn",paypal.enabled(),"aiProvider",ai.provider(),"model",ai.source(),
-            "authority",authority,
-            "catalogSource","Curated demo catalog","receiptIssuer",RuntimeSettings.required("VENUE_ISSUER"),
-            "clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID","")),
-            "policyVersion",RuntimeSettings.required("DECIONIS_POLICY_VERSION"));
+        return Map.ofEntries(Map.entry("mode",mode),Map.entry("demoSessionEnabled",access.demoSessionEnabled(mode)),Map.entry("paypalSignIn",paypal.enabled()),
+            Map.entry("aiProvider",ai.provider()),Map.entry("model",ai.source()),Map.entry("authority",authority),
+            Map.entry("catalogSource",catalog.sellsTents()?"Curated demo catalog and Channel3 product data":"Curated demo catalog"),
+            Map.entry("tentPurchases",catalog.sellsTents()),Map.entry("receiptIssuer",RuntimeSettings.required("VENUE_ISSUER")),
+            Map.entry("clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID",""))),
+            Map.entry("policyVersion",RuntimeSettings.required("DECIONIS_POLICY_VERSION")));
     }
 }

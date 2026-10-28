@@ -39,6 +39,7 @@ Azure OpenAI `gpt-6-astra` through the Responses API ([`modules/agent-workflows`
 - **Intent extraction** turns free text into typed, editable fields (guests, tents, budget in cents, venue, weather, date) and clarifying questions.
 - **Sourcing** chooses one tent and one catering offer through a schema that admits only the catalog's offer IDs; Java checks capacity, dates and budget before a plan exists.
 - **Risk & milestone** review checks the chosen offers against the confirmed event.
+- **Tents to buy** come from [Channel3](https://channel3.ai)'s product data when `CHANNEL3_API_KEY` is set: the server searches in-stock tents that leave room in the budget for catering, and the Sourcing Agent may choose only among those, at Channel3's prices. The plan names the product and where it's listed; the PayPal sandbox tents merchant fills the order and is the seller paid. Without a key, tents are rental-only.
 
 Every call uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents get no payment tools; catalog prices set the amounts, and the organizer approves every value. An agent can ask for the catering payment through the MCP `request_milestone_payment` tool, but that request goes through AgentSafe, which holds it until a verified delivery receipt exists.
 
@@ -117,6 +118,7 @@ Stop with `docker compose down`; the database, authority journal and key volumes
 | `infra/venue` | The simulated venue: the only holder of the venue signing key; signs a receipt for the signed-in organizer's recorded order |
 | `infra/identity` | PayPal sign-in: the only holder of SwarmPay's Log in with PayPal secret; returns who signed in, never a token |
 | `postman` | The agent's view: a Postman collection that plays an agent over MCP, plus local and live environments |
+| `contracts/apimatic` | The OpenAPI 3.1 document APIMatic builds a TypeScript SDK and API docs portal from (`node demo/apimatic.mjs`) |
 | `contracts`, `docs`, `demo` | Wire contracts, operating limits, setup and repeatable validation |
 
 Java 21, Spring Boot 4.1.2, Spring AI 2.0.2, Gradle 8.14.3, PayPal Java Server SDK 2.4.0, and OpenAI Java 4.91.0 are pinned. The model is fixed to `gpt-6-astra`; there is no model fallback. AgentSafe 0.2.5 and its pipeline 0.3.8 are locked. A reviewed Presence dependency override is explained in [security and reliability](docs/security-and-reliability.md).

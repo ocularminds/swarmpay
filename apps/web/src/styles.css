@@ -170,3 +170,5 @@
 .schedule-frame .b-grid-cell strong{display:block;font-size:14px;color:var(--ink)}.schedule-frame .b-grid-cell small{display:block;font-size:12px;color:var(--muted)}
 .schedule-frame .delivery-window{background:rgba(70,161,133,.12)}
 @media(max-width:740px){.ledger-grid{height:480px}.ledger-tools .button{width:100%}}
+.line-source{font-size:13px;line-height:1.5;color:var(--muted);margin-top:4px}.line-source a{color:var(--green);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.buy-note{margin-top:10px;color:#2c6b56}

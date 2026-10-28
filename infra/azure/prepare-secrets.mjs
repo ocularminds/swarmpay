@@ -26,6 +26,15 @@ function identitySecret(configured) {
 const privateSource=file=>{if((statSync(file).mode&0o077)!==0)throw new Error('The source environment file must be private to its owner.');return parseEnv(readFileSync(file,'utf8'));};
 
 const [first,second,option]=process.argv.slice(2);
+if(first==='--catalog-secret') {
+  // Channel3's key for tents to buy: the application alone receives it, beside its other credentials.
+  if(!second||!option)throw new Error('Usage: node infra/azure/prepare-secrets.mjs --catalog-secret private-source.env existing-private-directory');
+  const key=privateSource(second).CHANNEL3_API_KEY?.trim();
+  if(!key)throw new Error('The source has no CHANNEL3_API_KEY.');
+  writeFileSync(resolve(option,'catalog-secret.json'),secretList([secretItem('catalog-settings',{CHANNEL3_API_KEY:key})]),{mode:0o600,flag:'wx'});
+  console.log('Prepared the Channel3 catalog secret. No cloud resource was changed.');
+  process.exit(0);
+}
 if(first==='--identity-secret') {
   // An existing bootstrap: add PayPal sign-in without touching any other credential.
   if(!second||!option)throw new Error('Usage: node infra/azure/prepare-secrets.mjs --identity-secret private-source.env existing-private-directory');

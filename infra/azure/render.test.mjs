@@ -73,9 +73,14 @@ test('shared-namespace manifests own only prefixed resources and resolve every s
   }
   for(const pvc of items.filter(i=>i.kind==='PersistentVolumeClaim'))assert.equal(pvc.spec.storageClassName,'decionis-zrs');
   const nginx=items.find(i=>i.kind==='ConfigMap'&&i.metadata.name==='swarm-pay-nginx-template').data['default.conf.template'];
-  assert.ok(nginx.includes('server swarm-pay-commerce-app.decionis.svc.cluster.local:8080 resolve;'));
-  assert.ok(nginx.includes('server swarm-pay-payment-executor.decionis.svc.cluster.local:8081 resolve;'));
-  assert.ok(nginx.includes('server swarm-pay-venue.decionis.svc.cluster.local:8084 resolve;'));
+  // The template names its upstreams by variable; the web deployment gives them this cluster's service names.
+  for(const name of ['COMMERCE','EXECUTOR','VENUE'])assert.ok(nginx.includes(`server \${SWARM_${name}_UPSTREAM} resolve;`),name);
+  const web=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-web').spec.template.spec.containers[0].env;
+  const upstream=name=>web.find(e=>e.name===`SWARM_${name}_UPSTREAM`)?.value;
+  assert.equal(upstream('COMMERCE'),'swarm-pay-commerce-app.decionis.svc.cluster.local:8080');
+  assert.equal(upstream('EXECUTOR'),'swarm-pay-payment-executor.decionis.svc.cluster.local:8081');
+  assert.equal(upstream('VENUE'),'swarm-pay-venue.decionis.svc.cluster.local:8084');
+  for(const [name,value] of Object.entries({COMMERCE:'commerce-app',EXECUTOR:'payment-executor',VENUE:'venue'}))assert.ok(exists('Service',`swarm-pay-${value}`),name);
   assert.ok(nginx.includes('location /internal/ { return 404; }'));
 });
 

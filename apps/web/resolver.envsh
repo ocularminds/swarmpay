@@ -1,0 +1,6 @@
+# Sourced by the nginx entrypoint before it renders the templates.
+if [ "$SWARM_NGINX_RESOLVER" = auto ]; then
+  SWARM_NGINX_RESOLVER=$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf)
+  case "$SWARM_NGINX_RESOLVER" in *:*) SWARM_NGINX_RESOLVER="[$SWARM_NGINX_RESOLVER]" ;; esac
+  export SWARM_NGINX_RESOLVER
+fi

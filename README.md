@@ -11,6 +11,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 | **Video** | _TODO: YouTube link_ |
 | **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Payments run in the PayPal sandbox with test money; the catalog and venue are simulated. The organizer and PayPal sandbox buyer logins are in the Devpost private testing instructions. |
 | **Run locally** | [Three commands](#run-it-locally), no accounts needed |
+| **Your own copy** | [Deploy to Render](docs/render.md) with simulated payments, from [`render.yaml`](render.yaml) |
 
 ## PayPal capabilities
 

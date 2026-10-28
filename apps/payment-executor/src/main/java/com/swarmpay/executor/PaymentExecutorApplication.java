@@ -21,7 +21,7 @@ public class PaymentExecutorApplication {
         return args -> RuntimeBinding.verify(db,"payments",runtimeMode);
     }
     @Bean ReceiptVerifier receiptVerifier(Clock clock) throws Exception {
-        return new ReceiptVerifier(ReceiptVerifier.publicKey(Files.readString(Path.of(RuntimeSettings.required("VENUE_PUBLIC_KEY_FILE")))),
+        return new ReceiptVerifier(ReceiptVerifier.publicKey(RuntimeSettings.venuePublicKey()),
             RuntimeSettings.required("VENUE_ISSUER"),clock);
     }
     @Bean PaymentProvider paymentProvider(PaymentRepository db,String runtimeMode) {

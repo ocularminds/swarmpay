@@ -87,7 +87,8 @@ export function venueServer({ issuer, key, commerce, log = line => console.log(J
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const issuer = process.env.VENUE_ISSUER;
   if (!issuer) throw new Error('VENUE_ISSUER is required');
-  const server = venueServer({ issuer, key: venueKey(process.env.VENUE_PRIVATE_KEY), commerce: process.env.COMMERCE_URL ?? 'http://commerce-app:8080' });
+  const commerce = process.env.COMMERCE_URL ?? (process.env.COMMERCE_HOSTPORT ? `http://${process.env.COMMERCE_HOSTPORT}` : 'http://commerce-app:8080');
+  const server = venueServer({ issuer, key: venueKey(process.env.VENUE_PRIVATE_KEY), commerce });
   server.listen(PORT, '0.0.0.0', () => console.log(JSON.stringify({ event: 'VENUE_READY', issuer, simulated: true })));
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => process.exit(0)));
 }

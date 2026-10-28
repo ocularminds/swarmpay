@@ -69,9 +69,7 @@ export function render(target,images,venuePublicKey) {
   items.push(object('v1','ConfigMap','runtime',{data:configEnv}));
   items.push(object('v1','ConfigMap','venue-public-key',{data:{'venue-public.pem':venuePublicKey}}));
   items.push(object('v1','ConfigMap','postgres-bootstrap',{data:{'01-roles.sql':readFileSync(new URL('../postgres/01-roles.sql',import.meta.url),'utf8')}}));
-  const nginxTemplate=readFileSync(new URL('../../apps/web/nginx.conf',import.meta.url),'utf8')
-    .replaceAll('commerce-app:8080',`${host('commerce-app')}:8080`).replaceAll('payment-executor:8081',`${host('payment-executor')}:8081`)
-    .replaceAll('venue:8084',`${host('venue')}:8084`);
+  const nginxTemplate=readFileSync(new URL('../../apps/web/nginx.conf',import.meta.url),'utf8');
   items.push(object('v1','ConfigMap','nginx-template',{data:{'default.conf.template':nginxTemplate}}));
   items.push(object('v1','ServiceAccount','runtime',{automountServiceAccountToken:false}));
   for(const [volume,size] of [[dataVolume,'8Gi'],...(hosted?[]:[[evidenceVolume,'4Gi']])])
@@ -125,6 +123,7 @@ export function render(target,images,venuePublicKey) {
   // The web policy admits only the ingress controller, which sets X-Forwarded-For from its own
   // client connection, so per-client login and planning limits can trust any peer here.
   deployment('web',images.web,101,{SWARM_NGINX_RESOLVER:target.dnsResolver,SWARM_TRUSTED_PROXY:'0.0.0.0/0',
+    SWARM_COMMERCE_UPSTREAM:`${host('commerce-app')}:8080`,SWARM_EXECUTOR_UPSTREAM:`${host('payment-executor')}:8081`,SWARM_VENUE_UPSTREAM:`${host('venue')}:8084`,
     NGINX_ENVSUBST_FILTER:'^SWARM_'},null,
     [temporary('nginx-cache'),temporary('nginx-run'),temporary('nginx-config'),{name:'nginx-template',configMap:{name:resourceName('nginx-template'),defaultMode:0o444}}],
     [{name:'nginx-cache',mountPath:'/var/cache/nginx'},{name:'nginx-run',mountPath:'/var/run'},{name:'nginx-config',mountPath:'/etc/nginx/conf.d'},{name:'nginx-template',mountPath:'/etc/nginx/templates',readOnly:true}],

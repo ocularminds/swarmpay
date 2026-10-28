@@ -36,7 +36,7 @@ jobs:
       - name: Java invariants and PostgreSQL recovery tests
         run: ./gradlew verify --no-daemon --console=plain
       - name: Verify preflight, deployment configuration and release packaging without external services
-        run: node --test contracts/openapi.test.mjs demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/venue/venue.test.mjs infra/identity/identity.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
+        run: node --test contracts/openapi.test.mjs infra/render/blueprint.test.mjs demo/check-paypal.test.mjs infra/egress/proxy.test.mjs infra/venue/venue.test.mjs infra/identity/identity.test.mjs infra/azure/render.test.mjs infra/azure/prepare-secrets.test.mjs infra/azure/release.test.mjs
       - name: Build the web application
         run: |
           npm --prefix apps/web ci
@@ -60,6 +60,7 @@ jobs:
           node demo/check-isolation.mjs
           SWARM_WEBHOOK_PUBLIC_URL=http://127.0.0.1:5173 node demo/check-webhook-ingress.mjs
           node demo/check-restart.mjs
+          node demo/render/check.mjs
           docker compose exec -T agentsafe node node_modules/@decionis/agentsafe/dist/Cli.js verify chain /var/lib/agentsafe/evidence/evidence.jsonl
       - name: Install the test browser
         working-directory: apps/web

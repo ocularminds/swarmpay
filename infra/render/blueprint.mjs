@@ -3,8 +3,8 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
 // SwarmPay's one-click Render copy: the whole stack with simulated payments, the
-// local test authority and simulated agents. Render's private hostnames carry a
-// suffix, so every service finds its peers by host:port from the Blueprint.
+// local test authority and simulated agents. Every service finds its peers by
+// the private host:port Render supplies through the Blueprint.
 // Render can't enforce SwarmPay's network policies, so this copy never holds
 // PayPal credentials; the hosted demo and AKS keep the enforced isolation.
 const value = (key, v) => ({ key, value: String(v) });
@@ -35,7 +35,8 @@ export const blueprint = {
         prompted('VENUE_PUBLIC_KEY')] },
     { type: 'pserv', name: 'swarm-pay-agentsafe', ...docker('./infra/agentsafe/Dockerfile', './infra/agentsafe'), plan: 'starter',
       disk: { name: 'evidence', mountPath: '/var/lib/agentsafe/evidence', sizeGB: 1 },
-      envVars: [value('PORT', 8082), ...policy, hostport('AGENTSAFE_UPSTREAM_HOSTPORT', 'swarm-pay-executor')] },
+      // PORT alone overrides the gateway's file listener with localhost.
+      envVars: [value('PORT', 8082), value('AGENTSAFE_LISTEN', '0.0.0.0:8082'), ...policy, hostport('AGENTSAFE_UPSTREAM_HOSTPORT', 'swarm-pay-executor')] },
     { type: 'pserv', name: 'swarm-pay-venue', ...docker('./infra/venue/Dockerfile', './infra/venue'), plan: 'starter',
       envVars: [value('PORT', 8084), value('VENUE_ISSUER', 'demo-venue-fixture'), prompted('VENUE_PRIVATE_KEY'), hostport('COMMERCE_HOSTPORT', 'swarm-pay-commerce')] },
     { type: 'pserv', name: 'swarm-pay-egress', ...docker('./infra/egress/Dockerfile', './infra/egress'), plan: 'starter',

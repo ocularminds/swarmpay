@@ -52,7 +52,7 @@ class WebSecurity {
     }
     @Bean @Order(2) SecurityFilterChain human(HttpSecurity http) throws Exception {
         return http.csrf(c -> c.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()).ignoringRequestMatchers("/api/venue/receipts"))
-            .authorizeHttpRequests(a -> a.requestMatchers("/api/config","/api/session","/api/login","/api/demo-session","/api/venue/receipts","/actuator/health","/error").permitAll()
+            .authorizeHttpRequests(a -> a.requestMatchers("/api/config","/api/session","/api/login","/api/demo-session","/api/paypal/start","/api/paypal/return","/api/venue/receipts","/actuator/health","/error").permitAll()
                 .requestMatchers("/api/**").hasRole("HUMAN").anyRequest().denyAll())
             .formLogin(f -> f.loginProcessingUrl("/api/login").successHandler((q,s,a)->s.setStatus(204)).failureHandler((q,s,e)->s.sendError(401)))
             .logout(l -> l.logoutUrl("/api/logout").logoutSuccessHandler((q,s,a)->s.setStatus(204)))

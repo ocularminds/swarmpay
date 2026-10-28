@@ -19,13 +19,17 @@ class SessionController {
     private final String authority;
     private final AstraSettings ai;
     private final WebAccessPolicy access;
-    SessionController(String runtimeMode,AstraSettings ai,WebAccessPolicy access) {
-        mode=runtimeMode;this.ai=ai;this.access=access;
+    private final PayPalSignIn paypal;
+    SessionController(String runtimeMode,AstraSettings ai,WebAccessPolicy access,PayPalSignIn paypal) {
+        mode=runtimeMode;this.ai=ai;this.access=access;this.paypal=paypal;
         authority=authority(RuntimeSettings.value("AGENTSAFE_URL",null),RuntimeSettings.authority(mode));
     }
-    @GetMapping("/api/session") Map<String,Object> session(Authentication auth,CsrfToken csrf) {
+    @GetMapping("/api/session") Map<String,Object> session(Authentication auth,CsrfToken csrf,HttpServletRequest request) {
         boolean signed=auth!=null && auth.isAuthenticated() && auth.getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_HUMAN"));
-        return Map.of("authenticated",signed,"username",signed?auth.getName():"","csrfToken",csrf.getToken(),"csrfHeader",csrf.getHeaderName());
+        // A PayPal organizer is shown by their PayPal name; the password organizer by its username.
+        var session=request.getSession(false);
+        var named=signed&&session!=null&&session.getAttribute(PayPalSignIn.DISPLAY_NAME) instanceof String name?name:signed?auth.getName():"";
+        return Map.of("authenticated",signed,"username",signed?auth.getName():"","name",named,"csrfToken",csrf.getToken(),"csrfHeader",csrf.getHeaderName());
     }
     @PostMapping("/api/demo-session") Map<String,String> demo(HttpServletRequest request,HttpServletResponse response) {
         if(!access.demoSessionEnabled(mode)) throw new CommerceException("DEMO_DISABLED","Sign in with your organizer account",404);
@@ -43,7 +47,7 @@ class SessionController {
         return authority.equals("local")?"AgentSafe · local test authority":"AgentSafe · Decionis";
     }
     @GetMapping("/api/config") Map<String,Object> config() {
-        return Map.of("mode",mode,"demoSessionEnabled",access.demoSessionEnabled(mode),"aiProvider",ai.provider(),"model",ai.source(),
+        return Map.of("mode",mode,"demoSessionEnabled",access.demoSessionEnabled(mode),"paypalSignIn",paypal.enabled(),"aiProvider",ai.provider(),"model",ai.source(),
             "authority",authority,
             "catalogSource","Curated demo catalog","receiptIssuer",RuntimeSettings.required("VENUE_ISSUER"),
             "clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID","")),

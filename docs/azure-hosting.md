@@ -21,7 +21,7 @@ The initial hosted bundle used **Azure AI with simulated payments and a local te
 | [`infra/azure/release.mjs`](../infra/azure/release.mjs) | Committed source package, CI check, Azure registry build and verified image digests |
 | [`infra/azure/render.mjs`](../infra/azure/render.mjs) | Separate SwarmPay network-policy, private-workload and ingress manifests; immutable ACR image digests required |
 | [`demo/hosted/run.mjs`](../demo/hosted/run.mjs) | Isolated HTTPS rehearsal, also run by CI |
-| [`demo/check-deployed.mjs`](../demo/check-deployed.mjs) | Explicit public acceptance run with real Azure AI, simulated payments and normal TLS verification. It refuses a sandbox deployment by design; the live sandbox site was verified by the separately recorded run |
+| [`demo/check-deployed.mjs`](../demo/check-deployed.mjs) | Explicit public acceptance run with real Azure AI and normal TLS verification. With simulated payments it runs the whole journey; with `SWARM_EXPECTED_PAYMENTS=sandbox` it stops at the prepared plan and opens no PayPal checkout. The full live sandbox journey was verified by the separately recorded run |
 
 The manifests use a single replica of each service, ClusterIP services, non-root users, read-only image filesystems, dropped Linux capabilities, RuntimeDefault seccomp and no mounted Kubernetes API credentials. PostgreSQL and the AgentSafe journal have separate `decionis-zrs` volumes. Every resource is prefixed `swarm-pay-`. Even the default-deny policy selects only `app.kubernetes.io/part-of=swarm-pay`; component peers require that label as well. Existing Decionis workloads are outside these selectors. Sharing a namespace does not isolate SwarmPay from an administrator who can modify its resources.
 
@@ -137,11 +137,27 @@ For a full public acceptance run, install the web dependencies and a Playwright 
 SWARM_TEST_BROWSER=chrome node demo/check-deployed.mjs https://swarm.decionis.com .local/azure/bootstrap-decionis .local/azure/acceptance
 ```
 
-Choose a new ignored report directory for each run. The script refuses any other host, disabled TLS verification, non-demo payments, a different authority/fixture issuer, exposed PayPal client IDs or one-click organizer access. It makes two real Azure model calls and creates one simulated workflow, checking separate merchant checkouts, photo-only hold, signed fixture capture, evidence export, secure sessions and mobile sign-out. Reports, screenshots and evidence stay private; it does not record a browser trace or print credentials. Ordinary CI continues to use only isolated fixtures. `SWARM_CHECK_LOGIN_LIMIT=1` additionally sends eight invalid sign-ins and requires HTTP 429; the proxy sees the ingress peer, so this optional check can briefly throttle other users' sign-ins too.
+Choose a new ignored report directory for each run. The script refuses any other host, disabled TLS verification, payments other than the expected mode, a different authority/fixture issuer, exposed PayPal client IDs on a simulated-payments site or one-click organizer access. It describes the event on the landing, signs in through the dialog and requires Azure to read that description, then prepares the plan with two more Azure calls. With simulated payments it continues through separate merchant checkouts, photo-only hold, signed fixture capture and evidence export. When PayPal sign-in is offered it also checks that **Continue with PayPal** starts at PayPal's sandbox for SwarmPay's own app with this site's return URL and a Lax, HttpOnly, Secure state cookie, and that a return without that state signs no one in. Every run checks secure sessions and mobile sign-out. For the sandbox site:
+
+```sh
+SWARM_EXPECTED_PAYMENTS=sandbox SWARM_TEST_BROWSER=chrome node demo/check-deployed.mjs https://swarm.decionis.com .local/azure/bootstrap-sandbox .local/azure/acceptance-sandbox-<date>
+```
+
+ Reports, screenshots and evidence stay private; it does not record a browser trace or print credentials. Ordinary CI continues to use only isolated fixtures. `SWARM_CHECK_LOGIN_LIMIT=1` additionally sends eight invalid sign-ins and requires HTTP 429; the proxy sees the ingress peer, so this optional check can briefly throttle other users' sign-ins too.
+
+**Add sign-up with PayPal to the running deployment.** After the SwarmPay sandbox app is configured ([sandbox setup](sandbox-setup.md)) and its two values are in the private source file, prepare the sign-in secrets beside the existing bootstrap. No other credential changes:
+
+```sh
+node infra/azure/prepare-secrets.mjs --identity-secret .env.sandbox .local/azure/bootstrap-sandbox
+kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay --dry-run=server -f .local/azure/bootstrap-sandbox/identity-secret.json
+kubectl --kubeconfig .local/azure/kubeconfig-decionis-login -n decionis apply --server-side --field-manager=swarm-pay -f .local/azure/bootstrap-sandbox/identity-secret.json
+```
+
+`swarm-pay-identity-secrets` goes to the sign-in service alone; `swarm-pay-login-client` gives the application only the public client ID and its token for the service. Both are optional references, so a release that adds `swarm-pay-identity` rolls out with PayPal sign-in off until they exist; restart `swarm-pay-identity` and `swarm-pay-commerce-app` after applying them. The account table arrives through the application's ordinary Flyway migration.
 
 **The agent's only route out**
 
-The commerce application (the agents) reaches nothing outside the cluster directly: its NetworkPolicy admits DNS, PostgreSQL, its gateway and the `swarm-pay-egress` proxy on 3128, and nothing else, PayPal included. The JVM sends HTTPS through the proxy (`JAVA_TOOL_OPTIONS`); `java.net.http` and the OpenAI client both honour it. The proxy admits the Azure OpenAI host from `swarm-pay-egress-settings` and, on the hosted gateway, `swarm.decionisedge.com`; it refuses every other host, PayPal by name. A deployment prepared before this change lacks that secret; create it from the endpoint without printing anything:
+The commerce application (the agents) reaches nothing outside the cluster directly: its NetworkPolicy admits DNS, PostgreSQL, its gateway, the `swarm-pay-egress` proxy on 3128 and the PayPal sign-in service `swarm-pay-identity` on 8085, and nothing else, PayPal included. `swarm-pay-identity` admits the application alone, holds the only PayPal login secret and reaches PayPal's identity API over HTTPS; it answers with who signed in, never a token. The JVM sends HTTPS through the proxy (`JAVA_TOOL_OPTIONS`); `java.net.http` and the OpenAI client both honour it. The proxy admits the Azure OpenAI host from `swarm-pay-egress-settings` and, on the hosted gateway, `swarm.decionisedge.com`; it refuses every other host, PayPal by name. A deployment prepared before this change lacks that secret; create it from the endpoint without printing anything:
 
 ```sh
 node -e "const {parseEnv}=require('node:util');const e=parseEnv(require('node:fs').readFileSync('.env','utf8'));process.stdout.write(e.AZURE_OPENAI_ENDPOINT||e.AZURE_OPENAI_URL)" \

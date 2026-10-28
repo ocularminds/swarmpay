@@ -29,6 +29,7 @@ class CommerceRepositoryTest {
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V2__runtime_binding.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V3__monotonic_order_projection.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V4__agent_requests.sql")));
+            statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V5__organizer_accounts.sql")));
         }
     }
     Plan plan(long budget) {
@@ -138,6 +139,18 @@ class CommerceRepositoryTest {
         assertThrows(CommerceException.class,()->repository.approvedForExecution(plan.id()));
         assertEquals(plan.id(),repository.approvedForVoid(plan.id()).id());
         assertTrue(repository.frozen(plan.id()));
+    }
+    @Test void aPayPalSignInCreatesOneAccountAndRefreshesItAfter() {
+        var accounts=new OrganizerAccounts(source);
+        var userId="https://www.paypal.com/webapps/auth/identity/user/"+UUID.randomUUID();
+        var first=accounts.signInWithPayPal(userId,"Ada Organizer","ada@example.com",true);
+        assertTrue(first.created());assertEquals("paypal:"+first.id(),first.owner());
+        var again=accounts.signInWithPayPal(userId,"Ada Lovelace","ada@example.org",false);
+        assertFalse(again.created(),"a returning organizer keeps their account");
+        assertEquals(first.id(),again.id());assertEquals("Ada Lovelace",again.name());assertEquals("ada@example.org",again.email());
+        assertEquals(1,sql.queryForObject("SELECT count(*) FROM commerce.organizer_accounts WHERE provider_user_id=?",Integer.class,userId));
+        assertNotEquals(first.id(),accounts.signInWithPayPal(userId+"-other",null,null,false).id());
+        assertThrows(IllegalArgumentException.class,()->accounts.signInWithPayPal(" ",null,null,false));
     }
     PaymentCommand command(Plan plan,Line line,long amount) {return new PaymentCommand(UUID.randomUUID(),plan.id(),1,line.id(),Operation.CREATE_ORDER,"tents",amount,"USD",null,null,plan.id().toString(),"test-v1");}
 }

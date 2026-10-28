@@ -16,16 +16,21 @@ function venueKeyLine(admittedPublicPath) {
     throw new Error('The venue private key does not match the admitted venue public key. The configuration was left unchanged.');
   return `VENUE_PRIVATE_KEY=${key.export({type:'pkcs8',format:'der'}).toString('base64')}`;
 }
+const secret=()=>randomBytes(32).toString('hex');
 if(existsSync(file)) {
   const existing=readFileSync(file,'utf8');
   if(!new RegExp(`^SWARM_MODE=${mode}$`,'m').test(existing)) throw new Error('Existing configuration has a different mode. It was left unchanged.');
-  if(/^VENUE_PRIVATE_KEY=./m.test(existing)) { console.log(`Existing ${mode} configuration retained.`); process.exit(0); }
-  const admitted=existing.match(/^VENUE_PUBLIC_KEY_HOST_FILE=(.+)$/m)?.[1]?.trim()||'./.secrets/venue-public.pem';
-  appendFileSync(file,(existing.endsWith('\n')?'':'\n')+venueKeyLine(resolve(root,admitted))+'\n');
-  console.log(`Existing ${mode} configuration retained; added the simulated venue's signing key for its own container.`);
+  // Settings added since the file was created; nothing already there changes.
+  const added=[];
+  if(!/^VENUE_PRIVATE_KEY=./m.test(existing)) {
+    const admitted=existing.match(/^VENUE_PUBLIC_KEY_HOST_FILE=(.+)$/m)?.[1]?.trim()||'./.secrets/venue-public.pem';
+    added.push(['the simulated venue\'s signing key for its own container',venueKeyLine(resolve(root,admitted))]);
+  }
+  if(!/^IDENTITY_TOKEN=./m.test(existing)) added.push(['the token the app uses to ask the PayPal sign-in service',`IDENTITY_TOKEN=${secret()}`]);
+  if(added.length) appendFileSync(file,(existing.endsWith('\n')?'':'\n')+added.map(([,line])=>line).join('\n')+'\n');
+  console.log(`Existing ${mode} configuration retained${added.length?`; added ${added.map(([what])=>what).join(' and ')}`:''}.`);
   process.exit(0);
 }
-const secret=()=>randomBytes(32).toString('hex');
 mkdirSync(resolve(root,'.secrets'),{recursive:true,mode:0o700});
 if(existsSync(privatePath)!==existsSync(publicPath)) throw new Error('The existing venue fixture keypair is incomplete. It was left unchanged.');
 if(!existsSync(privatePath)) {
@@ -40,6 +45,8 @@ const config={ SWARM_MODE:mode,SWARM_AI_PROVIDER:mode==='demo'?'demo':'azure',WE
   SWARM_AUTHORITY:'local',DECIONIS_POLICY_VERSION:'swarm-pay-demo-v1',DECIONIS_TENANT_ID:'',DECIONIS_KEY_HOST_FILE:'./.secrets/decionis-api-key',
   VENUE_ISSUER:'demo-venue-fixture',VENUE_PUBLIC_KEY_HOST_FILE:'./.secrets/venue-public.pem',VENUE_PRIVATE_KEY:venueKeyLine(publicPath).slice('VENUE_PRIVATE_KEY='.length),
   AZURE_OPENAI_API_KEY:'',AZURE_OPENAI_ENDPOINT:'',AZURE_OPENAI_DEPLOYMENT:'gpt-6-astra',
+  // Sign-in with PayPal stays off until the SwarmPay app's credentials are added (docs/sandbox-setup.md).
+  IDENTITY_TOKEN:secret(),PAYPAL_LOGIN_CLIENT_ID:'',PAYPAL_LOGIN_CLIENT_SECRET:'',
   OPENAI_API_KEY:'',OPENAI_MODEL:'gpt-6-astra',PAYPAL_TENTS_CLIENT_ID:'',PAYPAL_TENTS_CLIENT_SECRET:'',PAYPAL_TENTS_MERCHANT_ID:'',PAYPAL_TENTS_WEBHOOK_ID:'',
   PAYPAL_CATERING_CLIENT_ID:'',PAYPAL_CATERING_CLIENT_SECRET:'',PAYPAL_CATERING_MERCHANT_ID:'',PAYPAL_CATERING_WEBHOOK_ID:'' };
 writeFileSync(file,Object.entries(config).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600,flag:'wx'});

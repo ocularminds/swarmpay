@@ -6,6 +6,7 @@ import com.swarmpay.domain.PlanFactory;
 import com.swarmpay.integrations.*;
 import com.swarmpay.mcp.CommerceTools;
 import com.swarmpay.persistence.CommerceRepository;
+import com.swarmpay.persistence.OrganizerAccounts;
 import com.swarmpay.persistence.RuntimeBinding;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
@@ -26,6 +27,7 @@ public class CommerceApplication {
     @Bean Catalog catalog() { return new DemoCatalog(); }
     @Bean PlanFactory planFactory(Clock clock) { return new PlanFactory(clock); }
     @Bean CommerceRepository repository(DataSource db) { return new CommerceRepository(db); }
+    @Bean OrganizerAccounts organizerAccounts(DataSource db) { return new OrganizerAccounts(db); }
     @Bean org.springframework.boot.ApplicationRunner bindMode(DataSource db,String runtimeMode) {
         return args -> RuntimeBinding.verify(db,"commerce",runtimeMode);
     }

@@ -39,6 +39,31 @@ test('invalid source credentials do not create a deployment directory or leak th
   assert.notEqual(result.status,0);assert.ok(!result.stderr.includes('endpoint-that-must-not-be-printed'));assert.equal(existsSync(output),false);
 });
 
+test('PayPal sign-in keeps its login secret in the identity service and adds to an existing bootstrap without rotating it',t=>{
+  const temporary=mkdtempSync(resolve(root,'.local/secret-preparation-test-'));t.after(()=>rmSync(temporary,{recursive:true,force:true}));
+  const source=resolve(temporary,'source.env'),output=resolve(temporary,'bootstrap');
+  const azure='AZURE_OPENAI_API_KEY=fixture-key\nAZURE_OPENAI_ENDPOINT=https://fixture.openai.azure.com/openai/v1\nAZURE_OPENAI_DEPLOYMENT=gpt-6-astra\n';
+  const decode=file=>Object.fromEntries(JSON.parse(readFileSync(resolve(output,file),'utf8')).items.map(secret=>[secret.metadata.name,Object.fromEntries(Object.entries(secret.data).map(([k,v])=>[k,Buffer.from(v,'base64').toString()]))]));
+  // Without the SwarmPay app's credentials there is nothing to sign in with, and nothing is written.
+  writeFileSync(source,azure,{mode:0o600});
+  assert.equal(spawnSync(process.execPath,['infra/azure/prepare-secrets.mjs',source,output],{cwd:root,encoding:'utf8'}).status,0);
+  assert.equal(existsSync(resolve(output,'identity-secret.json')),false);
+  const before=readFileSync(resolve(output,'secrets.json'),'utf8');
+  writeFileSync(source,`${azure}PAYPAL_LOGIN_CLIENT_ID=fixture-login-id\n`,{mode:0o600});
+  const add=()=>spawnSync(process.execPath,['infra/azure/prepare-secrets.mjs','--identity-secret',source,output],{cwd:root,encoding:'utf8'});
+  assert.notEqual(add().status,0,'a client ID without its secret is refused');
+  writeFileSync(source,`${azure}PAYPAL_LOGIN_CLIENT_ID=fixture-login-id\nPAYPAL_LOGIN_CLIENT_SECRET=fixture-login-secret\n`,{mode:0o600});
+  const result=add();assert.equal(result.status,0);assert.ok(!result.stdout.includes('fixture-login-secret'));
+  const identity=decode('identity-secret.json');
+  assert.deepEqual(Object.keys(identity),['swarm-pay-identity-secrets','swarm-pay-login-client']);
+  assert.equal(identity['swarm-pay-identity-secrets'].PAYPAL_LOGIN_CLIENT_SECRET,'fixture-login-secret');
+  assert.deepEqual(Object.keys(identity['swarm-pay-login-client']),['PAYPAL_LOGIN_CLIENT_ID','IDENTITY_TOKEN'],'the app never receives the login secret');
+  assert.equal(identity['swarm-pay-login-client'].IDENTITY_TOKEN,identity['swarm-pay-identity-secrets'].IDENTITY_TOKEN);
+  assert.equal(statSync(resolve(output,'identity-secret.json')).mode&0o077,0);
+  assert.equal(readFileSync(resolve(output,'secrets.json'),'utf8'),before,'existing credentials are untouched');
+  assert.notEqual(add().status,0,'an existing sign-in secret is never silently rotated');
+});
+
 test('the venue key reaches only its own secret, and sandbox copies PayPal settings for the executor only',t=>{
   const temporary=mkdtempSync(resolve(root,'.local/secret-preparation-test-'));t.after(()=>rmSync(temporary,{recursive:true,force:true}));
   const source=resolve(temporary,'source.env'),output=resolve(temporary,'bootstrap');

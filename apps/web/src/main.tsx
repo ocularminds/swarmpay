@@ -3,14 +3,13 @@ import {createRoot} from 'react-dom/client';
 import {AlertCircle,ArrowDownToLine,ArrowRight,CalendarDays,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
 import {api,download,login,session} from './api';
 import {PayPalCheckout} from './PayPalCheckout';
-import {Brand,Landing,ModePill,SiteFooter} from './Landing';
+import {Brand,Landing,ModePill,SiteFooter,exampleRequest,signInOutcomes,takePendingRequest} from './Landing';
 import type {Command,Config,GateResult,Intent,Offer,Order,Plan,Session,Workflow} from './types';
 import './styles.css';
 
 const money=(c:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:c%100?2:0}).format(c/100);
 const datetime=(value:string,timeZone?:string)=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone}).format(new Date(value));
 function localInput(date:Date) { return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); }
-const initialRequest="I'm hosting an outdoor tech meetup for 30 people. Rain is forecast. Find catering and 5 pop-up tents within a total budget of $1,500.";
 /** How the payment boundary answered a request, in the words the organizer sees. */
 const boundaryLabel=(state:string)=>state==='SUCCEEDED'?'Allowed':['ESCALATE','HELD'].includes(state)?'Held by AgentSafe':['BLOCK','BLOCKED'].includes(state)?'Blocked by AgentSafe':state.replaceAll('_',' ').toLowerCase();
 const operationLabels:Record<string,string>={CREATE_ORDER:'Open checkout',CAPTURE_ORDER:'Take payment',AUTHORIZE_ORDER:'Authorize payment',CAPTURE_AUTHORIZATION:'Pay after delivery',VOID_AUTHORIZATION:'Cancel authorization'};
@@ -31,16 +30,18 @@ function App(){
   const [offers,setOffers]=useState<Offer[]>([]);const [plans,setPlans]=useState<Plan[]>([]);
   const [flow,setFlow]=useState<Workflow>();const [commands,setCommands]=useState<Command[]>([]);
   const [activeId,setActiveId]=useState<string>();const activeRef=useRef(activeId);activeRef.current=activeId;
-  const [error,setError]=useState('');const [notice,setNotice]=useState('');const [busy,setBusy]=useState('');
-  const [request,setRequest]=useState(initialRequest);const [guests,setGuests]=useState(30);const [tents,setTents]=useState(5);const [budget,setBudget]=useState('1500');
-  const [date,setDate]=useState(()=>localInput(new Date(Date.now()+3600000)));const [venue,setVenue]=useState('Riverside Pavilion');
-  const [weather,setWeather]=useState('Rain expected');const [tentMode,setTentMode]=useState<''|'RENT'|'BUY'>('');
+  // Back from PayPal: say how sign-in went once, then drop it from the address.
+  const [error,setError]=useState(()=>{const outcome=new URLSearchParams(window.location.search).get('signin');if(outcome)window.history.replaceState(null,'','/');return signInOutcomes[outcome??'']??'';});
+  const [notice,setNotice]=useState('');const [busy,setBusy]=useState('');
+  const [request,setRequest]=useState(takePendingRequest);const [guests,setGuests]=useState(30);const [tents,setTents]=useState(5);const [budget,setBudget]=useState('1500');
+  const [date,setDate]=useState(()=>localInput(new Date(Date.now()+3600000)));const [venue,setVenue]=useState('');
+  const [weather,setWeather]=useState('');const [tentMode,setTentMode]=useState<''|'RENT'|'BUY'>('');
   const [tentOffer,setTentOffer]=useState('');const [foodOffer,setFoodOffer]=useState('');
-  const [detailsShown,setDetailsShown]=useState(false);const [clarifications,setClarifications]=useState<string[]>([]);
+  const [details,setDetails]=useState<''|'read'|'manual'>('');const [clarifications,setClarifications]=useState<string[]>([]);
   const [consent,setConsent]=useState(false);const [dialog,setDialog]=useState<Order>();
   const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);
   const busyRef=useRef(busy);busyRef.current=busy;
-  useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[activeId]);
+  useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[activeId,user?.authenticated]);
   useEffect(()=>{
     if(!dialog)return;
     const previouslyFocused=document.activeElement as HTMLElement|null;
@@ -58,7 +59,8 @@ function App(){
   },[dialog?.id]);
   async function run(label:string,work:()=>Promise<unknown>) { setBusy(label);setError('');setNotice('');try{await work();}catch(e){setError(e instanceof Error?e.message:'This action could not finish.');}finally{setBusy('');} }
   useEffect(()=>{Promise.all([api<Config>('/api/config'),session()]).then(([c,s])=>{setConfig(c);setUser(s);}).catch(e=>setError(e.message));},[]);
-  useEffect(()=>{if(user?.authenticated) void run('Loading your plans',async()=>{const [o,p]=await Promise.all([api<Offer[]>('/api/catalog'),api<Plan[]>('/api/plans')]);setOffers(o);setPlans(p);});},[user?.authenticated]);
+  // A description typed on the landing comes along through sign-in and is read as soon as the organizer is in.
+  useEffect(()=>{if(user?.authenticated) void run(request.trim()?'Reading your request':'Loading your plans',async()=>{const [o,p]=await Promise.all([api<Offer[]>('/api/catalog'),api<Plan[]>('/api/plans')]);setOffers(o);setPlans(p);if(request.trim())await readRequest();});},[user?.authenticated]);
   async function refresh(id=activeRef.current) {if(!id)return; const [next,cs]=await Promise.all([api<Workflow>(`/api/plans/${id}`),api<Command[]>(`/api/plans/${id}/commands`)]);if(activeRef.current===id){setFlow(next);setCommands(cs);} }
   useEffect(()=>{if(!activeId)return;void refresh(activeId).catch(e=>setError(e.message));const timer=setInterval(()=>{void refresh(activeId).catch(()=>{});},4000);return()=>clearInterval(timer);},[activeId]);
 
@@ -71,10 +73,14 @@ function App(){
 
   async function readRequest(){
     const s=await api<{attendees:number|null;tents:number|null;budgetMinor:number|null;weather:string|null;venue:string|null;eventDate:string|null;clarifications:string[]}>('/api/intent','POST',{request,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});
-    if(s.attendees)setGuests(s.attendees);if(s.tents)setTents(s.tents);if(s.budgetMinor)setBudget(String(s.budgetMinor/100));if(s.weather)setWeather(s.weather);if(s.venue)setVenue(s.venue);if(s.eventDate)setDate(localInput(new Date(s.eventDate)));
-    setClarifications(s.clarifications);setDetailsShown(true);
+    if(s.attendees)setGuests(s.attendees);if(s.tents)setTents(s.tents);if(s.budgetMinor)setBudget(String(s.budgetMinor/100));
+    // Only what the description says: a venue or weather it doesn't name stays blank for the organizer to add.
+    setWeather(s.weather??'');setVenue(s.venue??'');if(s.eventDate)setDate(localInput(new Date(s.eventDate)));
+    setClarifications(s.clarifications);setDetails('read');
   }
   async function createPlan(){
+    if(!request.trim())throw new Error('Describe your event in a sentence or two first.');
+    if(!venue.trim())throw new Error('Add the venue so the merchants know where to deliver.');
     if(tentMode!=='RENT')throw new Error('This catalog rents tents. Choose Rent tents to continue.');
     if(!tentOffer!==!foodOffer)throw new Error('Choose both offers, or let the Sourcing Agent choose both.');
     const amount=Number(budget);if(!/^\d+(?:\.\d{1,2})?$/.test(budget)||!Number.isFinite(amount)||amount<=0)throw new Error('Enter a positive budget with at most two decimal places.');
@@ -84,7 +90,7 @@ function App(){
     setActiveId(p.id);setConsent(false);setPlans(prev=>[p,...prev]);
   }
   function openPlan(id:string){setFlow(undefined);setCommands([]);setActiveId(id);setConsent(false);setProof(undefined);setAllEvents(false);setError('');setNotice('');}
-  function newPlan(){setActiveId(undefined);setFlow(undefined);setCommands([]);setProof(undefined);setConsent(false);setAllEvents(false);setDetailsShown(false);setTentMode('');setClarifications([]);setError('');setNotice('');}
+  function newPlan(){setActiveId(undefined);setFlow(undefined);setCommands([]);setProof(undefined);setConsent(false);setAllEvents(false);setDetails('');setTentMode('');setClarifications([]);setError('');setNotice('');}
   async function approve(){await api(`/api/plans/${plan!.id}/approve`,'POST',{version:plan!.version});await refresh();setNotice(`Plan approved. Your ${money(plan!.totalMinor)} is reserved.`);}
   async function startDemoCheckout(order:Order){const result=await api<GateResult>(`/api/plans/${plan!.id}/orders/${order.id}/checkout`,'POST');await refresh();if(result.state!=='SUCCEEDED')throw new Error(result.message);setDialog({...order,providerOrderId:result.result!.providerOrderId});}
   async function confirmDemo(){const result=await api<GateResult>(`/api/plans/${plan!.id}/orders/${dialog!.id}/buyer-approved`,'POST',{providerOrderId:dialog!.providerOrderId});setDialog(undefined);await refresh();if(result.state!=='SUCCEEDED')throw new Error(result.message);setNotice(result.message);}
@@ -96,11 +102,11 @@ function App(){
   async function post(path:string){await api(path,'POST');await refresh();}
   async function voidAuthorization(){const r=await api<GateResult>(`/api/plans/${plan!.id}/void`,'POST');await refresh();if(r.state!=='SUCCEEDED')throw new Error(r.message);}
   async function downloadEvidence(){const result=await api<Record<string,unknown>>(`/api/plans/${plan!.id}/evidence`);setProof(result);download(`swarm-pay-evidence-${plan!.id}.json`,result);}
-  async function signOut(){await api('/api/logout','POST');newPlan();setPlans([]);setOffers([]);setUser(await session());}
+  async function signOut(){await api('/api/logout','POST');newPlan();setRequest('');setPlans([]);setOffers([]);setUser(await session());}
 
   // Signed out, the page is the landing alone: no workspace menu until the organizer is in.
   if(!config||!user) return <div className="landing-loading">{error?<div className="message error" role="alert"><AlertCircle size={19}/><span>{error}</span></div>:<><LoaderCircle className="spin"/>Opening SwarmPay…</>}</div>;
-  if(!user.authenticated) return <Landing config={config} busy={busy} error={error} onDismiss={()=>setError('')}
+  if(!user.authenticated) return <Landing config={config} busy={busy} error={error} request={request} onRequest={setRequest} onDismiss={()=>setError('')}
     onDemo={()=>void run('Opening your workspace',async()=>{await api('/api/demo-session','POST');setUser(await session());})}
     onSignIn={(username,password)=>void run('Signing in',async()=>{await login(username,password);setUser(await session());})}/>;
 
@@ -110,22 +116,24 @@ function App(){
 
   /** The describe step: the request first, then the details the agents found. */
   function describe(){
+    const [title,subtitle]=details==='read'?['Here’s what we understood.','Check the details, change anything that isn’t right, then prepare your plan.']
+      :['Tell us about your event.',details==='manual'?'Fill in the details, then prepare your plan.':'We’ll find tents and catering within your budget.'];
     return <>
-      <div className="page-title"><h1>Tell us about your event.</h1><p>We’ll find tents and catering within your budget.</p></div>
+      <div className="page-title"><h1>{title}</h1><p>{subtitle}</p></div>
       <Stepper step={0}/>
       <section className="card describe-card">
         <label className="field-label" htmlFor="request">Your event</label>
-        <textarea id="request" className="request-input" value={request} onChange={e=>setRequest(e.target.value)} maxLength={4000}/>
-        {!detailsShown?<div className="card-actions">
+        <textarea id="request" className="request-input" value={request} placeholder={exampleRequest} onChange={e=>setRequest(e.target.value)} maxLength={4000}/>
+        {!details?<div className="card-actions">
           <button className="button button-primary next-action" disabled={!!busy||!request.trim()} onClick={()=>void run('Reading your request',readRequest)}>Plan with AI<Sparkles size={17}/></button>
-          <button className="text-link" onClick={()=>setDetailsShown(true)}>Fill in the details yourself</button>
-        </div>:<button className="text-link" disabled={!!busy} onClick={()=>void run('Reading your request',readRequest)}><Sparkles size={15}/>Read my request again</button>}
+          <button className="text-link" onClick={()=>setDetails('manual')}>Fill in the details yourself</button>
+        </div>:<button className="text-link" disabled={!!busy||!request.trim()} onClick={()=>void run('Reading your request',readRequest)}><Sparkles size={15}/>{details==='read'?'Read my request again':'Read my request'}</button>}
         <p className="quiet-note">{config!.aiProvider==='demo'?'Simulated agents read your request.':`${config!.model} reads your request.`} Nothing is paid until you approve a plan.</p>
-        {detailsShown&&<div className="details">
-          <h2>Check the details</h2><p className="section-note">Change anything that isn’t right.</p>
+        {details&&<div className="details">
+          <h2>Event details</h2>
           {clarifications.length>0&&<ul className="questions">{clarifications.map(q=><li key={q}><AlertCircle size={15}/>{q}</li>)}</ul>}
           <div className="field-grid">
-            <label className="span-2">Venue<input value={venue} onChange={e=>setVenue(e.target.value)} maxLength={300}/></label>
+            <label className="span-2">Venue<input value={venue} onChange={e=>setVenue(e.target.value)} maxLength={300} required placeholder="Where should tents and catering be delivered?"/></label>
             <label>Date and time<input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)}/><small>{Intl.DateTimeFormat().resolvedOptions().timeZone}</small></label>
             <label>Total budget (USD)<input aria-label="Total budget in USD" type="number" min="1" step="0.01" value={budget} onChange={e=>setBudget(e.target.value)}/></label>
             <label>Guests<input type="number" min="1" max="200" value={guests} onChange={e=>setGuests(Number(e.target.value))}/></label>
@@ -253,7 +261,7 @@ function App(){
     <header className="app-header"><div className="app-header-inner"><Brand/>
       {plans.length>0&&<select className="plan-switcher" aria-label="Your plans" value={activeId??''} onChange={e=>e.target.value?openPlan(e.target.value):newPlan()}>
         <option value="">New plan</option>{plans.map(p=><option key={p.id} value={p.id}>{p.intent.venue} · {money(p.totalMinor)} · {datetime(p.createdAt)}</option>)}</select>}
-      <div className="app-header-actions"><ModePill config={config}/>
+      <div className="app-header-actions"><ModePill config={config}/>{user.name&&<span className="account-name" title="Signed in">{user.name}</span>}
         {activeId&&<button className="button button-white header-button" aria-label="New plan" onClick={newPlan}><Plus size={16}/><span>New plan</span></button>}
         <button className="button button-white header-button" aria-label="Sign out" title="Sign out" disabled={!!busy} onClick={()=>void run('Signing out',signOut)}><LogOut size={16}/></button></div>
     </div></header>

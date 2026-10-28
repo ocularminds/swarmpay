@@ -2,13 +2,11 @@ import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import {signIntoWorkspace} from './login';
 
-test.beforeEach(async({page,request})=>{
-  await signIntoWorkspace(page,request);
-});
-test('one next action per step: agent sourcing, both checkouts, an agent request held by AgentSafe, venue delivery and evidence',async({page},info)=>{
+// Each test reads one description on arrival; the web's per-client planning limit (20 a minute) allows a whole run.
+test('one next action per step: agent sourcing, both checkouts, an agent request held by AgentSafe, venue delivery and evidence',async({page,request},info)=>{
   await page.setViewportSize({width:1366,height:950});
+  await signIntoWorkspace(page,request);
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.getByRole('button',{name:'Plan with AI'}).click();
   await page.getByLabel('Venue',{exact:true}).fill('Browser test pavilion');
   await expect(page.getByLabel('Tent preference')).toHaveValue('');
   await page.getByRole('radio',{name:'Rent tents'}).check();
@@ -45,9 +43,20 @@ test('one next action per step: agent sourcing, both checkouts, an agent request
   await expect(page.getByText('The record chain verifies')).toBeVisible();
   expect(errors).toEqual([]);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath('desktop-completed.png'),fullPage:true});
 });
-test('mobile: an over-budget plan offers a new plan, never approval or checkout',async({page},info)=>{
+test('a description that names no venue or weather leaves them blank, and planning asks for the venue',async({page,request})=>{
+  await signIntoWorkspace(page,request,'A garden party for 40 guests. We need 6 tents and catering, $2,000 in total.');
+  await expect(page.getByRole('spinbutton',{name:'Guests'})).toHaveValue('40');
+  await expect(page.getByLabel('Venue',{exact:true})).toHaveValue('');
+  await expect(page.getByLabel('Weather and context')).toHaveValue('');
+  await page.getByRole('radio',{name:'Rent tents'}).check();
+  const created=page.waitForResponse(r=>r.url().endsWith('/api/plans')&&r.request().method()==='POST',{timeout:2000}).then(()=>true,()=>false);
+  await page.getByRole('button',{name:'Prepare my plan'}).click();
+  await expect(page.getByRole('alert')).toContainText('Add the venue so the merchants know where to deliver.');
+  expect(await created).toBe(false);
+});
+test('mobile: an over-budget plan offers a new plan, never approval or checkout',async({page,request},info)=>{
   await page.setViewportSize({width:390,height:844});
-  await page.getByRole('button',{name:'Fill in the details yourself'}).click();
+  await signIntoWorkspace(page,request);
   await page.getByRole('spinbutton',{name:'Total budget in USD'}).fill('1300');await page.getByRole('radio',{name:'Rent tents'}).check();
   await page.getByRole('button',{name:'Prepare my plan'}).click();
   await expect(page.getByRole('heading',{name:'Over budget by $100'})).toBeVisible();

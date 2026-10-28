@@ -111,6 +111,23 @@ The commerce application, which runs the agents, sits on internal Docker network
 
 `node demo/check-isolation.mjs` proves it on a running stack: from the application container, `api-m.paypal.com` and `api-m.sandbox.paypal.com` are unreachable by name, at their resolved addresses, and through the proxy (`403`). The proxy logs each refusal as `EGRESS_REFUSED`.
 
+**Sign-up and sign-in with PayPal**
+
+Organizers create their SwarmPay account by continuing with PayPal: the first sign-in creates the account from their PayPal name and email, and later sign-ins return them to the same plans. This uses SwarmPay's own PayPal app, separate from the two merchants' apps, so organizer identity never depends on a seller's credentials.
+
+1. In the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/applications/sandbox), create a sandbox app named **SwarmPay**.
+2. In the app's features, turn on **Log in with PayPal**. Under its advanced settings, request **Full name** and **Email**, and add each return URL SwarmPay uses: `https://swarm.decionis.com/api/paypal/return` for the hosted site, and `http://localhost:5175/api/paypal/return` (sandbox stack) or `http://localhost:5173/api/paypal/return` (demo stack) for local runs. PayPal compares the return URL exactly.
+3. Put its credentials in the private environment file, never in chat or source:
+
+   ```dotenv
+   PAYPAL_LOGIN_CLIENT_ID=
+   PAYPAL_LOGIN_CLIENT_SECRET=
+   ```
+
+4. Run `node demo/setup.mjs` (or `--sandbox`) once more: it adds the `IDENTITY_TOKEN` the application uses to ask the sign-in service, and changes nothing else. Then `docker compose up -d --wait identity commerce-app web`.
+
+The sign-in dialog then leads with **Continue with PayPal**; the organizer password stays below it. Only the `identity` service (`infra/identity`) receives the login secret, and it reaches PayPal's identity API alone. The application, where the agents run, still has no route to PayPal: it sends the browser to PayPal, checks the returned state against a short-lived cookie that only this browser holds, and hands the one-time code to `identity`, which answers with who signed in, never a PayPal token. `node demo/check-isolation.mjs` also checks that the application holds no login secret and that no other service can ask `identity` who a code belongs to.
+
 **Hosted Decionis enforcement**
 
 This step is optional for PayPal sandbox payments, which can run under the local test authority. Use an owned Decionis tenant and key with actual enforcement capability. Shadow access is insufficient.

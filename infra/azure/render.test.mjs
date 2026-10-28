@@ -8,7 +8,7 @@ const base=JSON.parse(readFileSync(new URL('./target.json',import.meta.url),'utf
 const target={...base,ingressClass:'fixture-nginx',ingressNamespace:'fixture-ingress',
   ingressPodLabels:{'app.kubernetes.io/name':'ingress-nginx','app.kubernetes.io/component':'controller'},clusterIssuer:'fixture-dns01',certificateChallenge:'dns01'};
 const key=generateKeyPairSync('ed25519').publicKey.export({type:'spki',format:'pem'});
-const images=Object.fromEntries(['web','commerce-app','payment-executor','agentsafe','egress','venue'].map(component=>[component,`${target.registry}/swarm-pay/${component}@sha256:${'a'.repeat(64)}`]));
+const images=Object.fromEntries(['web','commerce-app','payment-executor','agentsafe','egress','venue','identity'].map(component=>[component,`${target.registry}/swarm-pay/${component}@sha256:${'a'.repeat(64)}`]));
 
 test('unverified ingress and mutable images cannot produce a deployment',()=>{
   assert.throws(()=>render({...target,ingressClass:''},images,key),/verified/);
@@ -32,7 +32,8 @@ test('the public entry point and credentials remain separated from private execu
   const executor=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-payment-executor').spec.template.spec;
   assert.ok(app.containers[0].env.some(e=>e.name==='SWARM_SESSION_COOKIE_SECURE'&&e.value==='true'));
   assert.ok(app.containers[0].env.some(e=>e.name==='SWARM_PUBLIC_ORIGIN'&&e.value==='https://swarm.decionis.com'));
-  assert.deepEqual(app.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-commerce-secrets']);
+  // Besides its own credentials the app gets only PayPal sign-in's public client ID and the token to ask the identity service.
+  assert.deepEqual(app.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-commerce-secrets','swarm-pay-login-client']);
   assert.deepEqual(executor.containers[0].envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-payment-secrets']);
   // Per-client limits trust forwarded addresses only because the ingress is the web's sole peer.
   const web=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-web').spec.template.spec;
@@ -42,7 +43,7 @@ test('the public entry point and credentials remain separated from private execu
   const venue=items.find(i=>i.kind==='Deployment'&&i.metadata.name==='swarm-pay-venue').spec.template.spec.containers[0];
   assert.deepEqual(venue.envFrom.filter(v=>v.secretRef).map(v=>v.secretRef.name),['swarm-pay-venue-secrets']);
   assert.equal(venue.image,images.venue);
-  for(const name of ['swarm-pay-commerce-app','swarm-pay-payment-executor','swarm-pay-web','swarm-pay-agentsafe','swarm-pay-egress']) {
+  for(const name of ['swarm-pay-commerce-app','swarm-pay-payment-executor','swarm-pay-web','swarm-pay-agentsafe','swarm-pay-egress','swarm-pay-identity']) {
     const container=items.find(i=>i.kind==='Deployment'&&i.metadata.name===name).spec.template.spec.containers[0];
     assert.ok(!(container.envFrom??[]).some(v=>v.secretRef?.name==='swarm-pay-venue-secrets'));
   }
@@ -93,7 +94,7 @@ test('every runtime starts without root, Kubernetes credentials or a writable im
 
 test('the rendered policy permits the workflow and rejects private bypasses, cross-namespace traffic and metadata access',()=>{
   const policies=render(target,images,key).networkPolicies.items;
-  assert.equal(policies.length,8);
+  assert.equal(policies.length,9);
   const pod=(component,namespace=target.namespace,ip='10.48.1.2')=>({namespace,ip,labels:{'app.kubernetes.io/part-of':'swarm-pay','app.kubernetes.io/component':component}});
   const app=pod('commerce-app'),executor=pod('payment-executor'),gate=pod('agentsafe'),db=pod('postgres'),web=pod('web'),egress=pod('egress'),venue=pod('venue');
   const ingress={namespace:target.ingressNamespace,ip:'10.48.2.2',labels:target.ingressPodLabels};
@@ -136,6 +137,29 @@ test('the rendered policy permits the workflow and rejects private bypasses, cro
   assert.equal(allowed(web,internet,443,policies),false);
   for(const ip of ['169.254.169.254','168.63.129.16','10.64.0.1','172.16.0.2','192.168.0.2'])
     for(const from of [app,egress])assert.equal(allowed(from,{namespace:null,ip,labels:{}},443,policies),false);
+});
+
+test('PayPal sign-in answers the app alone, holds the only login secret, and is the app\'s only path to PayPal identity',()=>{
+  const bundle=render(target,images,key),items=bundle.privateResources.items,policies=bundle.networkPolicies.items;
+  const container=name=>items.find(i=>i.kind==='Deployment'&&i.metadata.name===name).spec.template.spec.containers[0];
+  const secretRefs=name=>(container(name).envFrom??[]).filter(v=>v.secretRef).map(v=>v.secretRef);
+  // Both start without their secrets, with sign-in off, until the PayPal app's credentials are applied.
+  assert.deepEqual(secretRefs('swarm-pay-identity'),[{name:'swarm-pay-identity-secrets',optional:true}]);
+  assert.deepEqual(secretRefs('swarm-pay-commerce-app'),[{name:'swarm-pay-commerce-secrets'},{name:'swarm-pay-login-client',optional:true}]);
+  for(const name of ['swarm-pay-payment-executor','swarm-pay-web','swarm-pay-agentsafe','swarm-pay-egress','swarm-pay-venue'])
+    assert.ok(!secretRefs(name).some(ref=>['swarm-pay-identity-secrets','swarm-pay-login-client'].includes(ref.name)),name);
+  assert.equal(container('swarm-pay-identity').image,images.identity);
+  assert.deepEqual(container('swarm-pay-identity').env,[{name:'PAYPAL_API_BASE',value:'https://api-m.sandbox.paypal.com'}]);
+  assert.ok(container('swarm-pay-commerce-app').env.some(v=>v.name==='IDENTITY_URL'&&v.value==='http://swarm-pay-identity.decionis.svc.cluster.local:8085'));
+  const pod=component=>({namespace:target.namespace,ip:'10.48.1.2',labels:{'app.kubernetes.io/part-of':'swarm-pay','app.kubernetes.io/component':component}});
+  const identity=pod('identity'),internet={namespace:null,ip:'20.1.2.3',labels:{}};
+  assert.ok(allowed(pod('commerce-app'),identity,8085,policies));
+  for(const other of ['web','venue','payment-executor','agentsafe','egress','postgres'])assert.equal(allowed(pod(other),identity,8085,policies),false,other);
+  assert.ok(allowed(identity,internet,443,policies));
+  assert.equal(allowed(identity,internet,80,policies),false);
+  for(const [other,number] of [['commerce-app',8080],['payment-executor',8081],['postgres',5432],['egress',3128]])assert.equal(allowed(identity,pod(other),number,policies),false,other);
+  // The app itself still reaches nothing outside the cluster directly.
+  assert.equal(allowed(pod('commerce-app'),internet,443,policies),false);
 });
 
 test('the egress proxy gets its model host from its own secret and the app sends HTTPS through it',()=>{

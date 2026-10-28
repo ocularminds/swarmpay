@@ -6,7 +6,11 @@ const network=docker(['inspect','--format','{{json .NetworkSettings.Networks}}',
 const addresses=Object.entries(JSON.parse(network.stdout));const address=addresses.find(([key])=>key.endsWith('_execution'))?.[1].IPAddress;assert.ok(address);
 const direct=docker(['compose','exec','-T','commerce-app','curl','--connect-timeout','2','--max-time','3','-fsS',`http://${address}:8081/actuator/health`]);
 assert.notEqual(direct.status,0,'Public application must not reach private executor, even with its IP');
-const secrets=docker(['compose','exec','-T','commerce-app','sh','-c','test -z "${PAYPAL_TENTS_CLIENT_SECRET+x}" && test -z "${PAYPAL_CATERING_CLIENT_SECRET+x}"']);assert.equal(secrets.status,0);
+const secrets=docker(['compose','exec','-T','commerce-app','sh','-c','test -z "${PAYPAL_TENTS_CLIENT_SECRET+x}" && test -z "${PAYPAL_CATERING_CLIENT_SECRET+x}" && test -z "${PAYPAL_LOGIN_CLIENT_SECRET+x}"']);assert.equal(secrets.status,0);
+// The PayPal sign-in service answers only the app's token and holds no payment credentials.
+const identityAsked=docker(['compose','exec','-T','venue','node','-e',"fetch('http://identity:8085/identity/paypal',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:'forged-code-value'}),signal:AbortSignal.timeout(3000)}).then(r=>process.exit([401,503].includes(r.status)?0:1),()=>process.exit(0))"]);
+assert.equal(identityAsked.status,0,'Only the app may ask the sign-in service who a code belongs to');
+const identitySecrets=docker(['compose','exec','-T','identity','sh','-c','test -z "${PAYPAL_TENTS_CLIENT_SECRET+x}" && test -z "${PAYPAL_CATERING_CLIENT_SECRET+x}" && test -z "${EXECUTOR_TOKEN+x}"']);assert.equal(identitySecrets.status,0);
 const privateKey=docker(['compose','exec','-T','commerce-app','sh','-c','test ! -e /run/secrets/venue-private.pem && test -z "${VENUE_PRIVATE_KEY+x}"']);assert.equal(privateKey.status,0);
 // Only the simulated venue holds its signing key, and it cannot reach the executor.
 const venueExecutor=docker(['compose','exec','-T','venue','node','-e',`fetch('http://${address}:8081/actuator/health',{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(0),()=>process.exit(1))`]);

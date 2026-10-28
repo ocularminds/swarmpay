@@ -72,13 +72,17 @@ One plan and budget, two merchant approvals. Authorize-then-capture pays each se
 
 Use Node.js 22.23.2, the version in `.node-version`. Java is provided by the Docker build; no host JDK is needed for this path, and the initial build downloads dependencies. The UI and a separate webhook listener on port 5184 bind only to loopback. `demo/setup.mjs` generates private local passwords/tokens and a demo venue key; it preserves an existing `.env` and configures no external accounts. If your `.env` predates the simulated venue, run `node demo/setup.mjs` again: it adds the venue's signing key, which only the venue container receives.
 
-1. Keep the event about an hour ahead, confirm tent rentals, and leave both offer preferences on **Sourcing Agent chooses**. Prepare a plan for 30 guests and five tents.
-2. The Sourcing Agent chooses the $500 tent rental and $900 catering, the fullest combination within the $1,500 budget, and the server checks its choice. Approve the $1,400 plan.
-3. Complete each **Simulated checkout**. Tents show paid; catering shows authorized and awaiting delivery.
-4. Open **Delivery & proof**. A photo alone cannot release catering. Choose **Let the agent request payment**: the milestone agent asks for the catering payment before delivery, and AgentSafe holds the request. No payment command is queued.
+Each screen offers one next action in its **Next step** card.
+
+1. Choose **Plan with AI**, keep the event about an hour ahead, and choose **Rent tents**. Leave the offers to the Sourcing Agent and choose **Prepare my plan** for 30 guests and five tents.
+2. The Sourcing Agent chooses the $500 tent rental and $900 catering, the fullest combination within the $1,500 budget, and the server checks its choice. Choose **Approve $1,400**.
+3. Choose **Pay $500**, then **Authorize $900**, each in a simulated PayPal checkout. Tents show paid; catering shows authorized and paying on delivery.
+4. Under **Try it**, choose **Let the agent ask**: the milestone agent asks for the catering payment before delivery, and AgentSafe holds the request. No payment command is queued. A delivery photo, under **Other ways to confirm**, cannot release catering on its own.
 5. Choose **Confirm delivery as the venue**. A separate venue container signs a receipt with its own key; SwarmPay verifies that it matches the event, merchant, quantity and delivery window, and the same AgentSafe boundary allows the catering capture. **Download evidence** exports the payment records and application audit chain.
 
 To test altered or replayed receipts, sign an exported workflow with `node demo/sign-receipt.mjs /path/to/workflow.json /path/to/receipt.json` and upload the file within 15 minutes.
+
+The over-budget path is just as short: with a $1,300 budget the plan shows **Over budget by $100** and offers a new plan, never approval or checkout. Records and authority decisions sit under **What happened**.
 
 The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering checkout must be within three days of the event. Use a new plan when a quote expires.
 

@@ -21,8 +21,8 @@ export async function login(username:string,password:string):Promise<void> {
   let r=await attempt();
   // A sign-in page left open outlives its anonymous session and CSRF token: fetch a fresh one once.
   if(r.status===403) { await session(); r=await attempt(); }
-  if(r.status===429) throw new Error(busy);
-  if(!r.ok) throw new Error(r.status===401?'The organizer credentials were not accepted.':`Sign-in could not finish (${r.status}). Refresh and try again.`);
+  if(r.status===429) throw new Error('Too many sign-in attempts. Try again in a minute.');
+  if(!r.ok) throw new Error(r.status===401?'That password didn’t work. Check it and try again.':`Sign-in could not finish (${r.status}). Refresh and try again.`);
 }
 export function download(filename:string,value:unknown) {
   const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));

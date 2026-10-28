@@ -7,7 +7,7 @@ _Maintainer note, not for pasting: paste everything below the line into Devpost 
 **Give agents a budget. Pay merchants only on agreed terms.**
 
 - **Video:** [TODO: public YouTube URL, under three minutes]
-- **Live demo:** https://swarm.decionis.com (organizer sign-in; PayPal sandbox payments with test money; see the testing instructions)
+- **Live demo:** https://swarm.decionis.com (describe your event, then continue with a PayPal sandbox buyer to create your organizer account; PayPal sandbox payments with test money; see the testing instructions)
 - **Code:** [TODO: public repository URL], Apache-2.0
 
 ## Inspiration
@@ -63,8 +63,8 @@ In this run AgentSafe decided payments with a local test authority, and the cata
 
 [TODO: supply privately in Devpost's testing-instructions field; never commit these:
 
-- Organizer login for https://swarm.decionis.com
-- PayPal sandbox buyer login, for approving both merchants' payments in PayPal
+- PayPal sandbox buyer login: **Continue with PayPal** with it creates the organizer account on https://swarm.decionis.com, and the same buyer approves both merchants' payments in PayPal
+- Organizer password login, as an alternative to signing up with PayPal
 - Keep the event about an hour ahead: the venue can confirm delivery from two hours before the event
 - The delivery step is the **Confirm delivery as the venue** button
 

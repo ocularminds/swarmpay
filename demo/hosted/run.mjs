@@ -24,5 +24,6 @@ if(action==='check') {
   run('node',['demo/check-isolation.mjs']);
   run('node',['demo/check-webhook-ingress.mjs']);
   run('npm',['run','test:e2e','--','--project=hosted'],resolve(root,'apps/web'));
+  run('node',['demo/check-hosted-agent.mjs']);
   run('docker',['compose','--env-file',environmentFile,'exec','-T','agentsafe','node','node_modules/@decionis/agentsafe/dist/Cli.js','verify','chain','/var/lib/agentsafe/evidence/evidence.jsonl']);
 }

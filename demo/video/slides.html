@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SwarmPay video frames</title>
+<!-- Three 1920×1080 frames for the submission video; node demo/video/render.mjs writes each to a PNG. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
+<style>
+:root{--green:#11695b;--ink:#1a3430;--muted:#6b7c77;--line:#d6e0db;--lime:#d2f5a3;--paper:#f7f9f8;--refused:#8f3b25;--refused-bg:#fbe9e4}
+*{box-sizing:border-box}body{margin:0;background:#c9d3cf;font-family:'DM Sans',sans-serif;color:var(--ink)}
+.frame{width:1920px;height:1080px;position:relative;overflow:hidden;margin:0 0 40px}
+.paper{background:radial-gradient(1400px 700px at 85% 15%,#eaf5ec 0,rgba(247,249,248,0) 60%),var(--paper)}
+h1,h2,.brand{font-family:'Manrope','DM Sans',sans-serif;margin:0}
+.brand{display:flex;align-items:center;font-weight:800;letter-spacing:-.05em;color:#1c3b33}
+.brand-dot{color:#46a185}
+.brand-symbol{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);transform:rotate(-8deg)}
+.brand-symbol span{background:#227d66}.brand-symbol span:nth-child(2){background:#9dd17c}.brand-symbol span:nth-child(3){background:#c1e5a5}
+
+/* Architecture: the agents ask, AgentSafe decides, only the executor reaches PayPal. */
+#architecture{padding:110px 120px}
+#architecture h1{font-size:76px;letter-spacing:-.03em;font-weight:800;line-height:1.05}
+#architecture .lede{font-size:30px;color:var(--muted);margin-top:22px;max-width:1300px;line-height:1.45}
+#architecture svg{position:absolute;left:0;top:0}
+.node rect{fill:#fff;stroke:var(--line);stroke-width:2}
+.node.agents rect{fill:#f3f8f5}.node.paypal rect{fill:var(--green);stroke:var(--green)}
+.node .title{font:800 34px 'Manrope',sans-serif;fill:var(--ink);letter-spacing:-.5px}
+.node .note{font:500 23px 'DM Sans',sans-serif;fill:var(--muted)}
+.node.paypal .title,.node.paypal .note{fill:#fff}
+.flow{stroke:var(--green);stroke-width:5;fill:none}
+.label{font:600 22px 'DM Sans',sans-serif;fill:var(--green)}
+.blocked{stroke:var(--refused);stroke-width:4;stroke-dasharray:14 12;fill:none}
+.blocked-label{font:700 24px 'DM Sans',sans-serif;fill:var(--refused)}
+.disclosure{position:absolute;left:120px;bottom:70px;font-size:22px;color:var(--muted)}
+
+/* Title card */
+#title{display:flex;flex-direction:column;justify-content:center;padding:0 160px}
+#title .brand{font-size:150px}
+#title .brand-symbol{gap:10px;grid-template-columns:repeat(2,34px);grid-template-rows:repeat(2,34px);margin-right:40px}
+#title .brand-symbol span{border-radius:10px}
+#title .tagline{font:700 56px/1.2 'Manrope',sans-serif;letter-spacing:-.02em;margin-top:56px}
+#title .meta{display:flex;gap:18px;margin-top:64px;font-size:30px;font-weight:600;color:var(--green)}
+#title .meta span{background:#fff;border:2px solid var(--line);border-radius:999px;padding:14px 28px}
+#title .foot{position:absolute;left:160px;bottom:80px;font-size:24px;color:var(--muted)}
+
+/* Lower third: transparent, kept on screen throughout. */
+#lower-third{background:transparent}
+#lower-third .bar{position:absolute;left:64px;bottom:56px;display:flex;align-items:center;gap:18px;background:rgba(26,52,48,.88);color:#fff;
+  border-radius:14px;padding:18px 28px;font-size:26px;font-weight:500;letter-spacing:-.1px;box-shadow:0 12px 40px rgba(8,35,20,.35)}
+#lower-third .bar i{width:12px;height:12px;border-radius:50%;background:#9dd17c;flex-shrink:0}
+</style>
+</head>
+<body>
+<section class="frame paper" id="architecture">
+  <h1>The agents never touch money.</h1>
+  <p class="lede">They run on a network with no route to PayPal. Only a private executor holds the merchants’ PayPal credentials, and it rechecks consent, the budget and the receipt first.</p>
+  <svg width="1920" height="1080" viewBox="0 0 1920 1080" aria-hidden="true">
+    <defs><marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto"><path d="M1 1 L11 6 L1 11 z" fill="#11695b"/></marker></defs>
+    <g class="node agents"><rect x="120" y="470" width="340" height="210" rx="22"/>
+      <text class="title" x="150" y="538">AI agents</text>
+      <text class="note" x="150" y="586">Sourcing, risk, milestone</text><text class="note" x="150" y="620">and your own MCP client</text></g>
+    <g class="node"><rect x="580" y="470" width="340" height="210" rx="22"/>
+      <text class="title" x="610" y="538">AgentSafe</text>
+      <text class="note" x="610" y="586">Fail-closed gateway</text><text class="note" x="610" y="620">holds early requests</text></g>
+    <g class="node"><rect x="1040" y="470" width="340" height="210" rx="22"/>
+      <text class="title" x="1070" y="538">Private executor</text>
+      <text class="note" x="1070" y="586">Holds PayPal credentials</text><text class="note" x="1070" y="620">rechecks every payment</text></g>
+    <g class="node paypal"><rect x="1500" y="470" width="300" height="210" rx="22"/>
+      <text class="title" x="1530" y="538">PayPal</text>
+      <text class="note" x="1530" y="586">Orders v2</text><text class="note" x="1530" y="620">Payments v2</text></g>
+    <path class="flow" d="M468 600 H570" marker-end="url(#arrow)"/><text class="label" x="520" y="580" text-anchor="middle">asks</text>
+    <path class="flow" d="M928 600 H1030" marker-end="url(#arrow)"/><text class="label" x="980" y="580" text-anchor="middle">allows</text>
+    <path class="flow" d="M1388 600 H1490" marker-end="url(#arrow)"/><text class="label" x="1440" y="580" text-anchor="middle">pays</text>
+    <path class="blocked" d="M290 690 V800 H1650 V690"/>
+    <g transform="translate(970 800)"><circle r="34" fill="#fbe9e4" stroke="#8f3b25" stroke-width="4"/><path d="M-14 -14 L14 14 M14 -14 L-14 14" stroke="#8f3b25" stroke-width="6" stroke-linecap="round"/></g>
+    <text class="blocked-label" x="970" y="878" text-anchor="middle">No route from the agents to PayPal: not by name, address or proxy</text>
+  </svg>
+  <p class="disclosure">Demo: PayPal sandbox with test money; AgentSafe decides with a local test authority.</p>
+</section>
+
+<section class="frame paper" id="title">
+  <div class="brand"><div class="brand-symbol"><span></span><span></span><span></span><span></span></div>SwarmPay<span class="brand-dot">.</span></div>
+  <p class="tagline">Give agents a budget. Pay merchants only on agreed terms.</p>
+  <div class="meta"><span>swarm.decionis.com</span><span>Open source · Apache-2.0</span></div>
+  <p class="foot">Built for the PayPal AI Hackathon</p>
+</section>
+
+<section class="frame" id="lower-third">
+  <div class="bar"><i></i>PayPal sandbox · test money · rentals, catering and venue simulated · payments decided by AgentSafe’s local test authority</div>
+</section>
+</body>
+</html>

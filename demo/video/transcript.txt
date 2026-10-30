@@ -1,0 +1,21 @@
+Event organizers pay merchants on different terms: tents up front, the caterer once the food arrives. Hand an AI agent a card and it can spend everything. SwarmPay lets agents do the legwork while you set the terms.
+
+I describe the event in a sentence. Continuing with PayPal creates my account from my PayPal name and email, and my description comes along.
+
+GPT-6 Astra on Azure OpenAI reads it into details I can edit. The Sourcing Agent picks one tent rental and one caterer, limited to real offers; our code checks capacity, dates and budget, and prices, not the model, set every amount. A second agent reviews the risks.
+
+Here's a plan I prepared earlier with Buy tents: the agent chose from Channel3's in-stock listings within budget. I'll rent for this event.
+
+I approve the exact plan once: $1,400 of my $1,500, reserved as a whole, with catering paid only after a matching delivery receipt.
+
+Each merchant gets its own PayPal approval and is paid directly, with no escrow in between. The tents are captured now. Catering uses PayPal's authorize-then-capture: the $900 is held, not taken.
+
+Now an outside agent, here Postman, connects with a token I issued and asks to pay the caterer early. None of its tools can approve a plan. Its request goes through AgentSafe, a fail-closed payment gateway, and it's held: there's no delivery receipt yet.
+
+When the venue confirms delivery, it signs a receipt with its own key. SwarmPay checks the event, merchant, quantity and delivery window, then captures the catering payment. Replaying that receipt can't pay twice.
+
+The Bryntum schedule shows when each merchant was paid against the delivery window. The AG Grid ledger lists every payment and held request across my plans, and its total counts only money actually paid.
+
+The agents never touch money. They run on a network with no route to PayPal, and only a private executor holds the merchants' PayPal credentials, after rechecking consent, the budget and the receipt.
+
+For developers, APIMatic generates an SDK and docs from our tested API description, and one button deploys your own simulated copy to Render. Give agents a budget. Pay merchants only on agreed terms.

@@ -79,3 +79,30 @@ test('mobile: an over-budget plan offers a new plan, never approval or checkout'
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath('mobile-budget-block.png'),fullPage:true});
 });
+test('sandbox checkout: each merchant loads its own PayPal SDK and intent, and the buttons pay tents and authorize catering',async({page,request})=>{
+  // The browser alone is told payments run in the sandbox; the server stays simulated, so the buttons drive the simulated provider.
+  await page.route('**/api/config',async route=>{const response=await route.fetch();await route.fulfill({response,json:{...await response.json(),mode:'sandbox',clientIds:{tents:'test-tents-client',catering:'test-catering-client'}}});});
+  // A stand-in for PayPal's SDK: its button runs the page's createOrder and onApprove, as a buyer approving in PayPal would.
+  const sdks:URL[]=[];
+  await page.route('https://www.paypal.com/sdk/js?**',route=>{sdks.push(new URL(route.request().url()));return route.fulfill({contentType:'text/javascript',
+    body:`(()=>{const ns=document.currentScript.dataset.namespace;window[ns]={Buttons:o=>({render:async el=>{const b=document.createElement('button');b.textContent='PayPal '+ns;
+      b.onclick=async()=>{try{await o.onApprove({orderID:await o.createOrder()},{restart:async()=>{}});}catch(e){o.onError(e);}};el.append(b);},close:async()=>{}})};})();`});});
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await signIntoWorkspace(page,request);
+  await page.getByRole('radio',{name:'Rent tents'}).check();
+  await page.getByRole('button',{name:'Prepare my plan'}).click();
+  const next=page.locator('.next-card'),plan=page.locator('.merchant-list');
+  await page.getByRole('checkbox',{name:/I approve these merchants/}).check();
+  await next.getByRole('button',{name:'Approve $1,400',exact:true}).click();
+  await expect(next.getByRole('heading',{name:'Pay Canopy Collective'})).toBeVisible();
+  await expect(next.getByText('Simulated PayPal checkout')).toHaveCount(0);
+  await next.getByRole('button',{name:'PayPal paypal_tents_capture'}).click();
+  await expect(next.getByRole('heading',{name:'Authorize Gather Kitchen'})).toBeVisible();
+  await expect(plan.getByText('Paid',{exact:true})).toBeVisible();
+  await next.getByRole('button',{name:'PayPal paypal_catering_authorize'}).click();
+  await expect(next.getByRole('heading',{name:'Confirm the catering delivery'})).toBeVisible();
+  await expect(plan).toContainText('Authorized · pays on delivery');
+  expect(sdks.map(u=>[u.searchParams.get('client-id'),u.searchParams.get('intent')])).toEqual([['test-tents-client','capture'],['test-catering-client','authorize']]);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

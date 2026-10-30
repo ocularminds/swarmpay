@@ -1,0 +1,29 @@
+name: Watch the live demo
+
+# Judges may use swarm.decionis.com until judging ends on December 15, 2026 (8:00 PT). GitHub emails a failed
+# scheduled run to whoever last changed this schedule. After judging the job skips itself; delete the workflow then.
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Stop after judging
+        id: window
+        run: echo "open=$([ "$(date -u +%F)" \< 2026-12-16 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.window.outputs.open == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - if: steps.window.outputs.open == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - name: Check the live demo anonymously
+        if: steps.window.outputs.open == 'true'
+        run: node demo/check-live.mjs https://swarm.decionis.com

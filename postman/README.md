@@ -8,7 +8,7 @@ Sign in to SwarmPay (for the live site, **Continue with PayPal**), open **Agents
 
 **Option 1: Postman's MCP request (interactive)**
 
-1. In Postman, choose **New → MCP**, select **HTTP**, and enter `https://swarm.decionis.com/mcp` (or `http://localhost:5173/mcp` locally).
+1. In the Postman desktop app, choose **New → MCP**, select **HTTP**, and enter `https://swarm.decionis.com/mcp` (or `http://localhost:5173/mcp` locally). Postman in a web browser sends its own site's `Origin`, which SwarmPay refuses.
 2. On **Authorization**, choose **Bearer Token** and paste the agent token. Connect: the seven tools appear. None of them approves a plan.
 3. Call `get_workflow_status` with a `workflowId` whose catering is authorized (approve the plan and authorize catering in the SwarmPay UI first).
 4. Call `request_milestone_payment` with the same `workflowId`. Before the venue confirms delivery, the answer is `"state":"ESCALATE"` and `"execution":"HELD"`, with an AgentSafe dossier. Call `get_workflow_status` again: nothing more was captured.

@@ -64,13 +64,13 @@
           { "field": "context.agent_safe.action.parameters.body.planVersion", "operator": "EQ", "value": 1 },
           { "field": "context.agent_safe.action.parameters.body.policyVersion", "operator": "EQ", "value": "swarm-pay-sandbox-v1" },
           { "field": "context.agent_safe.action.parameters.body.reservationId", "operator": "EQ_FACT", "value": "context.agent_safe.action.parameters.body.workflowId" },
-          { "field": "context.agent_safe.action.parameters.body.operation", "operator": "IN", "values": ["CREATE_ORDER", "CAPTURE_ORDER", "AUTHORIZE_ORDER", "VOID_AUTHORIZATION"] }
+          { "field": "context.agent_safe.action.parameters.body.operation", "operator": "IN", "values": ["CREATE_ORDER", "CAPTURE_ORDER", "AUTHORIZE_ORDER", "VOID_AUTHORIZATION", "REAUTHORIZE_AUTHORIZATION", "REFUND_CAPTURE"] }
         ]
       },
       "then": { "action": "AUTO_APPROVE" },
       "priority": 200,
       "enabled": true,
-      "rationale": "Orders, captures and voids for the two catalogue merchants, in USD, up to the $1,500 plan budget, bound to the reserved workflow."
+      "rationale": "Orders, captures, voids, hold renewals and cancellation refunds for the two catalogue merchants, in USD, up to the $1,500 plan budget, bound to the reserved workflow."
     },
     {
       "rule_id": "swarm-pay-refuse-everything-else",

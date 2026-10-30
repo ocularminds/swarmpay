@@ -31,6 +31,7 @@ class CommerceRepositoryTest {
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V4__agent_requests.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V5__organizer_accounts.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V6__agent_tokens.sql")));
+            statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V7__refunded_orders.sql")));
         }
     }
     Plan plan(long budget) {
@@ -133,6 +134,49 @@ class CommerceRepositoryTest {
         RuntimeBinding.verify(source,"commerce","demo");
         assertThrows(IllegalStateException.class,()->RuntimeBinding.verify(source,"commerce","sandbox"));
     }
+    @Test void aCancelledEventIsRefundedVoidedAndReleasesItsBudgetOnlyOnceNothingIsHeld() {
+        var plan=plan(150000);repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);
+        var tents=plan.lines().getFirst(); var catering=plan.lines().get(1);
+        var capture=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,tents.id(),Operation.CAPTURE_ORDER,"tents",50000,"USD","order-t",null,plan.id().toString(),"test-v1"));
+        repository.finish(capture,succeeded(new ProviderResult("CAPTURED","order-t",null,"capture",null,50000,"USD","tents","TEST")));
+        var authorize=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.AUTHORIZE_ORDER,"catering",90000,"USD","order-c",null,plan.id().toString(),"test-v1"));
+        repository.finish(authorize,succeeded(new ProviderResult("AUTHORIZED","order-c","auth",null,null,90000,"USD","catering","TEST")));
+        repository.cancel(plan);
+        assertTrue(repository.frozen(plan.id()));
+        assertThrows(CommerceException.class,()->repository.approvedForExecution(plan.id()));
+        var voided=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.VOID_AUTHORIZATION,"catering",90000,"USD","auth",null,plan.id().toString(),"test-v1"));
+        repository.finish(voided,succeeded(new ProviderResult("VOIDED","order-c","auth",null,null,90000,"USD","catering","TEST")));
+        // The tents are still paid, so the budget stays reserved.
+        assertTrue(repository.reservationMatches(voided,plan));
+        var refund=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,tents.id(),Operation.REFUND_CAPTURE,"tents",50000,"USD","capture",null,plan.id().toString(),"test-v1"));
+        repository.finish(refund,succeeded(new ProviderResult("REFUNDED","order-t",null,"capture",null,50000,"USD","tents","TEST","refund")));
+        var orders=repository.orders(plan);
+        assertEquals("REFUNDED",orders.stream().filter(o->o.category()==Category.TENTS).findFirst().orElseThrow().status());
+        assertEquals("VOIDED",orders.stream().filter(o->o.category()==Category.CATERING).findFirst().orElseThrow().status());
+        assertFalse(repository.reservationMatches(refund,plan));
+        assertEquals("RELEASED",sql.queryForObject("SELECT state FROM commerce.reservations WHERE workflow_id=?",String.class,plan.id()));
+        // A late capture reply cannot turn a refund back into a payment.
+        repository.finish(capture,succeeded(new ProviderResult("CAPTURED","order-t",null,"capture",null,50000,"USD","tents","TEST")));
+        assertEquals("REFUNDED",repository.orders(plan).stream().filter(o->o.category()==Category.TENTS).findFirst().orElseThrow().status());
+        var ledger=repository.ledger("organizer").stream().filter(e->e.workflowId().equals(plan.id()) && e.operation()==Operation.REFUND_CAPTURE).findFirst().orElseThrow();
+        assertEquals("refund",ledger.refundId()); assertEquals("ORGANIZER",ledger.requestedBy());
+        assertTrue(repository.verifyChain(plan.id()));
+    }
+    @Test void aHoldIsRenewedOnlyAfterItsHonorPeriodForAnEventWithinThreeDays() {
+        var plan=factory.create("organizer",new Intent("Meetup",30,5,150000,Instant.now().plus(Duration.ofDays(2)),"UTC","Pavilion","Rain","RENT"),
+            new Offer("tents","tents","Tents",Category.TENTS,"Tent","",10000,10,""),new Offer("catering","catering","Kitchen",Category.CATERING,"Meal","",3000,100,""),List.of());
+        repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);var catering=plan.lines().get(1);
+        var authorize=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.AUTHORIZE_ORDER,"catering",90000,"USD","order-c",null,plan.id().toString(),"test-v1"));
+        repository.finish(authorize,succeeded(new ProviderResult("AUTHORIZED","order-c","auth",null,null,90000,"USD","catering","TEST")));
+        assertTrue(repository.holdsToRenew().stream().noneMatch(p->p.id().equals(plan.id())));
+        sql.update("UPDATE commerce.commands SET updated_at=now()-interval '4 days' WHERE id=?",authorize.id());
+        assertTrue(repository.holdsToRenew().stream().anyMatch(p->p.id().equals(plan.id())));
+        var renew=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.REAUTHORIZE_AUTHORIZATION,"catering",90000,"USD","auth",null,plan.id().toString(),"test-v1"));
+        repository.finish(renew,succeeded(new ProviderResult("AUTHORIZED","order-c","renewed",null,null,90000,"USD","catering","TEST")));
+        assertEquals("renewed",repository.order(plan,catering.id()).authorizationId());
+        assertTrue(repository.holdsToRenew().stream().noneMatch(p->p.id().equals(plan.id())));
+    }
+    static GateResult succeeded(ProviderResult result) { return new GateResult("SUCCEEDED","FORWARDED","decision","dossier","a".repeat(64),null,"Done",result); }
     @Test void aDisputeFreezePreventsSpendingButPreservesConsentForAProtectiveVoid() {
         var plan=plan(150000);repository.create(plan);
         assertThrows(CommerceException.class,()->repository.approvedForVoid(plan.id()));

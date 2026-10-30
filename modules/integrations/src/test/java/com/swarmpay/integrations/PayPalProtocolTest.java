@@ -36,6 +36,7 @@ class PayPalProtocolTest {
         String resource=switch(operation) {
             case CREATE_ORDER -> null;
             case CAPTURE_ORDER,AUTHORIZE_ORDER -> ORDER;
+            case REFUND_CAPTURE -> CAPTURE;
             default -> AUTH;
         };
         return new PaymentCommand(UUID.randomUUID(),plan.id(),1,line.id(),operation,line.merchantId(),line.totalMinor(),"USD",resource,null,plan.id().toString(),"test-v1");
@@ -269,6 +270,91 @@ class PayPalProtocolTest {
         assertEquals(c.requestId(),http.paymentPosts().getFirst().header("PayPal-Request-Id"));
     }
 
+    static final String RENEWED="4XN27011UY8543104", REFUND="1JU08902781691411";
+    ObjectNode authorization(String id,String created,String related) {
+        var auth=payment(catering,id,"CREATED").put("create_time",created);
+        ((ObjectNode)auth.path("supplementary_data").path("related_ids")).put("authorization_id",related);
+        return auth;
+    }
+    Map<String,Object> renewed() {
+        return Map.of("authorizations",List.of(authorization(AUTH,"2026-10-20T12:00:00Z",AUTH),authorization(RENEWED,"2026-10-24T12:00:00Z",RENEWED)));
+    }
+    ObjectNode refund(String status,String capture) {
+        return Json.MAPPER.valueToTree(Map.of("id",REFUND,"status",status,"amount",amount(tents),"custom_id",tents.id().toString(),
+            "links",List.of(Map.of("rel","up","href","https://api.sandbox.paypal.com/v2/payments/captures/"+capture))));
+    }
+
+    @Test void aRenewalReauthorizesTheExactHoldAsANewAuthorization() throws Exception {
+        route(r->{
+            if(r.path().startsWith("/v2/checkout/orders/")) return new Response(200,order(catering,"COMPLETED",authorized()));
+            return new Response(201,authorization(RENEWED,"2026-10-24T12:00:00Z",RENEWED));
+        });
+        var c=command(catering,Operation.REAUTHORIZE_AUTHORIZATION);
+        var result=provider.execute(c,plan,catering);
+        assertEquals("AUTHORIZED",result.status()); assertEquals(RENEWED,result.authorizationId());
+        var post=http.paymentPosts().getFirst();
+        assertEquals("/v2/payments/authorizations/"+AUTH+"/reauthorize",post.path());
+        assertEquals(c.requestId(),post.header("PayPal-Request-Id"));
+        assertEquals("900.00",Json.MAPPER.readTree(post.body()).path("amount").path("value").asText());
+    }
+    @Test void aRenewalInsideTheHonorPeriodIsRefusedWithNothingChanged() {
+        route(r->r.path().startsWith("/v2/checkout/orders/")?new Response(200,order(catering,"COMPLETED",authorized())):error(422,"REAUTHORIZATION_TOO_SOON"));
+        assertEquals("PAYPAL_REFUSED",assertThrows(CommerceException.class,()->provider.execute(command(catering,Operation.REAUTHORIZE_AUTHORIZATION),plan,catering)).code());
+    }
+    @Test void aLostRenewalIsRecoveredFromTheOrdersSecondAuthorizationWithReadsOnly() {
+        var committed=new AtomicBoolean();
+        route(r->{
+            if(r.path().equals("/v2/payments/authorizations/"+RENEWED)) return new Response(200,authorization(RENEWED,"2026-10-24T12:00:00Z",RENEWED));
+            if(r.method().equals("GET")) return new Response(200,order(catering,"COMPLETED",committed.get()?renewed():authorized()));
+            committed.set(true); return null;
+        });
+        var c=command(catering,Operation.REAUTHORIZE_AUTHORIZATION);
+        assertThrows(PayPalPaymentProvider.ProviderUncertainException.class,()->provider.execute(c,plan,catering));
+        var recovered=provider.reconcile(c,null);
+        assertEquals("AUTHORIZED",recovered.status()); assertEquals(RENEWED,recovered.authorizationId());
+        assertEquals(1,http.paymentPosts().size());
+    }
+    @Test void afterARenewalTheDeliveryCapturesTheNewerAuthorization() {
+        var capture=payment(catering,CAPTURE,"COMPLETED");
+        ((ObjectNode)capture.path("supplementary_data").path("related_ids")).put("authorization_id",RENEWED);
+        route(r->r.path().startsWith("/v2/checkout/orders/")?new Response(200,order(catering,"COMPLETED",renewed())):new Response(201,capture));
+        var c=new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.CAPTURE_AUTHORIZATION,"catering",catering.totalMinor(),"USD",RENEWED,null,plan.id().toString(),"test-v1");
+        var result=provider.execute(c,plan,catering);
+        assertEquals("CAPTURED",result.status()); assertEquals(RENEWED,result.authorizationId());
+        assertEquals("/v2/payments/authorizations/"+RENEWED+"/capture",http.paymentPosts().getFirst().path());
+    }
+    @Test void aCancellationRefundsTheFullCaptureAndRecordsTheRefund() throws Exception {
+        route(r->r.path().startsWith("/v2/checkout/orders/")?new Response(200,order(tents,"COMPLETED",captured(tents))):new Response(201,refund("COMPLETED",CAPTURE)));
+        var c=command(tents,Operation.REFUND_CAPTURE);
+        var result=provider.execute(c,plan,tents);
+        assertEquals("REFUNDED",result.status()); assertEquals(CAPTURE,result.captureId()); assertEquals(REFUND,result.refundId());
+        var post=http.paymentPosts().getFirst();
+        assertEquals("/v2/payments/captures/"+CAPTURE+"/refund",post.path());
+        assertEquals(c.requestId(),post.header("PayPal-Request-Id"));
+        var body=Json.MAPPER.readTree(post.body());
+        assertEquals("500.00",body.path("amount").path("value").asText()); assertEquals(tents.id().toString(),body.path("custom_id").asText());
+    }
+    @Test void aRefundOfAnotherCaptureIsNotAccepted() {
+        route(r->r.path().startsWith("/v2/checkout/orders/")?new Response(200,order(tents,"COMPLETED",captured(tents))):new Response(201,refund("COMPLETED","OTHERCAPTURE")));
+        assertThrows(PayPalPaymentProvider.ProviderUncertainException.class,()->provider.execute(command(tents,Operation.REFUND_CAPTURE),plan,tents));
+    }
+    @Test void aLostRefundIsRecoveredFromTheOrdersRefundWithReadsOnly() {
+        var committed=new AtomicBoolean();
+        route(r->{
+            if(r.path().equals("/v2/payments/refunds/"+REFUND)) return new Response(200,refund("COMPLETED",CAPTURE));
+            if(r.method().equals("GET")) {
+                if(!committed.get()) return new Response(200,order(tents,"COMPLETED",captured(tents)));
+                var payments=new LinkedHashMap<String,Object>(); payments.put("captures",List.of(payment(tents,CAPTURE,"REFUNDED"))); payments.put("refunds",List.of(refund("COMPLETED",CAPTURE)));
+                return new Response(200,order(tents,"COMPLETED",payments));
+            }
+            committed.set(true); return null;
+        });
+        var c=command(tents,Operation.REFUND_CAPTURE);
+        assertThrows(PayPalPaymentProvider.ProviderUncertainException.class,()->provider.execute(c,plan,tents));
+        var recovered=provider.reconcile(c,null);
+        assertEquals("REFUNDED",recovered.status()); assertEquals(REFUND,recovered.refundId());
+        assertEquals(1,http.paymentPosts().size());
+    }
     @Test void failedReadAfterAcceptedVoidDoesNotClaimDefiniteRefusal() {
         route(r->{
             if(r.path().startsWith("/v2/checkout/orders/")) return new Response(200,order(catering,"COMPLETED",authorized()));

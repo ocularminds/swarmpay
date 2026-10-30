@@ -2,6 +2,7 @@ package com.swarmpay.persistence;
 
 import com.swarmpay.domain.Commerce.*;
 import com.swarmpay.domain.CommerceException;
+import com.swarmpay.domain.Money;
 import com.swarmpay.domain.PlanFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -144,6 +145,38 @@ public final class CommerceRepository {
               AND NOT EXISTS (SELECT 1 FROM commerce.commands c WHERE c.order_id=o.id AND c.operation='CAPTURE_AUTHORIZATION') LIMIT 10
             """,(r,n)->DbJson.read(r.getString(1),Plan.class));
     }
+    /**
+     * Catering holds whose 3-day honor period has passed, for events that start within 3 days: renewing
+     * now gives the delivery a fresh honor period. One renewal per order, never for a frozen plan.
+     */
+    public List<Plan> holdsToRenew() {
+        return db.query("""
+            SELECT p.plan_json FROM commerce.plans p JOIN commerce.orders o ON o.workflow_id=p.id
+            JOIN commerce.commands a ON a.order_id=o.id AND a.operation='AUTHORIZE_ORDER' AND a.state='SUCCEEDED'
+            WHERE p.status='APPROVED' AND p.payment_frozen=false AND o.status='AUTHORIZED'
+              AND a.updated_at < now() - interval '3 days'
+              AND NOT EXISTS (SELECT 1 FROM commerce.commands c WHERE c.order_id=o.id AND c.operation IN ('REAUTHORIZE_AUTHORIZATION','CAPTURE_AUTHORIZATION','VOID_AUTHORIZATION'))
+            LIMIT 10
+            """,(r,n)->DbJson.read(r.getString(1),Plan.class)).stream()
+            .filter(plan -> plan.intent().eventAt().isBefore(Instant.now().plus(java.time.Duration.ofDays(3)))).toList();
+    }
+    /** The organizer cancels: nothing more can be paid, and the voids and refunds that follow go through AgentSafe. */
+    public void cancel(Plan plan) {
+        transaction(() -> { lock(plan.id()); db.update("UPDATE commerce.plans SET payment_frozen=true WHERE id=?",plan.id());
+            appendInside(plan.id(),"PLAN_CANCELLED","You cancelled the event. SwarmPay voids the catering hold and refunds what was paid, each through AgentSafe.","HUMAN"); return null; });
+        releaseIfSettled(plan.id());
+    }
+    /** Releases the plan's budget once nothing is held, being paid or paid; called inside or outside a transaction. */
+    private void releaseIfSettled(UUID workflowId) {
+        transaction(() -> {
+            lock(workflowId);
+            Integer open = db.queryForObject("SELECT count(*) FROM commerce.orders WHERE workflow_id=? AND status IN ('AUTHORIZED','CAPTURED','PENDING')", Integer.class, workflowId);
+            if (open != null && open == 0 && frozen(workflowId)
+                && db.update("UPDATE commerce.reservations SET state='RELEASED' WHERE workflow_id=? AND state='ACTIVE'", workflowId) > 0)
+                appendInside(workflowId,"BUDGET_RELEASED","Nothing is held or paid for this plan any more, so its budget reservation was released.","APPLICATION");
+            return null;
+        });
+    }
     public void freeze(Plan plan) {
         transaction(() -> { lock(plan.id()); db.update("UPDATE commerce.plans SET payment_frozen=true WHERE id=?",plan.id());
             appendInside(plan.id(),"PAYMENTS_FROZEN","Further automatic payments are frozen for a delivery dispute. Already dispatched payments need provider review.","HUMAN"); return null; });
@@ -169,19 +202,28 @@ public final class CommerceRepository {
                 var p = result.result();
                 int rank = switch (p.status()) {
                     case "APPROVAL_REQUIRED" -> 1;
-                    case "PENDING" -> Set.of(Operation.CAPTURE_AUTHORIZATION,Operation.VOID_AUTHORIZATION).contains(command.operation()) ? 4 : 2;
+                    case "PENDING" -> Set.of(Operation.CAPTURE_AUTHORIZATION,Operation.VOID_AUTHORIZATION,Operation.REAUTHORIZE_AUTHORIZATION).contains(command.operation()) ? 4 : 2;
                     case "AUTHORIZED" -> 3;
                     case "CAPTURED", "VOIDED", "DECLINED", "EXPIRED" -> 5;
+                    case "REFUNDED" -> 6;
                     default -> throw new IllegalArgumentException("Unsupported provider payment status");
                 };
+                // Settled states are final, except that a captured payment can later be refunded.
                 db.update("""
                     UPDATE commerce.orders SET status=?,projection_rank=?,provider_order_id=COALESCE(?,provider_order_id),
                     authorization_id=COALESCE(?,authorization_id),capture_id=COALESCE(?,capture_id) WHERE id=?
                     AND projection_rank<=?
-                    AND (status NOT IN ('CAPTURED','VOIDED','DECLINED','EXPIRED') OR status=?)
-                    """, p.status(),rank,p.providerOrderId(),p.authorizationId(),p.captureId(),command.orderId(),rank,p.status());
+                    AND (status NOT IN ('CAPTURED','VOIDED','DECLINED','EXPIRED','REFUNDED') OR status=? OR (status='CAPTURED' AND ?='REFUNDED'))
+                    """, p.status(),rank,p.providerOrderId(),p.authorizationId(),p.captureId(),command.orderId(),rank,p.status(),p.status());
+                if (Set.of("VOIDED","REFUNDED").contains(p.status())) releaseIfSettled(command.workflowId());
             }
-            appendInside(command.workflowId(), "PAYMENT_" + result.state(), result.message(), result.dossierId() == null ? "APPLICATION" : "AGENTSAFE");
+            String status = result.result() == null ? null : result.result().status();
+            String message = command.operation() == Operation.REAUTHORIZE_AUTHORIZATION && "AUTHORIZED".equals(status)
+                ? "PayPal renewed the catering hold: a new authorization with a fresh 3-day honor period covers the delivery. No money moved."
+                : command.operation() == Operation.REFUND_CAPTURE && "REFUNDED".equals(status)
+                ? "PayPal refunded the $" + Money.usd(command.amountMinor()).decimal() + " tents payment to you."
+                : result.message();
+            appendInside(command.workflowId(), "PAYMENT_" + result.state(), message, result.dossierId() == null ? "APPLICATION" : "AGENTSAFE");
             return null;
         });
     }
@@ -203,9 +245,9 @@ public final class CommerceRepository {
             """, (org.springframework.jdbc.core.RowCallbackHandler) r -> {
             var command = DbJson.read(r.getString(4), PaymentCommand.class);
             var result = r.getString(5) == null ? null : DbJson.read(r.getString(5), GateResult.class);
-            // The catering capture after a verified receipt is SwarmPay's; every other command follows the organizer's action.
+            // The catering capture after a verified receipt and the hold's renewal are SwarmPay's; every other command follows the organizer's action.
             entries.add(entry(r.getObject(1, UUID.class), r.getTimestamp(2).toInstant(), r.getTimestamp(7).toInstant(), DbJson.read(r.getString(6), Plan.class), command,
-                command.operation() == Operation.CAPTURE_AUTHORIZATION ? "SWARMPAY" : "ORGANIZER", r.getString(3), result));
+                Set.of(Operation.CAPTURE_AUTHORIZATION,Operation.REAUTHORIZE_AUTHORIZATION).contains(command.operation()) ? "SWARMPAY" : "ORGANIZER", r.getString(3), result));
         }, owner);
         db.query("""
             SELECT a.id,a.created_at,a.command_json,a.result_json,p.plan_json FROM commerce.agent_requests a
@@ -224,7 +266,8 @@ public final class CommerceRepository {
         return new LedgerEntry(id, at, settledAt, plan.id(), plan.intent().venue(), plan.intent().eventAt(), line.merchantName(), line.category(),
             command.operation(), requestedBy, command.amountMinor(), state, result == null ? null : result.execution(),
             result == null ? null : result.message(), result == null ? null : result.dossierId(),
-            provider == null ? null : provider.providerOrderId(), provider == null ? null : provider.authorizationId(), provider == null ? null : provider.captureId());
+            provider == null ? null : provider.providerOrderId(), provider == null ? null : provider.authorizationId(), provider == null ? null : provider.captureId(),
+            provider == null ? null : provider.refundId());
     }
     public List<AgentRequest> agentRequests(UUID workflowId) {
         return db.query("SELECT command_json,result_json,created_at FROM commerce.agent_requests WHERE workflow_id=? ORDER BY created_at", (r,n) ->

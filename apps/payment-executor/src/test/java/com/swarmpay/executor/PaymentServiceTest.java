@@ -114,6 +114,49 @@ class PaymentServiceTest {
         assertThrows(CommerceException.class,()->service.execute(command(line,90000,Operation.CAPTURE_AUTHORIZATION,"other-authorization"),"hash","dossier"));
         verifyNoInteractions(provider,receipts);
     }
+    @Test void aRenewalTargetsTheRecordedHoldAndMustComeBackAsANewAuthorization() {
+        var line=plan.lines().get(1);
+        when(payments.latest(line.id())).thenReturn(new ProviderResult("AUTHORIZED","order","first-authorization",null,null,90000,"USD","catering","TEST"));
+        assertThrows(CommerceException.class,()->service.execute(command(line,90000,Operation.REAUTHORIZE_AUTHORIZATION,"other-authorization"),"hash","dossier"));
+        verifyNoInteractions(provider);
+        // PayPal answering with the same authorization has not renewed anything.
+        var same=command(line,90000,Operation.REAUTHORIZE_AUTHORIZATION,"first-authorization");
+        when(provider.execute(same,plan,line)).thenReturn(new ProviderResult("AUTHORIZED","order","first-authorization",null,null,90000,"USD","catering","TEST"));
+        assertEquals(503,assertThrows(CommerceException.class,()->service.execute(same,"hash","dossier")).status());
+        verify(payments).uncertain(same.id());
+        var renew=command(line,90000,Operation.REAUTHORIZE_AUTHORIZATION,"first-authorization");
+        var renewed=new ProviderResult("AUTHORIZED","order","renewed-authorization",null,null,90000,"USD","catering","TEST");
+        when(provider.execute(renew,plan,line)).thenReturn(renewed);
+        assertSame(renewed,service.execute(renew,"hash","dossier"));
+        verify(payments).complete(renew.id(),renewed);
+    }
+    @Test void onlyACancelledEventsCapturedTentsAreRefundedAndOnlyBeforeItStarts() {
+        when(commerce.approvedForVoid(plan.id())).thenReturn(plan);
+        when(payments.latest(tent.id())).thenReturn(new ProviderResult("CAPTURED","order",null,"capture",null,50000,"USD","tents","TEST"));
+        var refund=command(tent,50000,Operation.REFUND_CAPTURE,"capture");
+        assertThrows(CommerceException.class,()->service.execute(refund,"hash","dossier"));
+        when(commerce.frozen(plan.id())).thenReturn(true);
+        assertThrows(CommerceException.class,()->service.execute(command(tent,50000,Operation.REFUND_CAPTURE,"other-capture"),"hash","dossier"));
+        var started=new PaymentService(commerce,payments,provider,receipts,Clock.fixed(plan.intent().eventAt(),ZoneOffset.UTC),"test-v1","demo");
+        assertThrows(CommerceException.class,()->started.execute(refund,"hash","dossier"));
+        verifyNoInteractions(provider);
+        var refunded=new ProviderResult("REFUNDED","order",null,"capture",null,50000,"USD","tents","TEST","refund");
+        when(provider.execute(refund,plan,tent)).thenReturn(refunded);
+        assertSame(refunded,service.execute(refund,"hash","dossier"));
+        verify(payments).complete(refund.id(),refunded);
+    }
+    @Test void cateringCanBeAuthorizedUpTo27DaysBeforeDelivery() {
+        for(var days:List.of(10L,27L,28L)) {
+            var far=new PlanFactory(clock).create("organizer",new Intent("Meetup",30,5,150000,now.plus(Duration.ofDays(days)).minusSeconds(60),"UTC","Pavilion","Rain","RENT"),
+                new DemoCatalog().get("tents-standard"),new DemoCatalog().get("catering-seasonal"),List.of()).approved();
+            var line=far.lines().get(1);
+            when(commerce.approvedForExecution(far.id())).thenReturn(far);when(commerce.reservationMatches(any(),eq(far))).thenReturn(true);when(commerce.line(far,line.id())).thenReturn(line);
+            var checkout=new PaymentCommand(UUID.randomUUID(),far.id(),1,line.id(),Operation.CREATE_ORDER,line.merchantId(),90000,"USD",null,null,far.id().toString(),"test-v1");
+            when(provider.execute(checkout,far,line)).thenReturn(new ProviderResult("APPROVAL_REQUIRED","order",null,null,null,90000,"USD","catering","TEST"));
+            if(days<28) assertEquals("APPROVAL_REQUIRED",service.execute(checkout,"hash","dossier").status());
+            else assertEquals("HELD",assertThrows(CommerceException.class,()->service.execute(checkout,"hash","dossier")).code());
+        }
+    }
     @Test void quoteExpiryIsRecheckedAtExecution() {
         var later=new PaymentService(commerce,payments,provider,receipts,Clock.fixed(now.plusSeconds(1801),ZoneOffset.UTC),"test-v1","demo");
         assertThrows(CommerceException.class,()->later.execute(command,"hash","dossier"));verifyNoInteractions(provider);

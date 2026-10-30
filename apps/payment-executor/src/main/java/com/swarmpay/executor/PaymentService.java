@@ -16,6 +16,7 @@ public final class PaymentService {
     private final String policyVersion;
     private final String mode;
     private static final int MAX_BUYER_ATTEMPTS=5;
+    static final Duration CATERING_HOLD_LIMIT=Duration.ofDays(27);
     public PaymentService(CommerceRepository commerce,PaymentRepository payments,PaymentProvider provider,ReceiptVerifier verifier,Clock clock,String policyVersion,String mode) {
         this.commerce=commerce; this.payments=payments; this.provider=provider; this.verifier=verifier; this.clock=clock; this.policyVersion=policyVersion; this.mode=mode;
     }
@@ -64,8 +65,9 @@ public final class PaymentService {
                 if (previous!=null) throw CommerceException.conflict("This merchant already has a checkout");
                 if (!clock.instant().isBefore(plan.expiresAt())) throw CommerceException.held("The quote expired. Prepare and approve a new plan");
                 if (!clock.instant().isBefore(plan.intent().eventAt())) throw CommerceException.held("The event time has passed");
-                if (line.category()==Category.CATERING && plan.intent().eventAt().isAfter(clock.instant().plus(Duration.ofDays(3))))
-                    throw CommerceException.held("Schedule checkout within three days of delivery for this MVP");
+                // A PayPal authorization lasts 29 days; SwarmPay renews it after the 3-day honor period, before delivery.
+                if (line.category()==Category.CATERING && plan.intent().eventAt().isAfter(clock.instant().plus(CATERING_HOLD_LIMIT)))
+                    throw CommerceException.held("Authorize catering within 27 days of delivery. A PayPal authorization lasts 29 days.");
             }
             case CAPTURE_ORDER, AUTHORIZE_ORDER -> {
                 if (previous==null || !previous.status().equals("APPROVAL_REQUIRED") || !Objects.equals(previous.providerOrderId(),c.providerResourceId()))
@@ -85,10 +87,24 @@ public final class PaymentService {
                     verifier.verify(envelope,plan,line);
                 }
             }
+            // Renewing the hold moves no money; PayPal itself refuses it inside the honor period.
+            case REAUTHORIZE_AUTHORIZATION -> {
+                if (line.category()!=Category.CATERING || previous==null || !previous.status().equals("AUTHORIZED")
+                    || !Objects.equals(previous.authorizationId(),c.providerResourceId())) throw CommerceException.held("No matching catering authorization is available to renew");
+                if (!clock.instant().isBefore(plan.intent().eventAt().plus(Duration.ofDays(1)))) throw CommerceException.held("The delivery has passed; the hold is not renewed");
+            }
+            // Only a cancelled event is refunded, and only before it starts: the plan is frozen, so nothing else can be paid.
+            case REFUND_CAPTURE -> {
+                if (line.category()!=Category.TENTS || previous==null || !previous.status().equals("CAPTURED")
+                    || !Objects.equals(previous.captureId(),c.providerResourceId())) throw CommerceException.held("No matching captured payment is available to refund");
+                if (!commerce.frozen(c.workflowId())) throw CommerceException.held("Cancel the event before refunding its payments");
+                if (!clock.instant().isBefore(plan.intent().eventAt())) throw CommerceException.held("The event has started. Ask the merchant about a refund.");
+            }
         }
     }
     private Plan executionPlan(PaymentCommand c) {
-        return c.operation()==Operation.VOID_AUTHORIZATION?commerce.approvedForVoid(c.workflowId()):commerce.approvedForExecution(c.workflowId());
+        return c.operation()==Operation.VOID_AUTHORIZATION || c.operation()==Operation.REFUND_CAPTURE
+            ? commerce.approvedForVoid(c.workflowId()) : commerce.approvedForExecution(c.workflowId());
     }
     public GateResult reconcile(UUID id) {
         var command=payments.command(id);
@@ -115,6 +131,11 @@ public final class PaymentService {
             && !Objects.equals(c.providerResourceId(),observed.providerOrderId())) return false;
         if((c.operation()==Operation.CAPTURE_AUTHORIZATION || c.operation()==Operation.VOID_AUTHORIZATION)
             && !Objects.equals(c.providerResourceId(),observed.authorizationId())) return false;
+        // A renewal is a different authorization; a refund names the capture it returns.
+        if(c.operation()==Operation.REAUTHORIZE_AUTHORIZATION
+            && (observed.authorizationId()==null || observed.authorizationId().equals(c.providerResourceId()))) return false;
+        if(c.operation()==Operation.REFUND_CAPTURE
+            && (!Objects.equals(c.providerResourceId(),observed.captureId()) || observed.refundId()==null || observed.refundId().isBlank())) return false;
         return known==null || (sameIfKnown(known.providerOrderId(),observed.providerOrderId())
             && sameIfKnown(known.authorizationId(),observed.authorizationId()) && sameIfKnown(known.captureId(),observed.captureId()));
     }

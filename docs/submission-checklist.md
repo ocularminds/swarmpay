@@ -12,6 +12,12 @@ The path from here to a submitted entry, and what keeps it working until judging
 - [x] The video script blurs the brand, product and store on a **Buy tents** line and keeps other companies' names and logos out of frame; the submission text names the store generically. The rules forbid third-party trademarks in the video without permission.
 - [x] Video frames in [`demo/video`](../demo/video): the architecture slide, the title card, a transparent lower third and the narration transcript for YouTube's caption auto-sync. `node demo/video/render.mjs` redraws the PNGs from `slides.html`.
 
+**By November 4: hold renewals and refunds live**
+
+- [ ] Merge the reauthorization and refunds work after CI passes, and deploy it to swarm.decionis.com (new commerce, executor, AgentSafe and web images; migration V7 runs on start).
+- [ ] The same day, on the live site, approve a plan for an event **5–6 days ahead** and pay both merchants. PayPal reauthorizes only from day 4, so the worker renews this hold by itself around November 7, once its honor period has passed and the event is within 3 days; the video then shows the renewed plan, like the prepared **Buy tents** plan. Check the plan the next days: the timeline should say *PayPal renewed the catering hold*. Record the result in [implementation status](implementation-status.md), which says reauthorization is so far tested with fixtures only.
+- [ ] Install the APIMatic PayPal Context Plugin in Claude Code (`npx context-plugins install https://github.com/paypaldev/server-sdk-context-plugin-preview`). The renewal and refund code was written from its `java-*` skills, read from PayPal's repository; the installed plugin and a session that loads them are the evidence APIMatic's form asks for.
+
 **Before recording (by November 6)**
 
 - [ ] Merge this work after CI passes. The live-demo watch runs only from `master`.

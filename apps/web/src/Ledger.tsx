@@ -9,7 +9,8 @@ import type {LedgerEntry} from './types';
 ModuleRegistry.registerModules([AllCommunityModule]);
 const theme=themeQuartz.withParams({accentColor:'#11695b',fontFamily:"'DM Sans', sans-serif",fontSize:14,foregroundColor:'#1a3430',
   borderColor:'#e4eae7',headerBackgroundColor:'#f7f9f8',headerFontWeight:650,rowHoverColor:'#f3f8f5',wrapperBorderRadius:14,spacing:7});
-const paid=(e:LedgerEntry)=>e.state==='SUCCEEDED'&&['CAPTURE_ORDER','CAPTURE_AUTHORIZATION'].includes(e.operation);
+// A completed capture counts once; a refund takes its payment back out.
+const paid=(e:LedgerEntry)=>e.state!=='SUCCEEDED'?0:['CAPTURE_ORDER','CAPTURE_AUTHORIZATION'].includes(e.operation)?1:e.operation==='REFUND_CAPTURE'?-1:0;
 type Total={total:true;amountMinor:number;count:number};
 type Row=LedgerEntry|Total;
 const isTotal=(row?:Row):row is Total=>!!row&&'total' in row;
@@ -36,12 +37,12 @@ export default function Ledger() {
       valueFormatter:p=>isTotal(p.data)?`${money(p.data.amountMinor)} · ${p.data.count} ${p.data.count===1?'payment':'payments'}`:p.value?requesterLabels[p.value]??p.value:''},
     {headerName:'Amount',field:'amountMinor',filter:'agNumberColumnFilter',type:'rightAligned',minWidth:120,valueFormatter:p=>p.value==null?'':money(p.value)},
     {headerName:'AgentSafe',field:'state',filter:true,minWidth:170,cellRenderer:Decision,cellClass:'ledger-decision'},
-    {headerName:'PayPal reference',minWidth:190,filter:true,valueGetter:p=>p.data&&!isTotal(p.data)?p.data.captureId??p.data.authorizationId??p.data.providerOrderId??'':''},
+    {headerName:'PayPal reference',minWidth:190,filter:true,valueGetter:p=>p.data&&!isTotal(p.data)?p.data.refundId??p.data.captureId??p.data.authorizationId??p.data.providerOrderId??'':''},
     {headerName:'Dossier',field:'dossierId',filter:true,minWidth:200},
     {headerName:'Details',field:'message',filter:true,minWidth:260,tooltipField:'message'},
   ],[]);
   // The pinned total follows the filter, so it always answers "how much was paid for what I'm looking at".
-  const recount=useCallback(()=>{let amountMinor=0,count=0;grid.current?.forEachNodeAfterFilter(n=>{if(n.data&&!isTotal(n.data)&&paid(n.data)){amountMinor+=n.data.amountMinor;count++;}});setTotal({amountMinor,count});},[]);
+  const recount=useCallback(()=>{let amountMinor=0,count=0;grid.current?.forEachNodeAfterFilter(n=>{if(n.data&&!isTotal(n.data)){const sign=paid(n.data);amountMinor+=sign*n.data.amountMinor;count+=sign;}});setTotal({amountMinor,count});},[]);
   if(error)return <div className="message error" role="alert">{error}</div>;
   if(!rows)return <div className="loading"><LoaderCircle className="spin"/>Loading your payments…</div>;
   return <section className="card ledger-card" aria-labelledby="ledger-title">

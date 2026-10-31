@@ -12,6 +12,12 @@ commercial evaluation package, not open source: it is installed from npm under
 Bryntum's own terms, is not distributed in this repository, and shows a trial
 notice. A licensed Bryntum build replaces it by changing one package alias.
 
+The spend dashboard uses AG Studio, which brings AG Grid Enterprise and AG Charts
+Enterprise. These are commercial packages installed from npm under AG Grid's own
+terms and not distributed in this repository. Without a licence key
+(AG_STUDIO_LICENSE_KEY) they run as an evaluation with a watermark. The dashboard's
+OpenAI Responses adapter is AG Studio's published documentation example.
+
 Dependency versions are recorded in Gradle manifests and npm lockfiles.
 AgentSafe's Presence types override is documented in docs/security-and-reliability.md.
 Product names identify integrations and do not imply endorsement.

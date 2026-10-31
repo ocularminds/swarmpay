@@ -26,7 +26,12 @@ public final class Commerce {
         }
     }
     /** Where a purchasable product's data came from. The seller paid through PayPal is still the offer's merchant. */
-    public record ProductSource(String provider, String productId, String brand, String store, String productUrl) {}
+    public record ProductSource(String provider, String productId, String brand, String store, String productUrl,
+                                Double rating, Integer ratingCount, Integer offersCompared) {
+        public ProductSource(String provider, String productId, String brand, String store, String productUrl) {
+            this(provider, productId, brand, store, productUrl, null, null, null);
+        }
+    }
     /** {@code source} is null for SwarmPay's curated offers. */
     public record Offer(String id, String merchantId, String merchantName, Category category,
                         String title, String description, long unitMinor, int capacity, String badge, ProductSource source) {

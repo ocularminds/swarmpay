@@ -70,10 +70,11 @@ public final class Channel3Catalog implements Catalog {
             var id = product.path("id").asText(""); var title = product.path("title").asText("");
             if (id.isBlank() || title.isBlank() || id.length() > 80) continue;
             // The lowest in-stock US-dollar price among the product's stores.
-            JsonNode best = null;
+            JsonNode best = null; int compared = 0;
             for (var offer : product.path("offers")) {
                 if (!"USD".equals(offer.path("price").path("currency").asText()) || !"InStock".equals(offer.path("availability").asText())
                     || !offer.path("price").path("price").isNumber() || offer.path("domain").asText("").isBlank()) continue;
+                compared++;
                 if (best == null || offer.path("price").path("price").decimalValue().compareTo(best.path("price").path("price").decimalValue()) < 0) best = offer;
             }
             if (best == null) continue;
@@ -81,9 +82,15 @@ public final class Channel3Catalog implements Catalog {
             if (unitMinor <= 0 || unitMinor > maxPerTentMinor) continue;
             var brand = product.path("brands").path(0).path("name").asText(null);
             var store = best.path("domain").asText();
+            // Channel3's reviews, when it has them, and how many in-stock offers the price was chosen from, so the Sourcing Agent can weigh them.
+            var rated = product.has("rating") ? product.path("rating") : product.path("ratings");
+            Double rating = rated.path("value").isNumber() ? rated.path("value").asDouble() : null;
+            Integer reviews = rated.path("count").isInt() ? rated.path("count").asInt() : null;
+            String reviewed = rating == null ? "" : String.format(Locale.ROOT, " Rated %.1f of 5%s.", rating, reviews == null ? "" : " from " + reviews + " reviews");
             offers.add(new Offer("c3-" + id, merchant.merchantId(), merchant.merchantName(), Category.TENTS, shorten(title, 120),
-                (brand == null ? "" : brand + " · ") + "listed by " + store + ". Product data from Channel3; " + merchant.merchantName() + " fills the order.",
-                unitMinor, MAX_TENTS, "Real product", new ProductSource("Channel3", id, brand, store, best.path("url").asText(null))));
+                (brand == null ? "" : brand + " · ") + "listed by " + store + ", the lowest of " + compared + " in-stock " + (compared == 1 ? "offer" : "offers") + "." + reviewed
+                    + " Product data from Channel3; " + merchant.merchantName() + " fills the order.",
+                unitMinor, MAX_TENTS, "Real product", new ProductSource("Channel3", id, brand, store, best.path("url").asText(null), rating, reviews, compared)));
         }
         return offers;
     }

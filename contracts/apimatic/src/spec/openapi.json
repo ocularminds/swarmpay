@@ -1412,6 +1412,75 @@
         "description": "Lists payment records and agent requests across the signed-in organizer's plans, optionally filtered by a search query."
       }
     },
+    "/api/ai/responses": {
+      "post": {
+        "summary": "Ask the dashboard agent",
+        "tags": [
+          "Payments"
+        ],
+        "operationId": "askDashboardAgent",
+        "description": "Streams an OpenAI Responses reply for the AG Studio dashboard agent. The server fixes the model to SwarmPay's Azure OpenAI deployment, forwards only the conversation and function tools (hosted tools such as web or file search are dropped), disables storage and caps the output. The agent has no payment tools. Returns 503 when the site uses simulated agents.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "An OpenAI Responses request as AG Studio's adapter builds it",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-sent events from the Responses API",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "description": "The dashboard agent is not available with simulated agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ]
+      }
+    },
     "/api/agent-tokens": {
       "get": {
         "summary": "The organizer's active agent tokens",
@@ -1614,6 +1683,14 @@
                 "type": "string"
               }
             }
+          },
+          "dashboardAgent": {
+            "type": "boolean",
+            "description": "Whether the AG Studio dashboard agent can answer (Azure OpenAI is configured)"
+          },
+          "agStudioLicenseKey": {
+            "type": "string",
+            "description": "AG Studio licence key for the browser; empty shows a trial watermark"
           }
         }
       },

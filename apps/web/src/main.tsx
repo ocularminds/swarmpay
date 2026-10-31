@@ -8,6 +8,7 @@ import {boundaryLabel,datetime,money,operationLabels} from './labels';
 // The grid and the scheduler load only when shown, so the landing and the plan stay light.
 const Ledger=lazy(()=>import('./Ledger'));
 const PaymentSchedule=lazy(()=>import('./PaymentSchedule'));
+const SpendDashboard=lazy(()=>import('./SpendDashboard'));
 import {Brand,Landing,ModePill,SiteFooter,exampleRequest,signInOutcomes,takePendingRequest} from './Landing';
 import type {Command,Config,GateResult,Intent,Offer,Order,Plan,Session,Workflow} from './types';
 import './styles.css';
@@ -38,7 +39,7 @@ function App(){
   const [weather,setWeather]=useState('');const [tentMode,setTentMode]=useState<''|'RENT'|'BUY'>('');
   const [tentOffer,setTentOffer]=useState('');const [foodOffer,setFoodOffer]=useState('');
   const [details,setDetails]=useState<''|'read'|'manual'>('');const [clarifications,setClarifications]=useState<string[]>([]);
-  const [consent,setConsent]=useState(false);const [confirmCancel,setConfirmCancel]=useState(false);const [dialog,setDialog]=useState<Order>();
+  const [consent,setConsent]=useState(false);const [paymentsTab,setPaymentsTab]=useState<'overview'|'ledger'>('overview');const [confirmCancel,setConfirmCancel]=useState(false);const [dialog,setDialog]=useState<Order>();
   const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);const [agentsOpen,setAgentsOpen]=useState(false);const [view,setView]=useState<'plans'|'ledger'>('plans');
   const busyRef=useRef(busy);busyRef.current=busy;
   useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[activeId,user?.authenticated]);
@@ -241,7 +242,7 @@ function App(){
         <ul className="merchant-list">{p.lines.map(line=>{const order=orders.find(o=>o.id===line.id)!;return <li key={line.id}>
           <span className="merchant-icon">{line.category==='TENTS'?<Tent size={19}/>:<UtensilsCrossed size={18}/>}</span>
           <div><h3>{line.merchantName}</h3><p>{line.quantity} {line.category==='TENTS'?(p.intent.tentMode==='BUY'?'tents':'tent rentals'):'catered meals'} × {money(line.unitMinor)} · {line.category==='TENTS'?'paid at checkout':'paid after delivery'}</p>
-            {line.source&&<p className="line-source">{line.title}{line.source.brand?` · ${line.source.brand}`:''}. Product data from {line.source.provider}, listed by {line.source.store}{line.source.productUrl&&<> · <a href={line.source.productUrl} target="_blank" rel="noopener noreferrer">view product</a></>}. {line.merchantName} fills the order.</p>}
+            {line.source&&<p className="line-source">{line.title}{line.source.brand?` · ${line.source.brand}`:''}. Product data from {line.source.provider}, listed by {line.source.store}{line.source.offersCompared?`, the lowest of ${line.source.offersCompared} in-stock ${line.source.offersCompared===1?'offer':'offers'}`:''}{line.source.rating!=null?` · rated ${line.source.rating.toFixed(1)}${line.source.ratingCount?` from ${line.source.ratingCount.toLocaleString('en-US')} reviews`:''}`:''}{line.source.productUrl&&<> · <a href={line.source.productUrl} target="_blank" rel="noopener noreferrer">view product</a> (affiliate link: SwarmPay may earn a commission)</>}. {line.merchantName} fills the order.</p>}
             {line.category==='CATERING'&&renewsHold&&['NEW','APPROVAL_REQUIRED','AUTHORIZED'].includes(order.status)&&!frozen&&<p className="line-source">PayPal holds the authorized funds for 29 days. SwarmPay renews the hold 3 days before delivery, so the caterer is paid from a fresh authorization.</p>}</div>
           <strong>{money(line.totalMinor)}</strong><Status value={order.status} approved={approved}/></li>;})}</ul>
         {sourcing&&<p className="agent-note"><Sparkles size={16}/><span>{sourcing.summary} <small>Sourcing Agent · {sourcing.source==='DEMO_RULES'?'simulated':sourcing.source}</small></span></p>}
@@ -296,7 +297,8 @@ function App(){
       {notice&&<div className="message notice" role="status"><Check size={18}/><span>{notice}</span><button aria-label="Dismiss notification" onClick={()=>setNotice('')}><X size={17}/></button></div>}
       {busy&&<div className="working" role="status"><LoaderCircle className="spin" size={15}/>{busy}…</div>}
       {view==='ledger'?<><div className="page-title"><h1>All payments</h1><p>Every payment across your plans: what each merchant was paid, and every request AgentSafe held.</p></div>
-        <Suspense fallback={<div className="loading"><LoaderCircle className="spin"/>Loading your payments…</div>}><Ledger/></Suspense></>
+        <div className="tabs" role="tablist" aria-label="Payments views">{(['overview','ledger'] as const).map(tab=><button key={tab} role="tab" aria-selected={paymentsTab===tab} className={paymentsTab===tab?'tab active':'tab'} onClick={()=>setPaymentsTab(tab)}>{tab==='overview'?'Overview':'Ledger'}</button>)}</div>
+        <Suspense fallback={<div className="loading"><LoaderCircle className="spin"/>Loading your payments…</div>}>{paymentsTab==='overview'?<SpendDashboard config={config!}/>:<Ledger/>}</Suspense></>
         :!activeId?describe():flow&&plan?planPage():<div className="loading"><LoaderCircle className="spin"/>Loading your plan…</div>}
     </main>
     <SiteFooter config={config} className="app-footer"/>

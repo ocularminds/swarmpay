@@ -67,6 +67,8 @@ function SignInDialog({paypal,request,busy,error,onDismiss,onClose,onSignIn}:{pa
       {described&&<blockquote className="signin-request"><span>{request}</span></blockquote>}
       {error&&<div className="message error" role="alert"><AlertCircle size={18}/><span>{error}</span><button aria-label="Dismiss error" onClick={onDismiss}><X size={16}/></button></div>}
       {paypal&&<><button ref={payPal} className="button paypal-button landing-cta" disabled={!!busy||leaving} onClick={()=>{setLeaving(true);continueWithPayPal(request);}}>{leaving?<LoaderCircle className="spin" size={18}/>:null}Continue with PayPal</button>
+        {/* PayPal's sandbox login takes a sandbox buyer, never a real PayPal account. */}
+        <p className="signin-hint">Use a PayPal <strong>sandbox</strong> buyer account, not your own PayPal login. Judges: it is in the Devpost testing instructions.</p>
         <p className="signin-or"><span>or use the organizer password</span></p></>}
       <form className="landing-signin" onSubmit={e=>{e.preventDefault();onSignIn(username,password);setPassword('');}}>
         <label>Organizer<input autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)}/></label>

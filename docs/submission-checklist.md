@@ -26,6 +26,7 @@ The path from here to a submitted entry, and what keeps it working until judging
 **Before recording (by November 6)**
 
 - [ ] Merge this work after CI passes. The live-demo watch runs only from `master`.
+- [ ] Regenerate the APIMatic SDK and docs portal (`node demo/apimatic.mjs`): they were generated from the 31-operation API description, which now has 33 operations (cancel and the dashboard agent).
 - [ ] Ask Bryntum (a sponsor) for a hackathon license. If one arrives, change the alias in `apps/web/package.json` to the licensed package, update `NOTICE`, and redeploy the web image before recording. Without one, judges are unaffected; record in a fresh browser profile, as the script already says.
 - [ ] Rehearse on the live site the same day you record, in the script's fresh profile:
   - **Tents through the PayPal buttons.** Only catering has used the buttons live; the October 28 tents payment went through the API. If a button shows *Payment command is being processed*, the 3-second worker claimed the checkout first: choose the button again, and it continues the same order.

@@ -113,14 +113,27 @@ test('mobile: an over-budget plan offers a new plan, never approval or checkout'
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath('mobile-budget-block.png'),fullPage:true});
 });
-test('sandbox checkout: each merchant loads its own PayPal SDK and intent, and the buttons pay tents and authorize catering',async({page,request})=>{
+test('sandbox checkout: polling keeps the popup open, and each merchant uses its own SDK and intent',async({page,request})=>{
   // The browser alone is told payments run in the sandbox; the server stays simulated, so the buttons drive the simulated provider.
   await page.route('**/api/config',async route=>{const response=await route.fetch();await route.fulfill({response,json:{...await response.json(),mode:'sandbox',clientIds:{tents:'test-tents-client',catering:'test-catering-client'}}});});
+  // PayPal can take longer than the four-second dashboard poll to create an order. Exercise
+  // that interval with the command still dispatching, then let the buyer approve in the SDK.
+  let openingCheckout=false,pollsDuringCheckout=0;
+  await page.route('**/api/plans/*/orders/*/checkout',async route=>{
+    const response=await route.fetch();openingCheckout=true;
+    await new Promise(resolve=>setTimeout(resolve,6500));
+    openingCheckout=false;await route.fulfill({response});
+  });
+  await page.route('**/api/plans/*/commands',async route=>{
+    const response=await route.fetch(),commands=await response.json();
+    if(openingCheckout&&commands.length){commands.at(-1).state='DISPATCHING';pollsDuringCheckout++;}
+    await route.fulfill({response,json:commands});
+  });
   // A stand-in for PayPal's SDK: its button runs the page's createOrder and onApprove, as a buyer approving in PayPal would.
   const sdks:URL[]=[];
   await page.route('https://www.paypal.com/sdk/js?**',route=>{sdks.push(new URL(route.request().url()));return route.fulfill({contentType:'text/javascript',
-    body:`(()=>{const ns=document.currentScript.dataset.namespace;window[ns]={Buttons:o=>({render:async el=>{const b=document.createElement('button');b.textContent='PayPal '+ns;
-      b.onclick=async()=>{try{await o.onApprove({orderID:await o.createOrder()},{restart:async()=>{}});}catch(e){o.onError(e);}};el.append(b);},close:async()=>{}})};})();`});});
+    body:`(()=>{const ns=document.currentScript.dataset.namespace;window[ns]={Buttons:o=>{let closed=false;return {render:async el=>{const b=document.createElement('button');b.textContent='PayPal '+ns;
+      b.onclick=async()=>{try{const orderID=await o.createOrder();if(!closed)await o.onApprove({orderID},{restart:async()=>{}});}catch(e){o.onError(e);}};el.append(b);},close:async()=>{closed=true;}}}};})();`});});
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await signIntoWorkspace(page,request);
   await page.getByRole('radio',{name:'Rent tents'}).check();
@@ -131,12 +144,13 @@ test('sandbox checkout: each merchant loads its own PayPal SDK and intent, and t
   await expect(next.getByRole('heading',{name:'Pay Canopy Collective'})).toBeVisible();
   await expect(next.getByText('Simulated PayPal checkout')).toHaveCount(0);
   await next.getByRole('button',{name:'PayPal paypal_tents_capture'}).click();
-  await expect(next.getByRole('heading',{name:'Authorize Gather Kitchen'})).toBeVisible();
+  await expect(next.getByRole('heading',{name:'Authorize Gather Kitchen'})).toBeVisible({timeout:15000});
   await expect(plan.getByText('Paid',{exact:true})).toBeVisible();
   await next.getByRole('button',{name:'PayPal paypal_catering_authorize'}).click();
-  await expect(next.getByRole('heading',{name:'Confirm the catering delivery'})).toBeVisible();
+  await expect(next.getByRole('heading',{name:'Confirm the catering delivery'})).toBeVisible({timeout:15000});
   await expect(plan).toContainText('Authorized · pays on delivery');
   expect(sdks.map(u=>[u.searchParams.get('client-id'),u.searchParams.get('intent')])).toEqual([['test-tents-client','capture'],['test-catering-client','authorize']]);
+  expect(pollsDuringCheckout).toBeGreaterThanOrEqual(2);
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

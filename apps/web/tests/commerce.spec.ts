@@ -57,6 +57,34 @@ test('one next action per step: agent sourcing, both checkouts, an agent request
   await expect(page.getByRole('heading',{level:1,name:'Your event is booked and paid.'})).toBeVisible();
   expect(errors).toEqual([]);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath('desktop-completed.png'),fullPage:true});
 });
+test('cancelling before the event refunds the tents through PayPal, voids the catering hold and releases the budget',async({page,request})=>{
+  await page.setViewportSize({width:1366,height:950});
+  await signIntoWorkspace(page,request);
+  const venue=`Cancelled pavilion ${Date.now()}`;
+  await page.getByLabel('Venue',{exact:true}).fill(venue);
+  await page.getByRole('radio',{name:'Rent tents'}).check();
+  await page.getByRole('button',{name:'Prepare my plan'}).click();
+  const next=page.locator('.next-card'),plan=page.locator('.merchant-list'),dialog=page.getByRole('dialog');
+  await page.getByRole('checkbox',{name:/I approve these merchants/}).check();
+  await next.getByRole('button',{name:'Approve $1,400',exact:true}).click();
+  await next.getByRole('button',{name:'Pay $500'}).click();await dialog.getByRole('button',{name:'Pay $500'}).click();
+  await next.getByRole('button',{name:'Authorize $900'}).click();await dialog.getByRole('button',{name:'Authorize $900'}).click();
+  await expect(plan).toContainText('Authorized · pays on delivery');
+  await page.getByText('Pause or cancel').click();
+  await page.getByRole('button',{name:'Cancel the event'}).click();
+  await expect(page.getByRole('group',{name:'Confirm cancellation'})).toContainText('PayPal refunds the $500 tents payment');
+  await page.getByRole('button',{name:'Yes, cancel the event'}).click();
+  await expect(next.getByRole('heading',{name:'Your event is cancelled'})).toBeVisible();
+  await expect(next).toContainText('your budget is released');
+  await expect(plan).toContainText('Refunded');await expect(plan).toContainText('Cancelled');
+  await expect(page.locator('.timeline')).toContainText('PayPal refunded the $500.00 tents payment to you.');
+  await page.getByRole('button',{name:'All payments'}).click();
+  const ledger=page.locator('.ledger-grid');
+  await page.getByLabel('Search payments').fill(venue);
+  await expect(ledger).toContainText('Refund');
+  // The refund takes the tents payment back out, and no catering was ever taken.
+  await expect(ledger).toContainText('$0 · 0 payments');
+});
 test('a description that names no venue or weather leaves them blank, and planning asks for the venue',async({page,request})=>{
   await signIntoWorkspace(page,request,'A garden party for 40 guests. We need 6 tents and catering, $2,000 in total.');
   await expect(page.getByRole('spinbutton',{name:'Guests'})).toHaveValue('40');

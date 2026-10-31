@@ -9,7 +9,8 @@ import java.util.UUID;
 public final class Commerce {
     private Commerce() {}
     public enum Category { TENTS, CATERING }
-    public enum Operation { CREATE_ORDER, CAPTURE_ORDER, AUTHORIZE_ORDER, CAPTURE_AUTHORIZATION, VOID_AUTHORIZATION }
+    /** REAUTHORIZE_AUTHORIZATION renews a catering hold after PayPal's 3-day honor period; REFUND_CAPTURE returns a captured payment when the event is cancelled. */
+    public enum Operation { CREATE_ORDER, CAPTURE_ORDER, AUTHORIZE_ORDER, CAPTURE_AUTHORIZATION, VOID_AUTHORIZATION, REAUTHORIZE_AUTHORIZATION, REFUND_CAPTURE }
     public record Intent(String request, int attendees, int tents, long budgetMinor,
                          Instant eventAt, String timezone, String venue, String weather, String tentMode) {
         public Intent {
@@ -65,7 +66,7 @@ public final class Commerce {
     /** One row of an organizer's payment ledger: a payment command, or an agent's request the authority decided. {@code requestedBy} is ORGANIZER, AGENT or SWARMPAY. */
     public record LedgerEntry(UUID id, Instant at, Instant settledAt, UUID workflowId, String venue, Instant eventAt, String merchantName, Category category,
                               Operation operation, String requestedBy, long amountMinor, String state, String execution, String message,
-                              String dossierId, String providerOrderId, String authorizationId, String captureId) {}
+                              String dossierId, String providerOrderId, String authorizationId, String captureId, String refundId) {}
     public record PaymentCommand(UUID id, UUID workflowId, int planVersion, UUID orderId, Operation operation,
                                  String merchantId, long amountMinor, String currency,
                                  String providerResourceId, String evidenceDigest, String reservationId, String policyVersion) {
@@ -79,7 +80,12 @@ public final class Commerce {
     }
     public record ProviderResult(String status, String providerOrderId, String authorizationId,
                                  String captureId, String approvalUrl, long amountMinor, String currency,
-                                 String merchantId, String source) {}
+                                 String merchantId, String source, String refundId) {
+        public ProviderResult(String status, String providerOrderId, String authorizationId, String captureId, String approvalUrl,
+                              long amountMinor, String currency, String merchantId, String source) {
+            this(status, providerOrderId, authorizationId, captureId, approvalUrl, amountMinor, currency, merchantId, source, null);
+        }
+    }
     public record GateResult(String state, String execution, String decisionId, String dossierId,
                              String intentHash, String intentId, String message, ProviderResult result) {
         public boolean confirmed() { return result != null && "FORWARDED".equals(execution); }

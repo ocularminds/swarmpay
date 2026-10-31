@@ -120,14 +120,36 @@ public final class WorkflowService {
         var line=plan.lines().stream().filter(l->l.category()==Category.CATERING).findFirst().orElseThrow();
         return payment(plan,line.id(),Operation.VOID_AUTHORIZATION);
     }
+    /**
+     * The organizer cancels the event before it starts. The plan is frozen first, so nothing more can be
+     * paid; then the catering hold is voided and the tents refunded, each as its own command through AgentSafe.
+     */
+    public Workflow cancel(UUID id,String owner) {
+        var plan=db.approvedForVoid(db.owned(id,owner).id());
+        if(db.frozen(id)) throw CommerceException.conflict("This plan's payments are already stopped.");
+        if(!java.time.Instant.now().isBefore(plan.intent().eventAt())) throw CommerceException.held("The event has started. Ask the merchants about a refund.");
+        db.cancel(plan);
+        for(var order:db.orders(plan)) {
+            try {
+                if(order.category()==Category.CATERING && order.status().equals("AUTHORIZED")) payment(plan,order.id(),Operation.VOID_AUTHORIZATION);
+                if(order.category()==Category.TENTS && order.status().equals("CAPTURED")) payment(plan,order.id(),Operation.REFUND_CAPTURE);
+            } catch(CommerceException ignored) { /* The reason is on the plan's record; the command can be retried or reconciled. */ }
+        }
+        return get(id,owner);
+    }
     private GateResult payment(Plan plan,UUID orderId,Operation operation) {
         try {
-            if(operation==Operation.VOID_AUTHORIZATION) db.approvedForVoid(plan.id());
+            if(operation==Operation.VOID_AUTHORIZATION || operation==Operation.REFUND_CAPTURE) db.approvedForVoid(plan.id());
             else db.approvedForExecution(plan.id());
             var order=db.order(plan,orderId); var line=db.line(plan,orderId);
             String digest=operation==Operation.CAPTURE_AUTHORIZATION?db.receiptDigest(orderId):null;
             if(operation==Operation.CAPTURE_AUTHORIZATION && digest==null) throw CommerceException.held("A photo alone cannot release payment. A trusted venue receipt is required.");
-            String resource=switch(operation) { case CREATE_ORDER -> null; case CAPTURE_ORDER,AUTHORIZE_ORDER -> order.providerOrderId(); default -> order.authorizationId(); };
+            String resource=switch(operation) {
+                case CREATE_ORDER -> null;
+                case CAPTURE_ORDER,AUTHORIZE_ORDER -> order.providerOrderId();
+                case REFUND_CAPTURE -> order.captureId();
+                default -> order.authorizationId();
+            };
             if(operation!=Operation.CREATE_ORDER && resource==null) throw CommerceException.held("Complete this merchant's buyer approval first");
             // Only a buyer approval reaches here with these operations: after a declined funding source, it retries the same command.
             if(operation==Operation.CAPTURE_ORDER || operation==Operation.AUTHORIZE_ORDER) db.requeueAfterBuyerAction(plan.id(),orderId,operation);
@@ -149,7 +171,7 @@ public final class WorkflowService {
     }
     public GateResult retry(UUID id,String owner) {
         var command=db.command(id,owner);
-        if(command.operation()==Operation.VOID_AUTHORIZATION) db.approvedForVoid(command.workflowId());
+        if(command.operation()==Operation.VOID_AUTHORIZATION || command.operation()==Operation.REFUND_CAPTURE) db.approvedForVoid(command.workflowId());
         else db.approvedForExecution(command.workflowId());
         db.retryNotForwarded(command);
         return dispatch(command);
@@ -216,6 +238,11 @@ public final class WorkflowService {
         }
         for(var plan:db.readyMilestones()) {
             try { milestone(plan.id(),plan.ownerId()); } catch(CommerceException ignored) { /* Held reason is persisted by payment(). */ }
+        }
+        // PayPal guarantees an authorization's funds for 3 days; renew it so the honor period covers the delivery.
+        for(var plan:db.holdsToRenew()) {
+            var line=plan.lines().stream().filter(l->l.category()==Category.CATERING).findFirst().orElseThrow();
+            try { payment(plan,line.id(),Operation.REAUTHORIZE_AUTHORIZATION); } catch(CommerceException ignored) { /* Held reason is persisted by payment(). */ }
         }
     }
     public AgentActions forAgent(String owner) {

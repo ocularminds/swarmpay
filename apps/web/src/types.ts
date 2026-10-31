@@ -18,4 +18,4 @@ export type Session={authenticated:boolean;username:string;name:string;csrfToken
 /** A payment command or an agent request the authority decided, across the organizer's plans. */
 export type LedgerEntry={id:string;at:string;settledAt:string;workflowId:string;venue:string;eventAt:string;merchantName:string;category:'TENTS'|'CATERING';
   operation:string;requestedBy:'ORGANIZER'|'AGENT'|'SWARMPAY';amountMinor:number;state:string;execution:string|null;message:string|null;
-  dossierId:string|null;providerOrderId:string|null;authorizationId:string|null;captureId:string|null};
+  dossierId:string|null;providerOrderId:string|null;authorizationId:string|null;captureId:string|null;refundId:string|null};

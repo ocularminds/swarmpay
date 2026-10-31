@@ -7,15 +7,17 @@ public final class DemoPaymentProvider implements PaymentProvider {
     @Override public ProviderResult execute(PaymentCommand c, Plan plan, Line line) {
         String id = c.orderId().toString();
         return switch (c.operation()) {
-            case CREATE_ORDER -> result(c, "APPROVAL_REQUIRED", "DEMO-ORDER-"+id, null, null);
-            case CAPTURE_ORDER -> result(c, "CAPTURED", c.providerResourceId(), null, "DEMO-CAPTURE-"+id);
-            case AUTHORIZE_ORDER -> result(c, "AUTHORIZED", c.providerResourceId(), "DEMO-AUTH-"+id, null);
-            case CAPTURE_AUTHORIZATION -> result(c, "CAPTURED", "DEMO-ORDER-"+id, c.providerResourceId(), "DEMO-CAPTURE-"+id);
-            case VOID_AUTHORIZATION -> result(c, "VOIDED", "DEMO-ORDER-"+id, c.providerResourceId(), null);
+            case CREATE_ORDER -> result(c, "APPROVAL_REQUIRED", "DEMO-ORDER-"+id, null, null, null);
+            case CAPTURE_ORDER -> result(c, "CAPTURED", c.providerResourceId(), null, "DEMO-CAPTURE-"+id, null);
+            case AUTHORIZE_ORDER -> result(c, "AUTHORIZED", c.providerResourceId(), "DEMO-AUTH-"+id, null, null);
+            case CAPTURE_AUTHORIZATION -> result(c, "CAPTURED", "DEMO-ORDER-"+id, c.providerResourceId(), "DEMO-CAPTURE-"+id, null);
+            case VOID_AUTHORIZATION -> result(c, "VOIDED", "DEMO-ORDER-"+id, c.providerResourceId(), null, null);
+            case REAUTHORIZE_AUTHORIZATION -> result(c, "AUTHORIZED", "DEMO-ORDER-"+id, "DEMO-REAUTH-"+id, null, null);
+            case REFUND_CAPTURE -> result(c, "REFUNDED", "DEMO-ORDER-"+id, null, c.providerResourceId(), "DEMO-REFUND-"+id);
         };
     }
     @Override public ProviderResult reconcile(PaymentCommand c, ProviderResult lastKnownResult) { return null; }
-    private ProviderResult result(PaymentCommand c, String status, String order, String authorization, String capture) {
-        return new ProviderResult(status,order,authorization,capture,null,c.amountMinor(),c.currency(),c.merchantId(),"SIMULATED_PAYPAL");
+    private ProviderResult result(PaymentCommand c, String status, String order, String authorization, String capture, String refund) {
+        return new ProviderResult(status,order,authorization,capture,null,c.amountMinor(),c.currency(),c.merchantId(),"SIMULATED_PAYPAL",refund);
     }
 }

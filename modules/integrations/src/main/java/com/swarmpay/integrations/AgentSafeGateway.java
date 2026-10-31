@@ -72,6 +72,7 @@ public final class AgentSafeGateway implements AuthorityGateway {
             case "AUTHORIZED" -> "Catering funds are authorized. Delivery confirmation is required before capture.";
             case "CAPTURED" -> "Payment capture confirmed for " + p.merchantId() + ".";
             case "VOIDED" -> "The authorization was voided.";
+            case "REFUNDED" -> "The payment to " + p.merchantId() + " was refunded.";
             default -> "Provider reports " + p.status() + ".";
         };
     }

@@ -1,6 +1,6 @@
 import {StrictMode,Suspense,lazy,useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Table,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
+import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Table,Check,CheckCheck,CloudRain,FileJson,FileUp,LoaderCircle,LockKeyhole,LogOut,MapPin,PauseCircle,Ban,Plus,ShieldAlert,ShieldCheck,Sparkles,Tent,Users,UtensilsCrossed,X} from 'lucide-react';
 import {api,download,login,session} from './api';
 import {PayPalCheckout} from './PayPalCheckout';
 import {AgentAccess} from './AgentAccess';
@@ -14,7 +14,7 @@ import './styles.css';
 
 function localInput(date:Date) { return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); }
 const sourceLabels:Record<string,string>={HUMAN:'You',APPLICATION:'SwarmPay',AGENTSAFE:'AgentSafe',PHOTO:'Photo','demo-venue-fixture':'Venue (simulated)'};
-const statusLabels:Record<string,string>={APPROVAL_REQUIRED:'Waiting for PayPal approval',AUTHORIZED:'Authorized · pays on delivery',CAPTURED:'Paid',VOIDED:'Cancelled',PENDING:'Confirming with PayPal',DECLINED:'Declined',EXPIRED:'Expired'};
+const statusLabels:Record<string,string>={APPROVAL_REQUIRED:'Waiting for PayPal approval',AUTHORIZED:'Authorized · pays on delivery',CAPTURED:'Paid',VOIDED:'Cancelled',REFUNDED:'Refunded',PENDING:'Confirming with PayPal',DECLINED:'Declined',EXPIRED:'Expired'};
 const retryable=['NOT_EXECUTED','AUTHORITY_UNAVAILABLE'],unsettled=['QUEUED','DISPATCHING','INDETERMINATE','EXECUTION_INDETERMINATE'];
 const steps=['Describe','Approve','Pay merchants','Confirm delivery'];
 function Status({value,approved}:{value:string;approved:boolean}) {
@@ -38,7 +38,7 @@ function App(){
   const [weather,setWeather]=useState('');const [tentMode,setTentMode]=useState<''|'RENT'|'BUY'>('');
   const [tentOffer,setTentOffer]=useState('');const [foodOffer,setFoodOffer]=useState('');
   const [details,setDetails]=useState<''|'read'|'manual'>('');const [clarifications,setClarifications]=useState<string[]>([]);
-  const [consent,setConsent]=useState(false);const [dialog,setDialog]=useState<Order>();
+  const [consent,setConsent]=useState(false);const [confirmCancel,setConfirmCancel]=useState(false);const [dialog,setDialog]=useState<Order>();
   const [proof,setProof]=useState<Record<string,unknown>>();const [allEvents,setAllEvents]=useState(false);const [agentsOpen,setAgentsOpen]=useState(false);const [view,setView]=useState<'plans'|'ledger'>('plans');
   const busyRef=useRef(busy);busyRef.current=busy;
   useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[activeId,user?.authenticated]);
@@ -68,7 +68,10 @@ function App(){
   const paid=flow?.capturedMinor??0;const allPaid=!!plan&&paid===plan.totalMinor;const remaining=plan?plan.intent.budgetMinor-plan.totalMinor:0;
   const orders=flow?[...flow.orders].sort((a,b)=>a.category===b.category?0:a.category==='TENTS'?-1:1):[];
   const catering=orders.find(o=>o.category==='CATERING');const cateringAuthorized=catering?.status==='AUTHORIZED';
-  const step=!plan?0:!approved?1:!orders.every(o=>['AUTHORIZED','CAPTURED','VOIDED'].includes(o.status))?2:allPaid?4:3;
+  const step=!plan?0:!approved?1:!orders.every(o=>['AUTHORIZED','CAPTURED','VOIDED','REFUNDED'].includes(o.status))?2:allPaid?4:3;
+  const cancelled=!!flow?.events.some(e=>e.type==='PLAN_CANCELLED');
+  // PayPal guarantees an authorization's funds for 3 days and keeps it 29; SwarmPay renews it 3 days before delivery.
+  const renewsHold=!!plan&&new Date(plan.intent.eventAt).getTime()-Date.now()>3*86400000;
   const lastCommand=(orderId:string)=>commands.filter(c=>c.command.orderId===orderId).at(-1);
 
   async function readRequest(){
@@ -103,6 +106,7 @@ function App(){
   async function uploadReceipt(file:File){if(file.size>32000)throw new Error('Use a signed receipt smaller than 32 KB.');const body=JSON.parse(await file.text());await api(`/api/plans/${plan!.id}/receipt`,'POST',body);await refresh();setNotice('Venue receipt verified. The catering payment was requested.');}
   async function uploadPhoto(file:File){const form=new FormData();form.set('file',file);await api(`/api/plans/${plan!.id}/photo`,'POST',form);await refresh();setNotice('Photo saved. A photo supports a delivery, but the caterer is paid only after a signed venue receipt.');}
   async function post(path:string){await api(path,'POST');await refresh();}
+  async function cancelEvent(){await api(`/api/plans/${plan!.id}/cancel`,'POST');setConfirmCancel(false);await refresh();}
   async function voidAuthorization(){const r=await api<GateResult>(`/api/plans/${plan!.id}/void`,'POST');await refresh();if(r.state!=='SUCCEEDED')throw new Error(r.message);}
   async function downloadEvidence(){const result=await api<Record<string,unknown>>(`/api/plans/${plan!.id}/evidence`);setProof(result);download(`swarm-pay-evidence-${plan!.id}.json`,result);}
   async function signOut(){await api('/api/logout','POST');newPlan();setRequest('');setPlans([]);setOffers([]);setUser(await session());}
@@ -164,6 +168,14 @@ function App(){
   function nextStep(){
     const p=plan!;
     const card=(eyebrow:string,title:string,text:string,body:React.ReactNode)=><section className="card next-card" aria-labelledby="next-title"><span className="eyebrow">{eyebrow}</span><h2 id="next-title">{title}</h2><p>{text}</p>{body}</section>;
+    if(cancelled) {
+      const tents=orders.find(o=>o.category==='TENTS');
+      const settling=orders.some(o=>['CAPTURED','AUTHORIZED','PENDING'].includes(o.status));
+      return card('Cancelled',settling?'Cancelling your event':'Your event is cancelled',
+        settling?'SwarmPay is voiding the catering hold and refunding what was paid, each through AgentSafe. Nothing new will be paid.'
+          :`${tents?.status==='REFUNDED'?`PayPal refunded the ${money(tents.amountMinor)} tents payment. `:''}No catering payment was taken, and your budget is released.`,
+        actions(<button key="new" className="button button-primary next-action" onClick={newPlan}>Start a new plan</button>));
+    }
     if(frozen) return card('Paused','Payments are paused for review','No further automatic payments will be sent. Payments already made need follow-up with the merchant.',
       cateringAuthorized&&actions(<button key="void" className="button button-primary next-action" disabled={!!busy} onClick={()=>void run('Cancelling the catering authorization',voidAuthorization)}>Cancel catering authorization</button>));
     if(!approved) return remaining<0
@@ -175,7 +187,7 @@ function App(){
       </>);
     if(allPaid) return card('Done','Both merchants are paid',`${money(paid)} of ${money(p.intent.budgetMinor)}. Tents were paid at checkout and catering after the venue confirmed delivery.`,
       actions(<button key="evidence" className="button button-primary next-action" onClick={()=>void run('Preparing your evidence',downloadEvidence)}><ArrowDownToLine size={17}/>Download evidence</button>,<button key="new" className="button button-white" onClick={newPlan}>Start a new plan</button>));
-    const pending=orders.find(o=>!['CAPTURED','AUTHORIZED','VOIDED'].includes(o.status));
+    const pending=orders.find(o=>!['CAPTURED','AUTHORIZED','VOIDED','REFUNDED'].includes(o.status));
     if(pending) {
       const last=lastCommand(pending.id),position=`Next step · ${orders.indexOf(pending)+1} of 2`;
       const check=last&&<button key="check" className="button button-white" disabled={!!busy} onClick={()=>void run('Checking with PayPal',()=>post(`/api/commands/${last.command.id}/reconcile`))}>Check status</button>;
@@ -229,13 +241,18 @@ function App(){
         <ul className="merchant-list">{p.lines.map(line=>{const order=orders.find(o=>o.id===line.id)!;return <li key={line.id}>
           <span className="merchant-icon">{line.category==='TENTS'?<Tent size={19}/>:<UtensilsCrossed size={18}/>}</span>
           <div><h3>{line.merchantName}</h3><p>{line.quantity} {line.category==='TENTS'?(p.intent.tentMode==='BUY'?'tents':'tent rentals'):'catered meals'} × {money(line.unitMinor)} · {line.category==='TENTS'?'paid at checkout':'paid after delivery'}</p>
-            {line.source&&<p className="line-source">{line.title}{line.source.brand?` · ${line.source.brand}`:''}. Product data from {line.source.provider}, listed by {line.source.store}{line.source.productUrl&&<> · <a href={line.source.productUrl} target="_blank" rel="noopener noreferrer">view product</a></>}. {line.merchantName} fills the order.</p>}</div>
+            {line.source&&<p className="line-source">{line.title}{line.source.brand?` · ${line.source.brand}`:''}. Product data from {line.source.provider}, listed by {line.source.store}{line.source.productUrl&&<> · <a href={line.source.productUrl} target="_blank" rel="noopener noreferrer">view product</a></>}. {line.merchantName} fills the order.</p>}
+            {line.category==='CATERING'&&renewsHold&&['NEW','APPROVAL_REQUIRED','AUTHORIZED'].includes(order.status)&&!frozen&&<p className="line-source">PayPal holds the authorized funds for 29 days. SwarmPay renews the hold 3 days before delivery, so the caterer is paid from a fresh authorization.</p>}</div>
           <strong>{money(line.totalMinor)}</strong><Status value={order.status} approved={approved}/></li>;})}</ul>
         {sourcing&&<p className="agent-note"><Sparkles size={16}/><span>{sourcing.summary} <small>Sourcing Agent · {sourcing.source==='DEMO_RULES'?'simulated':sourcing.source}</small></span></p>}
         <details className="disclosure"><summary>Why this plan</summary><div className="assessments">{p.assessments.map(a=><div key={a.role}><h3>{a.role==='Sourcing'?'Sourcing Agent':'Risk and milestone review'}<small>{a.source==='DEMO_RULES'?'Simulated agent':a.source}</small></h3><p>{a.summary}</p><ul>{a.facts.map(f=><li key={f}>{f}</li>)}</ul></div>)}</div></details>
-        {approved&&!allPaid&&!frozen&&<details className="disclosure"><summary>Pause or cancel</summary><p className="section-note">A delivery dispute pauses further automatic payments. The catering authorization can be cancelled before it’s paid.</p>
-          {actions(<button key="pause" className="button button-white" disabled={!!busy} onClick={()=>void run('Pausing payments',()=>post(`/api/plans/${p.id}/freeze`))}><PauseCircle size={16}/>Pause payments for review</button>,
-            <button key="void" className="button button-white" disabled={!!busy||!cateringAuthorized} onClick={()=>void run('Cancelling the catering authorization',voidAuthorization)}>Cancel catering authorization</button>)}</details>}
+        {approved&&!allPaid&&!frozen&&<details className="disclosure"><summary>Pause or cancel</summary><p className="section-note">A delivery dispute pauses further automatic payments. Cancelling the event before it starts voids the catering hold and refunds the tents, each through AgentSafe.</p>
+          {confirmCancel
+            ?<div className="cancel-confirm" role="group" aria-label="Confirm cancellation"><p>Cancel this event? {orders.some(o=>o.category==='TENTS'&&o.status==='CAPTURED')?`PayPal refunds the ${money(orders.find(o=>o.category==='TENTS')!.amountMinor)} tents payment, `:''}the catering hold is voided, and nothing more can be paid.</p>
+              {actions(<button key="yes" className="button button-primary" disabled={!!busy} onClick={()=>void run('Cancelling your event',cancelEvent)}>Yes, cancel the event</button>,
+                <button key="no" className="button button-white" disabled={!!busy} onClick={()=>setConfirmCancel(false)}>Keep it</button>)}</div>
+            :actions(<button key="pause" className="button button-white" disabled={!!busy} onClick={()=>void run('Pausing payments',()=>post(`/api/plans/${p.id}/freeze`))}><PauseCircle size={16}/>Pause payments for review</button>,
+              <button key="cancel" className="button button-white" disabled={!!busy} onClick={()=>setConfirmCancel(true)}><Ban size={16}/>Cancel the event</button>)}</details>}
       </section>
       {remaining>=0&&<Suspense fallback={<section className="card schedule-card"><p className="quiet-note">Loading the schedule…</p></section>}><PaymentSchedule plan={p} orders={orders} refreshKey={flow!.events.length}/></Suspense>}
       {timeline()}

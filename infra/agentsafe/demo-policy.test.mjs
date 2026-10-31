@@ -9,6 +9,11 @@ test('local policy rejects recipient and amount substitution', () => {
   assert.equal(decide({ ...command, amountMinor: 160000 }), 'BLOCK');
   assert.equal(decide({ ...command, currency: 'EUR' }), 'BLOCK');
 });
+test('renewing a hold and refunding a cancelled payment are known operations', () => {
+  assert.equal(decide({ ...command, operation: 'REAUTHORIZE_AUTHORIZATION' }), 'ALLOW');
+  assert.equal(decide({ ...command, merchantId: 'tents', amountMinor: 50000, operation: 'REFUND_CAPTURE' }), 'ALLOW');
+  assert.equal(decide({ ...command, operation: 'PAYOUT' }), 'BLOCK');
+});
 test('milestone needs an evidence binding', () => {
   assert.equal(decide({ ...command, operation: 'CAPTURE_AUTHORIZATION' }), 'ESCALATE');
   assert.equal(decide({ ...command, operation: 'CAPTURE_AUTHORIZATION', evidenceDigest: 'a'.repeat(64) }), 'ALLOW');

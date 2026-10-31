@@ -34,6 +34,7 @@ Successful JSON endpoints normally return 200. `id` is a workflow UUID, `order` 
 | `POST /api/plans/{id}/milestone` | Empty body → guarded capture of the existing catering authorization; requires a trusted receipt |
 | `POST /api/plans/{id}/freeze` | Empty body → `{frozen:true}`; blocks new spending, not already dispatched effects |
 | `POST /api/plans/{id}/void` | Empty body → gated void of an uncaptured catering authorization; permitted after a dispute freeze |
+| `POST /api/plans/{id}/cancel` | Empty body → cancels the event before it starts: freezes the plan, then a gated void of the catering authorization and a gated full refund of the tents capture; the budget reservation is released once nothing is held or paid. Returns the workflow |
 | `POST /api/plans/{id}/receipt` | Signed envelope → workflow after verification and a possible automatic capture request |
 | `POST /api/plans/{id}/photo` | Multipart field `file`, PNG/JPEG up to 2,000,000 bytes → supporting evidence in HELD state |
 | `GET /api/plans/{id}/commands` | Array of `{command, state, result}` |

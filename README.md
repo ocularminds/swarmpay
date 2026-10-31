@@ -19,7 +19,7 @@ Only a private executor holds the merchants' PayPal credentials; every payment c
 
 - **JavaScript SDK Buttons**, with a separate `data-namespace` per merchant so each seller gets its own buyer approval ([`PayPalCheckout.tsx`](apps/web/src/PayPalCheckout.tsx)).
 - **Orders v2**: `CAPTURE` intent for tents, `AUTHORIZE` intent for catering, the seller as payee and a `PayPal-Request-Id` on each write.
-- **Payments v2**: capture the catering authorization after the receipt verifies, or void it.
+- **Payments v2**: capture the catering authorization after the receipt verifies, or void it. **Reauthorize** it after PayPal's 3-day honor period, so catering can be booked up to 27 days ahead and still be paid from a fresh authorization, and **refund** the tents capture when the organizer cancels.
 - **Webhook signature verification** per seller ([`PayPalWebhookVerifier.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalWebhookVerifier.java)).
 - **PayPal Java Server SDK** 2.4.0 for all Orders and Payments calls ([`PayPalPaymentProvider.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalPaymentProvider.java)).
 
@@ -98,7 +98,7 @@ To test altered or replayed receipts, sign an exported workflow with `node demo/
 
 The over-budget path is just as short: with a $1,300 budget the plan shows **Over budget by $100** and offers a new plan, never approval or checkout. Records and authority decisions sit under **What happened**.
 
-The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering checkout must be within three days of the event. Use a new plan when a quote expires.
+The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering can be authorized up to 27 days before the event, and SwarmPay renews the PayPal hold 3 days before delivery. **Cancel the event**, under **Pause or cancel**, refunds the tents and voids the catering hold before the event starts. Use a new plan when a quote expires.
 
 Stop with `docker compose down`; the database, authority journal and key volumes remain. A later `docker compose up -d --wait` restores workflows. Removing volumes destroys those records, so volume deletion is not part of the normal reset procedure. Use **New plan** for another demonstration.
 

@@ -31,13 +31,14 @@ SwarmPay plans and pays for an event across two merchants, each on its own terms
 4. **Approve once.** The organizer approves one exact plan, $1,400 of the $1,500, and the whole amount is reserved.
 5. **Pay each merchant on its terms.** Each merchant gets its own PayPal approval and is paid directly. Tents are captured at checkout. Catering is only authorized, so the money is held, not taken.
 6. **Agents can ask but not pay.** If the milestone agent asks to pay the caterer before delivery, the request goes through a fail-closed payment gateway (AgentSafe), and it is held: no receipt, no payment.
-7. **Pay on delivery.** The caterer is paid when the venue's signed receipt matches the event, merchant, quantity and delivery window. A photo alone is never enough, and replaying a receipt can't pay twice. In the demo, a separate simulated venue signs that receipt.
+7. **Pay on delivery.** The caterer is paid when the venue's signed receipt matches the event, merchant, quantity and delivery window. A photo alone is never enough, and replaying a receipt can't pay twice. In the demo, a separate simulated venue signs that receipt. Catering can be booked up to 27 days ahead: PayPal guarantees an authorization's funds for 3 days, so SwarmPay reauthorizes the hold 3 days before delivery and the caterer is paid from the fresh authorization.
 8. **Prove it.** A schedule shows when each merchant was paid against the delivery window, and a plain-language timeline shows what happened. The full payment record exports as tamper-evident evidence.
 
 Around that journey:
 
 - **Bring your own agent.** Organizers issue their own agent tokens under **Agents**. Any MCP client can connect with one, including Postman's: the agent can read the plan and ask for payments, but it can't approve a plan or issue another token, and it acts only for the organizer who issued it.
 - **See every payment.** **Payments** opens a ledger of every payment and held agent request across the organizer's plans, with search, filters, CSV export and a total of what was actually paid for the rows shown.
+- **Cancel cleanly.** Cancelling before the event stops all further payments, then refunds the tents through PayPal and voids the catering hold, each through AgentSafe, and releases the budget once nothing is held or paid.
 
 Every screen offers exactly one next action, and the layout works on a phone.
 
@@ -64,7 +65,7 @@ The same services also deploy to Render from a Blueprint, as a copy with simulat
 
 - JavaScript SDK Buttons, with a separate `data-namespace` per merchant so each seller gets its own buyer approval on the same page.
 - Orders v2: `CAPTURE` intent for tents, `AUTHORIZE` intent for catering, the seller as payee and a `PayPal-Request-Id` on each write.
-- Payments v2: capture the catering authorization after the receipt verifies, or void it on cancellation.
+- Payments v2: capture the catering authorization after the receipt verifies; reauthorize it once PayPal's 3-day honor period has passed, so catering can be booked up to 27 days ahead; and on cancellation, void it and refund the tents capture.
 - Webhook signature verification for each seller.
 - Log in with PayPal through SwarmPay's own sandbox app: the authorization-code exchange and the identity profile create the organizer account.
 - PayPal Java Server SDK 2.4.0 for all payment calls, with bounded timeouts and retries disabled.
@@ -74,7 +75,7 @@ The same services also deploy to Render from a Blueprint, as a copy with simulat
 - **Channel3: tents to buy.** When the organizer chooses **Buy tents**, the server searches Channel3 for in-stock pop-up canopy tents, adding "waterproof" when rain is forecast. The price ceiling per tent leaves room in the budget for the cheapest caterer that fits the guest count. SwarmPay keeps the lowest in-stock USD offer for each product, and the Sourcing Agent may choose only among those IDs. The plan names the product, brand and store, with a link to the listing, and the listed price sets the amount. Local and hosted runs with the live Channel3 API proposed five 10×20 ft canopies, listed by a national home-improvement retailer, at $113.99 each. The search runs on the server through the egress proxy, which admits `api.trychannel3.com` and still refuses PayPal, and it fails closed if Channel3 can't be reached. In the sandbox, SwarmPay's tents merchant is paid through PayPal at the listed price; no order is placed with the store.
 - **AG Grid: the payments ledger.** AG Grid Community lists every payment step and held agent request across all of an organizer's plans: who asked (the organizer, an agent, or SwarmPay after delivery), the merchant, the amount, AgentSafe's decision, the PayPal reference and the dossier. It has a quick search, column filters and CSV export. A pinned **Paid to merchants** row recounts after every filter and counts only completed captures, so authorizations and held requests never inflate it.
 - **Bryntum: when each merchant is paid.** A read-only Bryntum Scheduler on each plan has one row per merchant and one for the event. Its bars sit at the recorded times: the quote's validity, the tents paid at checkout, catering authorized and held, the agent's early request held, and catering paid after delivery. The venue's delivery window is shaded. It uses Bryntum's trial build, as `NOTICE` records.
-- **APIMatic: the REST API, described and generated.** An OpenAPI 3.1 document describes all 31 REST operations, with their session and CSRF requirements. A CI test compares it with the Spring controllers' routes, so it can't drift from the server. The APIMatic CLI validates it and generates a TypeScript SDK and an API docs portal; the generated SDK compiled and called the local configuration and session endpoints.
+- **APIMatic: the REST API, described and generated.** An OpenAPI 3.1 document describes all 32 REST operations, with their session and CSRF requirements. A CI test compares it with the Spring controllers' routes, so it can't drift from the server. The APIMatic CLI validates it and generates a TypeScript SDK and an API docs portal; the generated SDK compiled and called the local configuration and session endpoints.
 - **Render: your own copy.** `render.yaml` is generated from a tested definition and deploys seven services, including PostgreSQL, from a **Deploy to Render** button. Peers find each other by Render's private `host:port`, and Render generates the database passwords and service tokens and shares them between services. Render's private network can't enforce SwarmPay's isolation rules, so this copy uses simulated payments and holds no PayPal credentials. CI runs the local stack wired exactly as Render wires it.
 - **Postman: playing the agent.** A Postman collection connects to the MCP server with an organizer's agent token. It checks that the agent can't approve a plan, that its early payment request is held, and that nothing more was captured. CI runs it on every change with Newman: 21 requests and 27 assertions.
 
@@ -120,7 +121,7 @@ Every change runs 160 Java tests (PostgreSQL through Testcontainers), 52 Node te
 ## What's next
 
 - Hosted Decionis enforcement in place of the local test authority, including approval and resume of held payments.
-- Real venue integrations and a dispute process, plus refunds and budget reallocation after cancellation.
+- Real venue integrations and a dispute process, plus merchant cancellation fees and partial refunds.
 - Checkout with the stores that list purchased tents, instead of a sandbox tents merchant.
 - OAuth for agent connections, more merchants and multi-milestone contracts.
 

@@ -837,6 +837,55 @@
         "description": "Requests an AgentSafe-guarded void of the outstanding catering authorization. Captured payments cannot be voided."
       }
     },
+    "/api/plans/{id}/cancel": {
+      "post": {
+        "summary": "Cancel the event",
+        "tags": [
+          "Payments"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workflow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Workflow (plan) ID"
+          }
+        ],
+        "security": [
+          {
+            "session": [],
+            "csrf": []
+          }
+        ],
+        "operationId": "cancelEvent",
+        "description": "Stops all further payments for the plan, then voids an outstanding catering authorization and refunds a captured tents payment, each as an AgentSafe-guarded command. Only before the event starts. The budget reservation is released once nothing is held or paid."
+      }
+    },
     "/api/plans/{id}/freeze": {
       "post": {
         "summary": "Pause payments for review",
@@ -1966,6 +2015,13 @@
           },
           "source": {
             "type": "string"
+          },
+          "refundId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PayPal refund ID, for a refund of a captured payment"
           }
         }
       },
@@ -2239,6 +2295,13 @@
               "string",
               "null"
             ]
+          },
+          "refundId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PayPal refund ID, for a refund of a captured payment"
           }
         }
       },

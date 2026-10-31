@@ -91,8 +91,9 @@ public final class PayPalPaymentProvider implements PaymentProvider {
             verifyId(order,orderId);
             verifyIntent(order,line.paymentIntent());
             readOrder(order,c,clock.instant());
-            if (c.operation()==Operation.CAPTURE_AUTHORIZATION || c.operation()==Operation.VOID_AUTHORIZATION)
+            if (c.operation()==Operation.CAPTURE_AUTHORIZATION || c.operation()==Operation.VOID_AUTHORIZATION || c.operation()==Operation.REAUTHORIZE_AUTHORIZATION)
                 verifyAuthorization(order,c);
+            if (c.operation()==Operation.REFUND_CAPTURE) verifyCapture(order,c);
             effectAttempted=true;
             return switch (c.operation()) {
                 case CAPTURE_ORDER -> {
@@ -123,6 +124,27 @@ public final class PayPalPaymentProvider implements PaymentProvider {
                     verifyPayment(auth,c,account.merchantId(),orderId,c.providerResourceId(),c.providerResourceId());
                     yield result(c,auth.path("status").asText().equals("VOIDED") ? "VOIDED" : "PENDING",orderId,c.providerResourceId(),null);
                 }
+                // PayPal reauthorizes a PayPal-account authorization once, from day 4 to day 29, as a new authorization with a fresh 3-day honor period.
+                case REAUTHORIZE_AUTHORIZATION -> {
+                    var request = new ReauthorizeRequest.Builder().amount(money(c)).build();
+                    var response=client.getPaymentsController().reauthorizePayment(new ReauthorizePaymentInput.Builder(c.providerResourceId(),null)
+                        .body(request).paypalRequestId(c.requestId()).prefer("return=representation").build());
+                    providerAccepted=true;
+                    var renewed=tree(response.getResult());
+                    String id=renewed.path("id").asText();
+                    if (id.isBlank() || id.equals(c.providerResourceId())) throw CommerceException.held("PayPal did not return a renewed authorization");
+                    verifyPayment(renewed,c,account.merchantId(),orderId,null,id);
+                    yield result(c,authorizationStatus(renewed,clock.instant()),orderId,id,null);
+                }
+                case REFUND_CAPTURE -> {
+                    var request = new RefundRequest.Builder().amount(money(c)).customId(c.orderId().toString()).noteToPayer("The event was cancelled.").build();
+                    var response=client.getPaymentsController().refundCapturedPayment(new RefundCapturedPaymentInput.Builder(c.providerResourceId(),null)
+                        .body(request).paypalRequestId(c.requestId()).prefer("return=representation").build());
+                    providerAccepted=true;
+                    var refund=tree(response.getResult());
+                    verifyRefund(refund,c);
+                    yield refundResult(refund,c,orderId);
+                }
                 default -> throw CommerceException.invalid("Unsupported operation");
             };
         } catch (ApiException e) {
@@ -148,6 +170,9 @@ public final class PayPalPaymentProvider implements PaymentProvider {
      * payment POST, or from creating an order, which needs buyer approval before any funds move and
      * which PayPal deduplicates by the same PayPal-Request-Id on retry.
      */
+    private static com.paypal.sdk.models.Money money(PaymentCommand c) {
+        return new com.paypal.sdk.models.Money.Builder("USD",Money.usd(c.amountMinor()).decimal()).build();
+    }
     private static boolean retrySafe(PaymentCommand c,boolean effectAttempted,boolean providerAccepted) {
         return !effectAttempted || c.operation()==Operation.CREATE_ORDER && !providerAccepted;
     }
@@ -161,9 +186,35 @@ public final class PayPalPaymentProvider implements PaymentProvider {
             var node=getOrder(client,order);
             verifyOrder(node,c,payee); verifyId(node,order);
             if(c.operation()!=Operation.CREATE_ORDER)
-                verifyIntent(node,c.operation()==Operation.CAPTURE_ORDER ? "CAPTURE" : "AUTHORIZE");
+                verifyIntent(node,c.operation()==Operation.CAPTURE_ORDER || c.operation()==Operation.REFUND_CAPTURE ? "CAPTURE" : "AUTHORIZE");
             var observed=readOrder(node,c,clock.instant());
             if(c.operation()==Operation.CREATE_ORDER) return observed;
+            var payments=node.path("purchase_units").get(0).path("payments");
+            if(c.operation()==Operation.REAUTHORIZE_AUTHORIZATION) {
+                verifyAuthorization(node,c);
+                // The renewal is the order's other authorization: PayPal reauthorizes only once.
+                for(var auth:payments.path("authorizations")) {
+                    String id=auth.path("id").asText();
+                    if(id.isBlank() || id.equals(c.providerResourceId())) continue;
+                    var renewed=tree(client.getPaymentsController().getAuthorizedPayment(new GetAuthorizedPaymentInput.Builder(id).build()).getResult());
+                    verifyPayment(renewed,c,payee,order,null,id);
+                    return result(c,authorizationStatus(renewed,clock.instant()),order,id,null);
+                }
+                return null;
+            }
+            if(c.operation()==Operation.REFUND_CAPTURE) {
+                verifyCapture(node,c);
+                String refundId=known!=null ? known.refundId() : null;
+                if(refundId==null) {
+                    var refunds=payments.path("refunds");
+                    if(!refunds.isArray() || refunds.size()!=1) return null;
+                    refundId=refunds.get(0).path("id").asText(null);
+                }
+                if(refundId==null || refundId.isBlank()) return null;
+                var refund=tree(client.getPaymentsController().getRefund(new GetRefundInput.Builder(refundId).build()).getResult());
+                verifyRefund(refund,c);
+                return refundResult(refund,c,order);
+            }
 
             boolean usesAuthorization=c.operation()==Operation.CAPTURE_AUTHORIZATION || c.operation()==Operation.VOID_AUTHORIZATION;
             if(usesAuthorization) verifyAuthorization(node,c);
@@ -189,7 +240,9 @@ public final class PayPalPaymentProvider implements PaymentProvider {
     private static boolean definitiveRefusal(ApiException e) {
         if(Set.of(400,401,403,404,405,406,415).contains(e.getResponseCode())) return true;
         var found=issues(e);
-        return e.getResponseCode()==422 && !found.isEmpty() && Set.of("INSTRUMENT_DECLINED","PAYER_CANNOT_PAY","TRANSACTION_REFUSED").containsAll(found);
+        // A reauthorization inside the honor period, or a refund past PayPal's limit, is refused with nothing changed.
+        return e.getResponseCode()==422 && !found.isEmpty()
+            && Set.of("INSTRUMENT_DECLINED","PAYER_CANNOT_PAY","TRANSACTION_REFUSED","REAUTHORIZATION_TOO_SOON","REFUND_TIME_LIMIT_EXCEEDED").containsAll(found);
     }
     /** PayPal declined the funding source the buyer chose; PayPal's checkout lets them choose another for the same order. */
     private static boolean buyerCanChooseAgain(ApiException e) {
@@ -273,6 +326,30 @@ public final class PayPalPaymentProvider implements PaymentProvider {
         }
         if (!found) throw CommerceException.held("Authorization does not belong to the approved provider order");
     }
+    private static void verifyCapture(JsonNode order, PaymentCommand c) {
+        boolean found = false;
+        for (var capture : order.path("purchase_units").get(0).path("payments").path("captures")) {
+            if (Objects.equals(c.providerResourceId(),capture.path("id").asText())) { verifyAmount(capture.path("amount"),c); found = true; }
+        }
+        if (!found) throw CommerceException.held("Capture does not belong to the approved provider order");
+    }
+    /** A full refund of the command's capture: same amount, and PayPal's link back to that capture when it sends one. */
+    private static void verifyRefund(JsonNode refund, PaymentCommand c) {
+        verifyId(refund,null); verifyAmount(refund.path("amount"),c);
+        verifyOptional(refund,"custom_id",c.orderId().toString());
+        verifyOptional(refund,"invoice_id",c.orderId().toString());
+        for (var link : refund.path("links"))
+            if ("up".equals(link.path("rel").asText()) && !link.path("href").asText().endsWith("/captures/"+c.providerResourceId()))
+                throw CommerceException.held("Refund does not belong to the approved capture");
+    }
+    private static ProviderResult refundResult(JsonNode refund, PaymentCommand c, String order) {
+        String status=switch(refund.path("status").asText()) {
+            case "COMPLETED" -> "REFUNDED";
+            case "FAILED", "CANCELLED" -> "DECLINED";
+            default -> "PENDING";
+        };
+        return new ProviderResult(status,order,null,c.providerResourceId(),null,c.amountMinor(),c.currency(),c.merchantId(),"PAYPAL_SANDBOX",refund.path("id").asText());
+    }
     public static void verifyAmount(JsonNode amount, PaymentCommand c) {
         if (!c.currency().equals(amount.path("currency_code").asText())
             || Money.fromDecimal(amount.path("value").asText()).minor()!=c.amountMinor())
@@ -285,8 +362,9 @@ public final class PayPalPaymentProvider implements PaymentProvider {
         var payments = node.path("purchase_units").path(0).path("payments");
         for(String kind:List.of("authorizations","captures")) {
             var resources=payments.path(kind);
-            if(!resources.isMissingNode() && !resources.isNull() && (!resources.isArray() || resources.size()>1))
-                throw CommerceException.held("This contract supports one authorization and one full capture");
+            // A reauthorization adds the order's second and last authorization.
+            if(!resources.isMissingNode() && !resources.isNull() && (!resources.isArray() || resources.size()>(kind.equals("authorizations")?2:1)))
+                throw CommerceException.held("This contract supports one authorization, one renewal and one full capture");
         }
         String authId=null, captureId=null, approval=null;
         String status=switch(node.path("status").asText()) {
@@ -294,11 +372,13 @@ public final class PayPalPaymentProvider implements PaymentProvider {
             case "VOIDED" -> "VOIDED";
             default -> "PENDING";
         };
+        JsonNode hold=null;
         for (var auth : payments.path("authorizations")) {
             verifyAmount(auth.path("amount"),c); verifyId(auth,null);
-            authId=auth.path("id").asText(null);
-            status=authorizationStatus(auth,now);
+            // After a reauthorization the newer authorization is the hold.
+            if (hold==null || auth.path("create_time").asText("").compareTo(hold.path("create_time").asText(""))>=0) hold=auth;
         }
+        if (hold!=null) { authId=hold.path("id").asText(null); status=authorizationStatus(hold,now); }
         for (var cap : payments.path("captures")) {
             verifyAmount(cap.path("amount"),c); verifyId(cap,null);
             captureId=cap.path("id").asText(null);
@@ -325,6 +405,7 @@ public final class PayPalPaymentProvider implements PaymentProvider {
     private static String captureStatus(String status) {
         return switch(status) {
             case "COMPLETED" -> "CAPTURED";
+            case "REFUNDED" -> "REFUNDED";
             case "DECLINED", "DENIED", "FAILED" -> "DECLINED";
             default -> "PENDING";
         };

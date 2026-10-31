@@ -175,3 +175,5 @@
 .line-source{font-size:13px;line-height:1.5;color:var(--muted);margin-top:4px}.line-source a{color:var(--green);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 .buy-note{margin-top:10px;color:#2c6b56}
 .cancel-confirm{border:1px solid #f1d7c6;background:#fff8f4;border-radius:12px;padding:14px 16px}.cancel-confirm p{font-size:14px;line-height:1.55;color:#7c4a33;margin:0 0 12px}
+.schedule-frame .b-sch-resource-time-range.honor-period{background:repeating-linear-gradient(135deg,rgba(91,103,196,.10) 0 6px,rgba(91,103,196,.04) 6px 12px);border-left:2px solid rgba(91,103,196,.45);opacity:1}
+.schedule-frame .b-sch-event-wrap.planned .b-sch-event,.schedule-frame .b-sch-event.planned{opacity:.75;border:1px dashed #7d8b86}

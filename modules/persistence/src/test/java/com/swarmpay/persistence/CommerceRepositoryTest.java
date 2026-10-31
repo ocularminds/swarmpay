@@ -176,6 +176,31 @@ class CommerceRepositoryTest {
         assertEquals("renewed",repository.order(plan,catering.id()).authorizationId());
         assertTrue(repository.holdsToRenew().stream().noneMatch(p->p.id().equals(plan.id())));
     }
+    @Test void aHoldWhoseEventHasPassedIsNeverRenewedAndStaleHoldsCannotCrowdOutOneThatIsDue() {
+        // More stale holds than one pass of the worker reads; they must not fill it ahead of the hold that is due.
+        var stale=new ArrayList<Plan>();
+        for(int i=0;i<12;i++) {
+            var plan=authorizedFourDaysAgo(Duration.ofDays(2));
+            sql.update("UPDATE commerce.plans SET plan_json=jsonb_set(plan_json::jsonb,'{intent,eventAt}',to_jsonb(?::text))::text WHERE id=?",Instant.now().minus(Duration.ofHours(6)).toString(),plan.id());
+            stale.add(plan);
+        }
+        var due=authorizedFourDaysAgo(Duration.ofDays(2));
+        var later=authorizedFourDaysAgo(Duration.ofDays(5));
+        var renewing=repository.holdsToRenew().stream().map(Plan::id).toList();
+        assertTrue(renewing.contains(due.id()),"the hold that is due is renewed");
+        assertTrue(stale.stream().noneMatch(p->renewing.contains(p.id())),"a hold whose event has passed is never renewed");
+        assertFalse(renewing.contains(later.id()),"an event more than 3 days away waits");
+    }
+    /** An approved plan whose catering was authorized four days ago, for an event `eventIn` from now. */
+    Plan authorizedFourDaysAgo(Duration eventIn) {
+        var plan=factory.create("organizer",new Intent("Meetup",30,5,150000,Instant.now().plus(eventIn),"UTC","Pavilion","Rain","RENT"),
+            new Offer("tents","tents","Tents",Category.TENTS,"Tent","",10000,10,""),new Offer("catering","catering","Kitchen",Category.CATERING,"Meal","",3000,100,""),List.of());
+        repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);var catering=plan.lines().get(1);
+        var authorize=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.AUTHORIZE_ORDER,"catering",90000,"USD","order-c",null,plan.id().toString(),"test-v1"));
+        repository.finish(authorize,succeeded(new ProviderResult("AUTHORIZED","order-c","auth",null,null,90000,"USD","catering","TEST")));
+        sql.update("UPDATE commerce.commands SET updated_at=now()-interval '4 days' WHERE id=?",authorize.id());
+        return plan;
+    }
     static GateResult succeeded(ProviderResult result) { return new GateResult("SUCCEEDED","FORWARDED","decision","dossier","a".repeat(64),null,"Done",result); }
     @Test void aDisputeFreezePreventsSpendingButPreservesConsentForAProtectiveVoid() {
         var plan=plan(150000);repository.create(plan);

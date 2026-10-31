@@ -1,21 +1,23 @@
-Event organizers pay merchants on different terms: tents up front, the caterer once the food arrives. Hand an AI agent a card and it can spend everything. SwarmPay lets agents do the legwork while you set the terms.
+Event organizers pay merchants on different terms: tents up front, the caterer once the food arrives. Hand an AI agent a card, and it can spend everything. SwarmPay lets agents do the legwork while you set the terms.
 
-I describe the event in a sentence. Continuing with PayPal creates my account from my PayPal name and email, and my description comes along.
+I describe the event in a sentence and continue with PayPal, which creates my account from my sandbox PayPal profile.
 
-GPT-6 Astra on Azure OpenAI reads it into details I can edit. The Sourcing Agent picks one tent rental and one caterer, limited to real offers; our code checks capacity, dates and budget, and prices, not the model, set every amount. A second agent reviews the risks.
+GPT-6 Astra on Azure OpenAI turns it into details I can edit. The Sourcing Agent picks a tent rental and a caterer from real offers; to buy tents, it chooses among Channel3's in-stock listings and their ratings. Code checks every choice, and prices, not the model, set the amounts.
 
-Here's a plan I prepared earlier with Buy tents: the agent chose from Channel3's in-stock listings within budget. I'll rent for this event.
+I approve the exact plan once, and the whole fourteen hundred dollars is reserved.
 
-I approve the exact plan once: $1,400 of my $1,500, reserved as a whole, with catering paid only after a matching delivery receipt.
+Each merchant gets its own PayPal approval and is paid directly. The tents are captured now. Catering is only authorized: the nine hundred dollars is held, not taken.
 
-Each merchant gets its own PayPal approval and is paid directly, with no escrow in between. The tents are captured now. Catering uses PayPal's authorize-then-capture: the $900 is held, not taken.
+Now an outside agent, here Postman over MCP, asks to pay the caterer early. It can't approve plans, and its request goes through AgentSafe, a fail-closed gateway. It's held: there's no delivery receipt.
 
-Now an outside agent, here Postman, connects with a token I issued and asks to pay the caterer early. None of its tools can approve a plan. Its request goes through AgentSafe, a fail-closed payment gateway, and it's held: there's no delivery receipt yet.
+When the venue signs a delivery receipt, SwarmPay checks the event, merchant, quantity and window, then captures the catering. Replaying the receipt can't pay twice.
 
-When the venue confirms delivery, it signs a receipt with its own key. SwarmPay checks the event, merchant, quantity and delivery window, then captures the catering payment. Replaying that receipt can't pay twice.
+This plan was booked days ahead. PayPal guarantees held funds for three days, and the Bryntum schedule shades that window. Before delivery, SwarmPay renewed the hold with a fresh authorization, and no money moved.
 
-The Bryntum schedule shows when each merchant was paid against the delivery window. The AG Grid ledger lists every payment and held request across my plans, and its total counts only money actually paid.
+Payments opens an AG Studio dashboard: what's paid, what's held, and what AgentSafe stopped. I ask its agents why the request was held. The lead hands it to our AgentSafe analyst, which answers from the ledger and cites the decision. It can explain a payment, never make one.
 
-The agents never touch money. They run on a network with no route to PayPal, and only a private executor holds the merchants' PayPal credentials, after rechecking consent, the budget and the receipt.
+Here's a plan I cancelled earlier: PayPal refunded the tents, the catering hold was voided, and the budget was released.
 
-For developers, APIMatic generates an SDK and docs from our tested API description, and one button deploys your own simulated copy to Render. Give agents a budget. Pay merchants only on agreed terms.
+The agents never touch money. Their network has no route to PayPal, and only a private executor holds the merchants' credentials, after rechecking consent, budget and receipt.
+
+Developers get an APIMatic SDK from our tested API, and one Render button deploys their own copy. Give agents a budget. Pay merchants only on agreed terms.

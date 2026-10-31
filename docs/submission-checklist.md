@@ -12,20 +12,23 @@ The path from here to a submitted entry, and what keeps it working until judging
 - [x] The video script blurs the brand, product and store on a **Buy tents** line and keeps other companies' names and logos out of frame; the submission text names the store generically. The rules forbid third-party trademarks in the video without permission.
 - [x] Video frames in [`demo/video`](../demo/video): the architecture slide, the title card, a transparent lower third and the narration transcript for YouTube's caption auto-sync. `node demo/video/render.mjs` redraws the PNGs from `slides.html`.
 
-**By November 4: hold renewals and refunds live**
+**Hold renewals and refunds live**
 
-- [ ] Merge the reauthorization and refunds work after CI passes, and deploy it to swarm.decionis.com (new commerce, executor, AgentSafe and web images; migration V7 runs on start).
-- [ ] The same day, on the live site, approve a plan for an event **5–6 days ahead** and pay both merchants. PayPal reauthorizes only from day 4, so the worker renews this hold by itself around November 7, once its honor period has passed and the event is within 3 days; the video then shows the renewed plan, like the prepared **Buy tents** plan. Check the plan the next days: the timeline should say *PayPal renewed the catering hold*. Record the result in [implementation status](implementation-status.md), which says reauthorization is so far tested with fixtures only.
-- [ ] Install the APIMatic PayPal Context Plugin in Claude Code (`npx context-plugins install https://github.com/paypaldev/server-sdk-context-plugin-preview`). The renewal and refund code was written from its `java-*` skills, read from PayPal's repository; the installed plugin and a session that loads them are the evidence APIMatic's form asks for.
+- [x] Merged (#32, #33 through #34) and deployed to swarm.decionis.com on October 31, with the spend dashboard: the live bundle serves the dashboard and the cancel action, and the anonymous live check passes.
+- [x] On October 31, a plan was approved and paid on the live site to test a real renewal.
+- [ ] Check that plan when its hold comes due. The worker renews it once both are true: the catering authorization is more than 3 days old, and the event is within 3 days. So it renews at the later of *authorized + 3 days* and *event − 3 days*, and never if the event comes first. The timeline should then say *PayPal renewed the catering hold*, and the schedule should show two honor periods. If PayPal refuses, the timeline says so and the hold stays as it was; SwarmPay tries once per order. Record the result, with both authorization IDs, in [implementation status](implementation-status.md) and in the submission's live-verification TODO.
+- [x] The APIMatic PayPal Context Plugin is installed in Claude Code: its `paypal:java-*` skills load in this project's sessions. The renewal and refund code follows those skills. For APIMatic's form, link the repository and PR #32 and describe that use.
 
-**By November 6: the spend dashboard**
+**The spend dashboard**
 
-- [ ] Ask AG Grid (PayPal Discord) for an AG Studio licence key that covers the AI features and lasts through December 15, and set it as `AG_STUDIO_LICENSE_KEY` on the commerce application, locally in `.env` and on AKS. Without it the dashboard works but shows a trial watermark.
-- [ ] On the live site, open **Payments → Overview → Ask the agents** and choose **Why was it held?**: the answer should say *Delegated to AgentSafe analyst* and cite a dossier. Then decide whether the video's 2:10–2:26 cut shows the dashboard and this answer instead of the ledger alone.
+- [x] `AG_STUDIO_LICENSE_KEY` is set on the live site, and its `/api/config` serves the key. Check that it covers the AI features and lasts through December 15, and set it in your local `.env` too.
+- [ ] On the live site, open **Payments → Overview → Ask the agents** and choose **Why was it held?**. The answer should say *Delegated to AgentSafe analyst* and cite a dossier, with no trial watermark on the dashboard. If it does, keep the video script's 1:56–2:18 beat; if not, drop it, as the script says.
 
 **Before recording (by November 6)**
 
-- [ ] Merge this work after CI passes. The live-demo watch runs only from `master`.
+- [x] The submission-readiness work is merged; the live-demo watch runs from `master`.
+- [ ] Merge PR #35, the rewritten submission text and video script.
+- [ ] Regenerate the APIMatic SDK and docs portal (`node demo/apimatic.mjs`): they were generated from the 31-operation API description, which now has 33 operations (cancel and the dashboard agent).
 - [ ] Ask Bryntum (a sponsor) for a hackathon license. If one arrives, change the alias in `apps/web/package.json` to the licensed package, update `NOTICE`, and redeploy the web image before recording. Without one, judges are unaffected; record in a fresh browser profile, as the script already says.
 - [ ] Rehearse on the live site the same day you record, in the script's fresh profile:
   - **Tents through the PayPal buttons.** Only catering has used the buttons live; the October 28 tents payment went through the API. If a button shows *Payment command is being processed*, the 3-second worker claimed the checkout first: choose the button again, and it continues the same order.

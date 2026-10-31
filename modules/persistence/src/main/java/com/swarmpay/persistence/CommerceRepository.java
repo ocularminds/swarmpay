@@ -150,15 +150,19 @@ public final class CommerceRepository {
      * now gives the delivery a fresh honor period. One renewal per order, never for a frozen plan.
      */
     public List<Plan> holdsToRenew() {
+        // Only events still ahead: a hold whose delivery has passed is never renewed. Filtering here, before the
+        // limit, also keeps such stale holds from filling it and starving one that is due.
         return db.query("""
             SELECT p.plan_json FROM commerce.plans p JOIN commerce.orders o ON o.workflow_id=p.id
             JOIN commerce.commands a ON a.order_id=o.id AND a.operation='AUTHORIZE_ORDER' AND a.state='SUCCEEDED'
             WHERE p.status='APPROVED' AND p.payment_frozen=false AND o.status='AUTHORIZED'
               AND a.updated_at < now() - interval '3 days'
+              AND (p.plan_json::jsonb->'intent'->>'eventAt')::timestamptz > now()
+              AND (p.plan_json::jsonb->'intent'->>'eventAt')::timestamptz < now() + interval '3 days'
               AND NOT EXISTS (SELECT 1 FROM commerce.commands c WHERE c.order_id=o.id AND c.operation IN ('REAUTHORIZE_AUTHORIZATION','CAPTURE_AUTHORIZATION','VOID_AUTHORIZATION'))
+            ORDER BY (p.plan_json::jsonb->'intent'->>'eventAt')::timestamptz
             LIMIT 10
-            """,(r,n)->DbJson.read(r.getString(1),Plan.class)).stream()
-            .filter(plan -> plan.intent().eventAt().isBefore(Instant.now().plus(java.time.Duration.ofDays(3)))).toList();
+            """,(r,n)->DbJson.read(r.getString(1),Plan.class));
     }
     /** The organizer cancels: nothing more can be paid, and the voids and refunds that follow go through AgentSafe. */
     public void cancel(Plan plan) {

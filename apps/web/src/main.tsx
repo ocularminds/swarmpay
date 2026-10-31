@@ -34,6 +34,7 @@ function App(){
   // Back from PayPal: say how sign-in went once, then drop it from the address.
   const [error,setError]=useState(()=>{const outcome=new URLSearchParams(window.location.search).get('signin');if(outcome)window.history.replaceState(null,'','/');return signInOutcomes[outcome??'']??'';});
   const [notice,setNotice]=useState('');const [busy,setBusy]=useState('');
+  const [checkoutOrder,setCheckoutOrder]=useState<string>();
   const [request,setRequest]=useState(takePendingRequest);const [guests,setGuests]=useState(30);const [tents,setTents]=useState(5);const [budget,setBudget]=useState('1500');
   const [date,setDate]=useState(()=>localInput(new Date(Date.now()+3600000)));const [venue,setVenue]=useState('');
   const [weather,setWeather]=useState('');const [tentMode,setTentMode]=useState<''|'RENT'|'BUY'>('');
@@ -194,7 +195,9 @@ function App(){
       const check=last&&<button key="check" className="button button-white" disabled={!!busy} onClick={()=>void run('Checking with PayPal',()=>post(`/api/commands/${last.command.id}/reconcile`))}>Check status</button>;
       if(last&&retryable.includes(last.state)) return card(position,'The payment didn’t start',last.result?.message??'No payment was taken.',
         actions(<button key="retry" className="button button-primary next-action" disabled={!!busy} onClick={()=>void run('Requesting a fresh authority decision',()=>post(`/api/commands/${last.command.id}/retry`))}>Try again<ArrowRight size={17}/></button>));
-      if(last&&unsettled.includes(last.state)||pending.status==='PENDING') return card(position,'Checking with PayPal','We’re confirming whether this payment went through. Nothing new will be sent meanwhile.',check&&actions(check));
+      // Keep the SDK mounted while its popup is open. A poll can observe CREATE_ORDER in flight;
+      // replacing the buttons here would close PayPal before the buyer can approve the order.
+      if(checkoutOrder!==pending.id&&(last&&unsettled.includes(last.state)||pending.status==='PENDING')) return card(position,'Checking with PayPal','We’re confirming whether this payment went through. Nothing new will be sent meanwhile.',check&&actions(check));
       if(last&&['ESCALATE','HELD','BLOCK','BLOCKED'].includes(last.state)) return card(position,'AgentSafe is holding this payment',last.result?.message??'No payment was sent.',null);
       if(['DECLINED','EXPIRED'].includes(pending.status)) return card(position,'This checkout can’t continue',`PayPal reports the payment as ${pending.status.toLowerCase()}. Start a new plan to try again.`,
         actions(<button key="new" className="button button-primary next-action" onClick={newPlan}>Start a new plan</button>));
@@ -202,7 +205,7 @@ function App(){
       return card(position,`${verb} ${pending.merchantName}`,tentsOrder?`${money(pending.amountMinor)} for ${pending.quantity} ${p.intent.tentMode==='BUY'?'tents':'tent rentals'}, paid now.`:`${money(pending.amountMinor)} for ${pending.quantity} meals. Authorized now and paid only after delivery is confirmed.`,
         config!.mode==='demo'
           ?actions(<button key="pay" className="button button-primary next-action" disabled={!!busy} onClick={()=>void run('Opening checkout',()=>startDemoCheckout(pending))}>{verb} {money(pending.amountMinor)}<ArrowRight size={17}/></button>,<small key="note">Simulated PayPal checkout</small>)
-          :<PayPalCheckout planId={p.id} order={pending} clientId={config!.clientIds[pending.merchantId]} onDone={()=>void refresh()} onError={setError}/>);
+          :<PayPalCheckout planId={p.id} order={pending} clientId={config!.clientIds[pending.merchantId]} onDone={()=>void refresh()} onError={setError} onActiveChange={active=>setCheckoutOrder(active?pending.id:undefined)}/>);
     }
     if(catering?.status==='VOIDED') return card('Cancelled','The catering authorization was cancelled','No catering payment will be taken.',actions(<button key="new" className="button button-primary next-action" onClick={newPlan}>Start a new plan</button>));
     if(flow!.receiptVerified) {

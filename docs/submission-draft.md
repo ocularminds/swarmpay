@@ -156,7 +156,9 @@ Every payment is a command with one identity:
 - **Webhooks:** six PayPal webhook notifications passed signature verification.
 - **Sign-in:** a sandbox buyer signed up with PayPal, and the organizer session survived a reload.
 
-[TODO: after the November rehearsal, list what was verified live: tents paid through the PayPal buttons; the held answer an agent token got from Postman; a hold renewed after its honor period (authorization `…` renewed as `…`); a cancellation refund (refund `…`); the dashboard's AgentSafe analyst answering "why was it held?". Delete any line that was not verified.]
+**Live demo, October 31, 2026:** the spend dashboard's agents answered on the live site with the AgentSafe analyst, and a catering authorization was left open to test a real renewal after its honor period.
+
+[TODO: after the November rehearsal, list what else was verified live: tents paid through the PayPal buttons; the held answer an agent token got from Postman; the hold renewed after its honor period (authorization `…` renewed as `…`, around November 3); a cancellation refund (refund `…`). Delete any line that was not verified.]
 
 **On every change**, CI runs:
 

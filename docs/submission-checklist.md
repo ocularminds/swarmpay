@@ -15,19 +15,20 @@ The path from here to a submitted entry, and what keeps it working until judging
 **Hold renewals and refunds live**
 
 - [x] Merged (#32, #33 through #34) and deployed to swarm.decionis.com on October 31, with the spend dashboard: the live bundle serves the dashboard and the cancel action, and the anonymous live check passes.
-- [x] On October 31, a plan was approved and paid on the live site to test a real renewal.
-- [ ] Check that plan when its hold comes due. The worker renews it once both are true: the catering authorization is more than 3 days old, and the event is within 3 days. So it renews at the later of *authorized + 3 days* and *event − 3 days*, and never if the event comes first. The timeline should then say *PayPal renewed the catering hold*, and the schedule should show two honor periods. If PayPal refuses, the timeline says so and the hold stays as it was; SwarmPay tries once per order. Record the result, with both authorization IDs, in [implementation status](implementation-status.md) and in the submission's live-verification TODO.
-- [x] The APIMatic PayPal Context Plugin is installed in Claude Code: its `paypal:java-*` skills load in this project's sessions. The renewal and refund code follows those skills. For APIMatic's form, link the repository and PR #32 and describe that use.
+- [x] On October 31, the plan *Stockholm renewal rehearsal* was approved on the live site, with $900 catering authorized and nothing captured, for an event on November 5 at 18:00 Stockholm time. Its hold becomes due for renewal around November 3, 01:59: its honor period ends then, after *event − 3 days* (November 2, 18:00). The tents are unpaid in this plan, which doesn't affect the renewal.
+- [ ] Redeploy the commerce application with #36 (merged October 31) before November 3, so only holds for events still ahead are renewed. Then check the ledger for any **Renew the hold** row on a past event: each stale order can have at most one, from before the fix.
+- [ ] After November 3, 02:00, check *Stockholm renewal rehearsal*. The timeline should say *PayPal renewed the catering hold*, the catering line should carry a new authorization ID, and the schedule should show two honor periods. If PayPal refuses, the timeline says so and the hold stays as it was; SwarmPay tries once per order. Record the result, with both authorization IDs, in [implementation status](implementation-status.md) and in the submission's live-verification TODO.
+- [x] The APIMatic PayPal Context Plugin is installed for Claude Code and Codex: its `paypal:java-*` skills load in this project's sessions. The renewal and refund code follows those skills. For APIMatic's form, link the repository and PR #32 and describe that use.
 
 **The spend dashboard**
 
 - [x] `AG_STUDIO_LICENSE_KEY` is set on the live site, and its `/api/config` serves the key. Check that it covers the AI features and lasts through December 15, and set it in your local `.env` too.
-- [ ] On the live site, open **Payments → Overview → Ask the agents** and choose **Why was it held?**. The answer should say *Delegated to AgentSafe analyst* and cite a dossier, with no trial watermark on the dashboard. If it does, keep the video script's 1:56–2:18 beat; if not, drop it, as the script says.
+- [x] On October 31, the dashboard's AI check passed on the live site, along with CI and the desktop and mobile checks; the video script's 1:56–2:18 beat stays.
 
 **Before recording (by November 6)**
 
 - [x] The submission-readiness work is merged; the live-demo watch runs from `master`.
-- [ ] Merge PR #35, the rewritten submission text and video script.
+- [x] PR #35, the rewritten submission text and video script, is merged.
 - [ ] Regenerate the APIMatic SDK and docs portal (`node demo/apimatic.mjs`): they were generated from the 31-operation API description, which now has 33 operations (cancel and the dashboard agent).
 - [ ] Ask Bryntum (a sponsor) for a hackathon license. If one arrives, change the alias in `apps/web/package.json` to the licensed package, update `NOTICE`, and redeploy the web image before recording. Without one, judges are unaffected; record in a fresh browser profile, as the script already says.
 - [ ] Rehearse on the live site the same day you record, in the script's fresh profile:
@@ -46,6 +47,7 @@ The path from here to a submitted entry, and what keeps it working until judging
 
 - [ ] Gallery screenshots: the completed plan, a PayPal sandbox approval, the schedule, the ledger with a filtered total, and Postman's held answer. Keep the sandbox buyer's email and any Buy tents brand or store out of them, then remove the screenshots TODO from the draft.
 - [ ] Paste the [submission draft](submission-draft.md) as its note describes. Enter AG Grid, APIMatic, Bryntum, Channel3 and Render as sponsor tools.
+- [ ] A clean account for judges and the recording. Judges who sign in with the same sandbox buyer, or with the organizer password, all share one organizer account, and see every plan in it. The live organizer account now lists test plans such as *outdoors* and a plan named after a street address. Create a fresh PayPal sandbox buyer in the developer dashboard for judges, record in an account whose plans you're happy to show, and keep street addresses out of plan names and venues.
 - [ ] Testing instructions, privately in Devpost only: the PayPal sandbox buyer, the organizer password login, keeping the event about an hour ahead, and the delivery button. Use credentials that stay valid through December 15.
 
 **Go public and submit (November 11)**

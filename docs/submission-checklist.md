@@ -18,6 +18,11 @@ The path from here to a submitted entry, and what keeps it working until judging
 - [ ] The same day, on the live site, approve a plan for an event **5–6 days ahead** and pay both merchants. PayPal reauthorizes only from day 4, so the worker renews this hold by itself around November 7, once its honor period has passed and the event is within 3 days; the video then shows the renewed plan, like the prepared **Buy tents** plan. Check the plan the next days: the timeline should say *PayPal renewed the catering hold*. Record the result in [implementation status](implementation-status.md), which says reauthorization is so far tested with fixtures only.
 - [ ] Install the APIMatic PayPal Context Plugin in Claude Code (`npx context-plugins install https://github.com/paypaldev/server-sdk-context-plugin-preview`). The renewal and refund code was written from its `java-*` skills, read from PayPal's repository; the installed plugin and a session that loads them are the evidence APIMatic's form asks for.
 
+**By November 6: the spend dashboard**
+
+- [ ] Ask AG Grid (PayPal Discord) for an AG Studio licence key that covers the AI features and lasts through December 15, and set it as `AG_STUDIO_LICENSE_KEY` on the commerce application, locally in `.env` and on AKS. Without it the dashboard works but shows a trial watermark.
+- [ ] On the live site, open **Payments → Overview → Ask the agents** and choose **Why was it held?**: the answer should say *Delegated to AgentSafe analyst* and cite a dossier. Then decide whether the video's 2:10–2:26 cut shows the dashboard and this answer instead of the ledger alone.
+
 **Before recording (by November 6)**
 
 - [ ] Merge this work after CI passes. The live-demo watch runs only from `master`.

@@ -46,6 +46,11 @@ test('one next action per step: agent sourcing, both checkouts, an agent request
   await expect(page.getByText('The record chain verifies')).toBeVisible();
   await page.getByRole('button',{name:'All payments'}).click();
   await expect(page.getByRole('heading',{level:1,name:'All payments'})).toBeVisible();
+  // The overview is an AG Studio dashboard; SwarmPay's own widgets read through Studio's data engine.
+  const dashboard=page.getByLabel('Spend dashboard');
+  await expect(dashboard).toContainText('Each plan against its budget',{timeout:30000});
+  await expect(dashboard).toContainText(/requests? held or blocked/);
+  await page.getByRole('tab',{name:'Ledger'}).click();
   const ledger=page.locator('.ledger-grid');
   await page.getByLabel('Search payments').fill(venue);
   await expect(ledger).toContainText('Held by AgentSafe');
@@ -79,6 +84,7 @@ test('cancelling before the event refunds the tents through PayPal, voids the ca
   await expect(plan).toContainText('Refunded');await expect(plan).toContainText('Cancelled');
   await expect(page.locator('.timeline')).toContainText('PayPal refunded the $500.00 tents payment to you.');
   await page.getByRole('button',{name:'All payments'}).click();
+  await page.getByRole('tab',{name:'Ledger'}).click();
   const ledger=page.locator('.ledger-grid');
   await page.getByLabel('Search payments').fill(venue);
   await expect(ledger).toContainText('Refund');

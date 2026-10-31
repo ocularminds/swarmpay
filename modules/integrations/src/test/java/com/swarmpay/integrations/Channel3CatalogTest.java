@@ -28,8 +28,10 @@ class Channel3CatalogTest {
     @AfterEach void stop() { channel3.close(); }
 
     @Test void buyingSearchesInStockTentsThatLeaveRoomForCateringAndKeepsTheLowestUsdPrice() {
+        var rated=new HashMap<>(product("p1","10x10 pop-up canopy",offer("store-a.example",119.99,"USD","InStock"),offer("store-b.example",99.5,"USD","InStock"),offer("store-c.example",80,"EUR","InStock")));
+        rated.put("rating",Map.of("value",4.6,"count",1234));
         channel3.handler=r->new Response(200,Map.of("products",List.of(
-            product("p1","10x10 pop-up canopy",offer("store-a.example",119.99,"USD","InStock"),offer("store-b.example",99.5,"USD","InStock"),offer("store-c.example",80,"EUR","InStock")),
+            rated,
             product("p2","Sold-out canopy",offer("store-a.example",90,"USD","OutOfStock")),
             product("p3","Too expensive canopy",offer("store-a.example",400,"USD","InStock")))));
         var offers=catalog.offers(buy(150000));
@@ -43,7 +45,9 @@ class Channel3CatalogTest {
         assertEquals(1,tents.size(),"out-of-stock, non-USD-only and over-budget products are left out");
         var tent=tents.getFirst();
         assertEquals("c3-p1",tent.id());assertEquals(9950,tent.unitMinor());assertEquals("Canopy Collective",tent.merchantName());
-        assertEquals(new ProductSource("Channel3","p1","Shade Co","store-b.example","https://store-b.example/p"),tent.source());
+        // Channel3's reviews and the two in-stock US-dollar offers compared reach the plan and the Sourcing Agent's description.
+        assertEquals(new ProductSource("Channel3","p1","Shade Co","store-b.example","https://store-b.example/p",4.6,1234,2),tent.source());
+        assertTrue(tent.description().contains("the lowest of 2 in-stock offers") && tent.description().contains("Rated 4.6 of 5 from 1234 reviews"),tent.description());
         assertTrue(offers.stream().anyMatch(o->o.category()==Category.CATERING),"catering stays curated");
         // The plan records where the product came from; the tents merchant is still the PayPal payee.
         var plan=new PlanFactory(Clock.systemUTC()).create("organizer",buy(150000),tent,new DemoCatalog().get("catering-seasonal"),List.of());

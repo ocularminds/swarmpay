@@ -94,6 +94,8 @@ services:
       AZURE_OPENAI_API_KEY: ${AZURE_OPEANAI_KEY:-${AZURE_OPENAI_API_KEY:-}}
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-${AZURE_OPENAI_URL:-}}
       AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-${AZURE_OPENAI_LLM:-}}
+      # Optional: AG Studio's licence key, handed to the browser; without it the dashboard shows a trial watermark.
+      AG_STUDIO_LICENSE_KEY: ${AG_STUDIO_LICENSE_KEY:-}
       VENUE_PUBLIC_KEY_FILE: /run/secrets/venue-public.pem
       VENUE_ISSUER: ${VENUE_ISSUER}
       PAYPAL_TENTS_CLIENT_ID: ${PAYPAL_TENTS_CLIENT_ID:-}

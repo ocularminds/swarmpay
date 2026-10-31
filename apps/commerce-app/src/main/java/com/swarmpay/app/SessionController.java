@@ -54,6 +54,8 @@ class SessionController {
             Map.entry("catalogSource",catalog.sellsTents()?"Curated demo catalog and Channel3 product data":"Curated demo catalog"),
             Map.entry("tentPurchases",catalog.sellsTents()),Map.entry("receiptIssuer",RuntimeSettings.required("VENUE_ISSUER")),
             Map.entry("clientIds",Map.of("tents",RuntimeSettings.value("PAYPAL_TENTS_CLIENT_ID",""),"catering",RuntimeSettings.value("PAYPAL_CATERING_CLIENT_ID",""))),
-            Map.entry("policyVersion",RuntimeSettings.required("DECIONIS_POLICY_VERSION")));
+            Map.entry("policyVersion",RuntimeSettings.required("DECIONIS_POLICY_VERSION")),
+            // AG Studio's licence key is meant for the browser; without one the dashboard shows a trial watermark.
+            Map.entry("dashboardAgent",!ai.provider().equals("demo")),Map.entry("agStudioLicenseKey",RuntimeSettings.value("AG_STUDIO_LICENSE_KEY","")));
     }
 }

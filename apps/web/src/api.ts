@@ -12,6 +12,8 @@ export async function api<T>(path:string,method='GET',data?:unknown):Promise<T> 
   }
   return response.status===204?undefined as T:response.json();
 }
+/** The CSRF header for a request made outside api(), such as the dashboard agent's own fetch. */
+export const csrfHeaders=():Record<string,string>=>({[csrf.header]:csrf.token});
 export async function session():Promise<Session> {
   const s=await api<Session>('/api/session'); csrf={token:s.csrfToken,header:s.csrfHeader}; return s;
 }

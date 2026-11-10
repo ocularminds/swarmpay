@@ -1,0 +1,97 @@
+{
+  "date": "2026-11-10",
+  "timezone": "Europe/Stockholm",
+  "environment": "isolated localhost HTTPS; demo payments, AI and venue",
+  "audits": [
+    {
+      "surface": "landing-desktop",
+      "sampled": 37,
+      "min": 5.73,
+      "failures": [],
+      "gradientSamples": 37
+    },
+    {
+      "surface": "landing-mobile",
+      "sampled": 36,
+      "min": 5.73,
+      "failures": [],
+      "gradientSamples": 36
+    },
+    {
+      "surface": "workspace-and-schedule",
+      "sampled": 129,
+      "min": 5.47,
+      "failures": [],
+      "gradientSamples": 10
+    },
+    {
+      "surface": "agent-dialog",
+      "sampled": 155,
+      "min": 5.47,
+      "failures": [],
+      "gradientSamples": 10
+    },
+    {
+      "surface": "ledger",
+      "sampled": 197,
+      "min": 5.73,
+      "failures": [],
+      "gradientSamples": 0
+    }
+  ],
+  "focus": {
+    "outline": "rgb(17, 105, 91)",
+    "width": "3px",
+    "offset": "3px"
+  },
+  "metadata": {
+    "canonical": "https://swarm.decionis.com/",
+    "image": "https://swarm.decionis.com/brand/swarmpay-cover-social.png",
+    "width": "1200",
+    "height": "630",
+    "twitter": "https://swarm.decionis.com/brand/swarmpay-cover-social.png"
+  },
+  "assets": [
+    {
+      "file": "swarmpay-cover-social.png",
+      "sha256": "daf8b7a86aa4b309f6ae69feee4a2e95048d573c545b703d817dd7f26c718889"
+    },
+    {
+      "file": "swarmpay-cover-devpost.png",
+      "sha256": "4b563ee6d3770d3d7503fbf80098b6ceb92804c258f4c7c18bee14d0e48e2c1a"
+    },
+    {
+      "file": "swarmpay-cover-wide.png",
+      "sha256": "501d1ee9dd9cfb4cc18c69a449c922c52091b615a225e81834b9aea2fcfc007d"
+    },
+    {
+      "file": "event-terms.svg",
+      "sha256": "6b4da9360ce327648753b798866fa1727cc6ec8147b0684fb17ec25af0d63688"
+    },
+    {
+      "file": "fonts/DMSans-Regular.ttf",
+      "sha256": "b0ae3e89a7d3ef2b1838bb4b1ceb0b17cc3435af061eee809d76aa623ff116e9"
+    },
+    {
+      "file": "fonts/Manrope-Bold.ttf",
+      "sha256": "ea1f264039fed13fd36e6d6f49fcae4fe7007def02cf2972b5c7f6d6f1349d06"
+    },
+    {
+      "file": "fonts/DMSans-OFL.txt",
+      "sha256": "9af36190332437f5ecd09974de43c1f7c77a310a996cdd8ceb25628b458840e1"
+    },
+    {
+      "file": "fonts/Manrope-OFL.txt",
+      "sha256": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b"
+    }
+  ],
+  "limits": [
+    "Calculated rendered HTML text/background pairs; canvas charts and pseudo-elements inspected visually.",
+    "Gradient backgrounds sampled at their CSS base color and visually reviewed.",
+    "No production deployment or sandbox buyer approval in this check."
+  ],
+  "baseRevision": "2e9c5d4",
+  "webSourceSha256": "f5e081b41b4992f1fe4fafa4b303772b4865447973ebc17e07e3596474700086",
+  "browserCasesPassed": 7,
+  "browserEvidence": "Isolated HTTPS fixtures, including the real app PayPalCheckout component with a stand-in SDK; not live PayPal approvals."
+}

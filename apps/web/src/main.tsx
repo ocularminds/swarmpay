@@ -4,6 +4,7 @@ import {AlertCircle,ArrowDownToLine,ArrowRight,Bot,CalendarDays,Table,Check,Chec
 import {api,download,login,session} from './api';
 import {PayPalCheckout} from './PayPalCheckout';
 import {AgentAccess} from './AgentAccess';
+import {BoundaryBadge,StatusBadge} from './StatusBadge';
 import {boundaryLabel,datetime,money,operationLabels} from './labels';
 // The grid and the scheduler load only when shown, so the landing and the plan stay light.
 const Ledger=lazy(()=>import('./Ledger'));
@@ -15,13 +16,13 @@ import './styles.css';
 
 function localInput(date:Date) { return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16); }
 const sourceLabels:Record<string,string>={HUMAN:'You',APPLICATION:'SwarmPay',AGENTSAFE:'AgentSafe',PHOTO:'Photo','demo-venue-fixture':'Venue (simulated)'};
-const statusLabels:Record<string,string>={APPROVAL_REQUIRED:'Waiting for PayPal approval',AUTHORIZED:'Authorized · pays on delivery',CAPTURED:'Paid',VOIDED:'Cancelled',REFUNDED:'Refunded',PENDING:'Confirming with PayPal',DECLINED:'Declined',EXPIRED:'Expired'};
+const statusLabels:Record<string,string>={APPROVAL_REQUIRED:'Awaiting PayPal approval',AUTHORIZED:'Authorized · awaiting delivery',CAPTURED:'Paid',VOIDED:'Cancelled',REFUNDED:'Refunded',PENDING:'Payment pending',DECLINED:'Declined',EXPIRED:'Expired'};
 const retryable=['NOT_EXECUTED','AUTHORITY_UNAVAILABLE'],unsettled=['QUEUED','DISPATCHING','INDETERMINATE','EXECUTION_INDETERMINATE'];
 const steps=['Describe','Approve','Pay merchants','Confirm delivery'];
 function Status({value,approved}:{value:string;approved:boolean}) {
   const label=value==='NEW'?(approved?'Ready to pay':'Pay after you approve'):statusLabels[value]??value.replaceAll('_',' ').toLowerCase();
-  const tone=value==='CAPTURED'?'good':value==='AUTHORIZED'?'waiting':['DECLINED','EXPIRED','VOIDED'].includes(value)?'bad':'neutral';
-  return <span className={`chip chip-${tone}`}>{value==='CAPTURED'?<CheckCheck size={13}/>:value==='AUTHORIZED'?<LockKeyhole size={12}/>:null}{label}</span>;
+  const tone=value==='CAPTURED'?'good':value==='AUTHORIZED'?'waiting':['DECLINED','EXPIRED'].includes(value)?'bad':['VOIDED','REFUNDED'].includes(value)?'cancelled':value==='PENDING'?'pending':'neutral';
+  return <StatusBadge label={label} tone={tone} refunded={value==='REFUNDED'}/>;
 }
 function Stepper({step}:{step:number}) {
   return <ol className="stepper" aria-label="Progress">{steps.map((s,i)=><li key={s} className={i<step?'done':i===step?'current':''} aria-current={i===step?'step':undefined}><span>{i<step?<Check size={13}/>:i+1}</span>{s}</li>)}</ol>;
@@ -112,6 +113,11 @@ function App(){
   async function voidAuthorization(){const r=await api<GateResult>(`/api/plans/${plan!.id}/void`,'POST');await refresh();if(r.state!=='SUCCEEDED')throw new Error(r.message);}
   async function downloadEvidence(){const result=await api<Record<string,unknown>>(`/api/plans/${plan!.id}/evidence`);setProof(result);download(`swarm-pay-evidence-${plan!.id}.json`,result);}
   async function signOut(){await api('/api/logout','POST');newPlan();setRequest('');setPlans([]);setOffers([]);setUser(await session());}
+  function inspectDecision(id:string){
+    const record=document.getElementById(`decision-${id}`);
+    const records=record?.closest('details');if(records)records.open=true;
+    record?.scrollIntoView({block:'center'});record?.focus({preventScroll:true});
+  }
 
   // Signed out, the page is the landing alone: no workspace menu until the organizer is in.
   if(!config||!user) return <div className="landing-loading">{error?<div className="message error" role="alert"><AlertCircle size={19}/><span>{error}</span></div>:<><LoaderCircle className="spin"/>Opening SwarmPay…</>}</div>;
@@ -154,7 +160,7 @@ function App(){
             <label><input type="radio" name="tent-mode" checked={tentMode==='BUY'} onChange={()=>setTentMode('BUY')}/>Buy tents</label>
           </fieldset>
           {tentMode==='BUY'&&(config!.tentPurchases
-            ?<p className="section-note buy-note">The Sourcing Agent picks real tents from Channel3’s product data within your budget. Canopy Collective, a PayPal sandbox merchant, fills the order and is paid at checkout.</p>
+            ?<p className="section-note buy-note">The Sourcing Agent chooses from Channel3 purchase listings. This demo pays the configured PayPal sandbox tents merchant; it does not place an order with the listed retailer.</p>
             :<p className="field-warning"><AlertCircle size={15}/>Buying tents needs Channel3 product data, which isn’t set up here. Choose Rent tents to continue.</p>)}
           {tentMode!=='BUY'&&<details className="disclosure"><summary>Choose offers yourself</summary><p className="section-note">By default the Sourcing Agent chooses the offers that fit your budget.</p><div className="field-grid">
             <label>Tent preference<select value={tentOffer} onChange={e=>setTentOffer(e.target.value)}><option value="">Sourcing Agent chooses</option>{offers.filter(o=>o.category==='TENTS').map(o=><option key={o.id} value={o.id}>{o.title} · {money(o.unitMinor)} each</option>)}</select></label>
@@ -184,6 +190,7 @@ function App(){
       ?card('Can’t approve',`Over budget by ${money(-remaining)}`,'SwarmPay never approves a plan above your budget. Start a new plan with a higher budget, or fewer guests or tents.',
         actions(<button key="new" className="button button-primary next-action" onClick={newPlan}>Start a new plan<ArrowRight size={17}/></button>))
       :card('Next step',`Approve ${money(p.totalMinor)} for 2 merchants`,'Tents are paid at checkout. Catering is authorized now and paid only after a signed delivery receipt.',<>
+        <p className="section-note">Approve the plan once, then confirm each merchant in PayPal. An authorization reserves funds; it is not a completed payment or escrow.</p>
         <label className="consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I approve these merchants and amounts, and paying catering after a matching delivery receipt.</span></label>
         {actions(<button key="approve" className="button button-primary next-action" disabled={!consent||!!busy} onClick={()=>void run('Reserving your budget',approve)}>Approve {money(p.totalMinor)}<ArrowRight size={17}/></button>,<small key="expiry">Quote valid until {datetime(p.expiresAt)}.</small>)}
       </>);
@@ -216,7 +223,8 @@ function App(){
     const asked=flow!.agentRequests.at(-1);
     return card('Next step','Confirm the catering delivery',`${catering?.merchantName??'Catering'}’s ${money(catering?.amountMinor??0)} is authorized, not taken. It’s paid when the venue confirms delivery.`,<>
       {actions(<button key="venue" className="button button-primary next-action" disabled={!!busy} onClick={()=>void run('Asking the venue to confirm delivery',confirmDelivery)}>Confirm delivery as the venue<ArrowRight size={17}/></button>,<small key="note">Simulated venue · signs with its own key</small>)}
-      <div className="try-row"><span className="try-icon"><ShieldAlert size={17}/></span><div><strong>Try it: let the agent ask to pay early</strong><p>{asked?`${boundaryLabel(asked.result.state)}. ${asked.result.message}`:'There’s no delivery receipt yet, so AgentSafe should hold the request.'}</p></div>
+      <p className="receipt-condition" id="receipt-condition">Catering waits for a signed receipt matching this plan, merchant, venue and meal quantity. The receipt authenticates what the venue signed; this demo does not verify physical delivery.</p>
+      <div className="try-row"><span className="try-icon"><ShieldAlert size={17}/></span><div><strong>Try it: let the agent ask to pay early</strong><p>{asked?`${boundaryLabel(asked.result.state)}. ${asked.result.message}`:'There’s no delivery receipt yet, so AgentSafe should hold the request.'}</p>{asked&&<button className="text-link evidence-link" onClick={()=>inspectDecision(asked.command.id)}>View the decision and receipt condition<ArrowRight size={14}/></button>}</div>
         <button className="button button-white" disabled={!!busy} onClick={()=>void run('The agent is asking to pay',agentRequest)}>Let the agent ask</button></div>
       <details className="disclosure"><summary>Other ways to confirm</summary><div className="upload-row">
         <label className="upload-option"><FileJson size={19}/><span><strong>Upload a venue receipt</strong>Signed JSON, issued within 15 minutes</span>{fileInput('Upload venue receipt','.json,application/json',uploadReceipt,'Verifying the venue receipt')}</label>
@@ -228,7 +236,7 @@ function App(){
   function planPage(){
     const p=plan!;const sourcing=p.assessments.find(a=>a.role==='Sourcing');
     const [title,subtitle]=frozen?['Payments are paused.','No further automatic payments will be sent while you review.']
-      :!approved?(remaining<0?['This plan is over budget.',`It is ${money(-remaining)} above your ${money(p.intent.budgetMinor)} budget.`]:['Review your plan.','Approve once. Each merchant is then paid on its own terms.'])
+      :!approved?(remaining<0?['This plan is over budget.',`It is ${money(-remaining)} above your ${money(p.intent.budgetMinor)} budget.`]:['Review your plan.','Approve the plan once, then confirm each merchant in PayPal.'])
       :allPaid?['Your event is booked and paid.',`${money(p.totalMinor)} of ${money(p.intent.budgetMinor)}. Every payment followed your plan.`]
       :step===2?['Pay each merchant.','Tents are paid now. Catering is only authorized until delivery.']
       :['Catering is paid when delivery is confirmed.','Its funds are authorized, not taken, until the venue confirms.'];
@@ -238,14 +246,14 @@ function App(){
       <Stepper step={step}/>
       {nextStep()}
       <section className="card plan-card" aria-labelledby="plan-title">
-        <div className="card-head"><h2 id="plan-title">Your plan</h2><span>Delivery and taxes included</span></div>
+        <div className="card-head"><h2 id="plan-title">Your plan</h2>{approved?<StatusBadge label="Plan approved" tone="good"/>:<span>Delivery and taxes included</span>}</div>
         <div className="budget"><div className="budget-figures"><strong>{money(p.totalMinor)}</strong><span>of {money(p.intent.budgetMinor)}</span></div>
           <span className="budget-bar"><span className={remaining<0?'over':''} style={{width:`${Math.min(100,p.totalMinor/p.intent.budgetMinor*100)}%`}}/></span>
           <div className="budget-meta"><span className={remaining<0?'over':''}>{remaining<0?`${money(-remaining)} over budget`:`${money(remaining)} to spare`}</span><span>{money(paid)} paid</span></div></div>
         <ul className="merchant-list">{p.lines.map(line=>{const order=orders.find(o=>o.id===line.id)!;return <li key={line.id}>
           <span className="merchant-icon">{line.category==='TENTS'?<Tent size={19}/>:<UtensilsCrossed size={18}/>}</span>
           <div><h3>{line.merchantName}</h3><p>{line.quantity} {line.category==='TENTS'?(p.intent.tentMode==='BUY'?'tents':'tent rentals'):'catered meals'} × {money(line.unitMinor)} · {line.category==='TENTS'?'paid at checkout':'paid after delivery'}</p>
-            {line.source&&<p className="line-source">{line.title}{line.source.brand?` · ${line.source.brand}`:''}. Product data from {line.source.provider}, listed by {line.source.store}{line.source.offersCompared?`, the lowest of ${line.source.offersCompared} in-stock ${line.source.offersCompared===1?'offer':'offers'}`:''}{line.source.rating!=null?` · rated ${line.source.rating.toFixed(1)}${line.source.ratingCount?` from ${line.source.ratingCount.toLocaleString('en-US')} reviews`:''}`:''}{line.source.productUrl&&<> · <a href={line.source.productUrl} target="_blank" rel="noopener noreferrer">view product</a> (affiliate link: SwarmPay may earn a commission)</>}. {line.merchantName} fills the order.</p>}
+            {line.source&&<p className="line-source">{line.title}{line.source.brand?` · ${line.source.brand}`:''}. Product data from {line.source.provider}, listed by {line.source.store}{line.source.offersCompared?`, the lowest of ${line.source.offersCompared} in-stock ${line.source.offersCompared===1?'offer':'offers'}`:''}{line.source.rating!=null?` · rated ${line.source.rating.toFixed(1)}${line.source.ratingCount?` from ${line.source.ratingCount.toLocaleString('en-US')} reviews`:''}`:''}{line.source.productUrl&&<> · <a href={line.source.productUrl} target="_blank" rel="noopener noreferrer">view product</a> (affiliate link: SwarmPay may earn a commission)</>}. Sandbox payment to {line.merchantName}; no retailer order is placed.</p>}
             {line.category==='CATERING'&&renewsHold&&['NEW','APPROVAL_REQUIRED','AUTHORIZED'].includes(order.status)&&!frozen&&<p className="line-source">PayPal holds the authorized funds for 29 days. SwarmPay renews the hold 3 days before delivery, so the caterer is paid from a fresh authorization.</p>}</div>
           <strong>{money(line.totalMinor)}</strong><Status value={order.status} approved={approved}/></li>;})}</ul>
         {sourcing&&<p className="agent-note"><Sparkles size={16}/><span>{sourcing.summary} <small>Sourcing Agent · {sourcing.source==='DEMO_RULES'?'simulated':sourcing.source}</small></span></p>}
@@ -273,11 +281,11 @@ function App(){
       <ol className="timeline">{shown.map(e=><li key={e.sequence}><span className={`timeline-dot ${e.source==='AGENTSAFE'?'authority':''}`}/><div><p>{e.message}</p><small>{datetime(e.at)} · {sourceLabels[e.source]??e.source.toLowerCase()}</small></div></li>)}</ol>
       {events.length>6&&<button className="text-link" onClick={()=>setAllEvents(!allEvents)}>{allEvents?'Show fewer':`Show all ${events.length} events`}</button>}
       {records>0&&<details className="disclosure records"><summary>Payment records and authority decisions ({records})</summary>
-        {flow!.agentRequests.map(a=><div className="record refused" key={a.command.id}><ShieldAlert size={16}/><div><strong>Agent request · {a.command.merchantId} · {operation(a.command.operation)}</strong><p>{a.result.message}</p>{a.result.dossierId&&<code>Dossier {a.result.dossierId}</code>}</div><span className="outcome refused">{boundaryLabel(a.result.state)}</span></div>)}
+        {flow!.agentRequests.map(a=><div className="record refused" key={a.command.id} id={`decision-${a.command.id}`} tabIndex={-1}><ShieldAlert size={16}/><div><strong>Agent request · {a.command.merchantId} · {operation(a.command.operation)}</strong><p>{a.result.message}</p><p>Receipt condition: a verified signature, matching plan, merchant, venue and quantity, within the delivery window.</p>{a.result.dossierId&&<code>Dossier {a.result.dossierId}</code>}<details className="evidence-identifiers"><summary>Evidence identifiers</summary><dl><dt>Request</dt><dd>{a.command.id}</dd><dt>Decision</dt><dd>{a.result.decisionId??'Not issued'}</dd><dt>Intent</dt><dd>{a.result.intentHash??'Not issued'}</dd><dt>Execution</dt><dd>{a.result.execution}</dd></dl></details></div><BoundaryBadge state={a.result.state}/></div>)}
         {commands.map(c=><div className="record" key={c.command.id}><ShieldCheck size={16}/><div><strong>{c.command.merchantId} · {operation(c.command.operation)}</strong><p>{c.result?.message??'Queued for processing.'}</p>{c.result?.dossierId&&<code>Dossier {c.result.dossierId}</code>}
           {c.state!=='SUCCEEDED'&&<span className="record-actions"><button className="text-link" disabled={!!busy} onClick={()=>void run('Checking with PayPal',()=>post(`/api/commands/${c.command.id}/reconcile`))}>Check status</button>
             {retryable.includes(c.state)&&<button className="text-link" disabled={!!busy} onClick={()=>void run('Requesting a fresh authority decision',()=>post(`/api/commands/${c.command.id}/retry`))}>Try again</button>}</span>}</div>
-          <span className={`outcome ${c.state==='SUCCEEDED'?'good':''}`}>{boundaryLabel(c.state)}</span></div>)}
+          <BoundaryBadge state={c.state}/></div>)}
       </details>}
       <div className="timeline-actions">{!allPaid&&<button className="text-link" onClick={()=>void run('Preparing your evidence',downloadEvidence)}><ArrowDownToLine size={16}/>Download evidence</button>}
         <button className="text-link" onClick={()=>download(`swarm-pay-workflow-${p.id}.json`,flow)}><ArrowDownToLine size={16}/>Export workflow</button></div>
@@ -286,6 +294,7 @@ function App(){
   }
 
   return <div className="app">
+    <a className="skip-link" href="#main-content">Skip to workspace</a>
     <header className="app-header"><div className="app-header-inner"><Brand/>
       {plans.length>0&&<select className="plan-switcher" aria-label="Your plans" value={activeId??''} onChange={e=>e.target.value?openPlan(e.target.value):newPlan()}>
         <option value="">New plan</option>{plans.map(p=><option key={p.id} value={p.id}>{p.intent.venue} · {money(p.totalMinor)} · {datetime(p.createdAt)}</option>)}</select>}
@@ -295,13 +304,17 @@ function App(){
         <button className="button button-white header-button" aria-label="Connect an agent" title="Connect an agent" onClick={()=>setAgentsOpen(true)}><Bot size={16}/><span>Agents</span></button>
         <button className="button button-white header-button" aria-label="Sign out" title="Sign out" disabled={!!busy} onClick={()=>void run('Signing out',signOut)}><LogOut size={16}/></button></div>
     </div></header>
-    <main className={view==='ledger'?'app-main app-main-wide':'app-main'}>
+    <main className={view==='ledger'?'app-main app-main-wide':'app-main'} id="main-content" tabIndex={-1}>
       {error&&<div className="message error" role="alert"><AlertCircle size={19}/><span>{error}</span><button aria-label="Dismiss error" onClick={()=>setError('')}><X size={17}/></button></div>}
       {notice&&<div className="message notice" role="status"><Check size={18}/><span>{notice}</span><button aria-label="Dismiss notification" onClick={()=>setNotice('')}><X size={17}/></button></div>}
       {busy&&<div className="working" role="status"><LoaderCircle className="spin" size={15}/>{busy}…</div>}
       {view==='ledger'?<><div className="page-title"><h1>All payments</h1><p>Every payment across your plans: what each merchant was paid, and every request AgentSafe held.</p></div>
-        <div className="tabs" role="tablist" aria-label="Payments views">{(['overview','ledger'] as const).map(tab=><button key={tab} role="tab" aria-selected={paymentsTab===tab} className={paymentsTab===tab?'tab active':'tab'} onClick={()=>setPaymentsTab(tab)}>{tab==='overview'?'Overview':'Ledger'}</button>)}</div>
-        <Suspense fallback={<div className="loading"><LoaderCircle className="spin"/>Loading your payments…</div>}>{paymentsTab==='overview'?<SpendDashboard config={config!}/>:<Ledger/>}</Suspense></>
+        <div className="tabs" role="tablist" aria-label="Payments views" onKeyDown={e=>{
+          if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();
+          const tab=e.key==='Home'?'overview':e.key==='End'?'ledger':paymentsTab==='overview'?'ledger':'overview';
+          setPaymentsTab(tab);document.getElementById(`payments-tab-${tab}`)?.focus();
+        }}>{(['overview','ledger'] as const).map(tab=><button key={tab} role="tab" id={`payments-tab-${tab}`} aria-controls={`payments-panel-${tab}`} aria-selected={paymentsTab===tab} tabIndex={paymentsTab===tab?0:-1} className={paymentsTab===tab?'tab active':'tab'} onClick={()=>setPaymentsTab(tab)}>{tab==='overview'?'Overview':'Ledger'}</button>)}</div>
+        <div role="tabpanel" id={`payments-panel-${paymentsTab}`} aria-labelledby={`payments-tab-${paymentsTab}`}><Suspense fallback={<div className="loading" role="status"><LoaderCircle className="spin"/>Loading your payments…</div>}>{paymentsTab==='overview'?<SpendDashboard config={config!}/>:<Ledger/>}</Suspense></div></>
         :!activeId?describe():flow&&plan?planPage():<div className="loading"><LoaderCircle className="spin"/>Loading your plan…</div>}
     </main>
     <SiteFooter config={config} className="app-footer"/>

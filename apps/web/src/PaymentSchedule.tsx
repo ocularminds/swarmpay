@@ -5,6 +5,7 @@ import '@bryntum/scheduler/scheduler.css';
 import '@bryntum/scheduler/svalbard-light.css';
 import {api} from './api';
 import {money} from './labels';
+import tokens from './brand-tokens.json';
 import type {LedgerEntry,Order,Plan} from './types';
 
 const hour=3600000,day=24*hour;
@@ -13,6 +14,10 @@ const deliveryOpens=2*hour,deliveryCloses=4*hour;
 const escape=(text:string)=>text.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 // PayPal guarantees an authorization's funds for its first 3 days and keeps it for 29.
 const honorPeriod=3*day,authorizationLife=29*day;
+const c=tokens.colors;
+const stateColors:Record<string,[string,string]>={green:[c.evergreen,c.successBg],teal:[c.evergreen,c.successBg],orange:[c.hold,c.holdBg],red:[c.blocked,c.blockedBg],purple:[c.violet,c.violetBg],indigo:[c.violet,c.violetBg],gray:[c.muted,c.cloud],blue:[c.ink,c.sky]};
+// EventModel.style is Bryntum's per-event styling interface. Keep semantic text pairs at AA contrast.
+const themed=(bar:Bar)=>{const [text,background]=stateColors[bar.eventColor]??stateColors.gray;return {...bar,style:`--b-sch-event-color:${text};--b-sch-event-background:${background};--b-sch-event-hover-background:${background};--b-sch-event-selected-background:${background}`};};
 const settled=(entries:LedgerEntry[],operation:string)=>entries.find(e=>e.operation===operation&&e.state==='SUCCEEDED');
 /** What the tooltip says about a recorded payment: who decided it and the PayPal reference. */
 const proof=(e:LedgerEntry)=>[e.dossierId?`AgentSafe allowed it · dossier ${e.dossierId}`:'',e.refundId??e.captureId??e.authorizationId??e.providerOrderId?`PayPal ${e.refundId??e.captureId??e.authorizationId??e.providerOrderId}`:''].filter(Boolean);
@@ -80,7 +85,7 @@ export default function PaymentSchedule({plan,orders,refreshKey}:{plan:Plan;orde
     // Longer plans, now that catering can be booked weeks ahead: a day per tick, or every few days, so labels never collide.
     const daySpan=span/24,dayStep=[1,2,3,7].find(n=>n*px/daySpan>=4.5*fit.em)??7;
     const days={base:'dayAndWeek',headers:[{unit:'month',dateFormat:'MMM YYYY'},{unit:'day',increment:dayStep,dateFormat:'ddd D'}]};
-    return {resources,bars,startDate,endDate,viewPreset:span<=16?hours:days,
+    return {resources,bars:bars.map(themed),startDate,endDate,viewPreset:span<=16?hours:days,
       ranges,timeRanges:[{id:'delivery',name:'Venue can confirm delivery',startDate:new Date(event.getTime()-deliveryOpens),endDate:new Date(event.getTime()+deliveryCloses),cls:'delivery-window'}]};
   },[plan,orders,entries,fit.width,fit.em,nameWidth]);
   return <section className="card schedule-card" aria-labelledby="schedule-title">

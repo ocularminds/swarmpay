@@ -3,6 +3,7 @@ export const money=(c:number)=>new Intl.NumberFormat('en-US',{style:'currency',c
 export const datetime=(value:string,timeZone?:string)=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone}).format(new Date(value));
 /** How the payment boundary answered a request. */
 export const boundaryLabel=(state:string)=>state==='SUCCEEDED'?'Allowed':['ESCALATE','HELD'].includes(state)?'Held by AgentSafe':['BLOCK','BLOCKED'].includes(state)?'Blocked by AgentSafe':state.replaceAll('_',' ').toLowerCase();
+export const boundaryTone=(state:string):'good'|'bad'|'pending'|'neutral'=>state==='SUCCEEDED'?'good':['ESCALATE','HELD','BLOCK','BLOCKED'].includes(state)?'bad':['QUEUED','DISPATCHING','INDETERMINATE','EXECUTION_INDETERMINATE','AUTHORITY_UNAVAILABLE'].includes(state)?'pending':'neutral';
 export const operationLabels:Record<string,string>={CREATE_ORDER:'Open checkout',CAPTURE_ORDER:'Take payment',AUTHORIZE_ORDER:'Authorize payment',CAPTURE_AUTHORIZATION:'Pay after delivery',VOID_AUTHORIZATION:'Cancel authorization',
   REAUTHORIZE_AUTHORIZATION:'Renew the hold',REFUND_CAPTURE:'Refund'};
 export const requesterLabels:Record<string,string>={ORGANIZER:'You',AGENT:'Agent',SWARMPAY:'SwarmPay'};

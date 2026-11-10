@@ -3,22 +3,24 @@ import {AgGridReact} from 'ag-grid-react';
 import {AllCommunityModule,ModuleRegistry,themeQuartz,type ColDef,type GridApi,type ICellRendererParams} from 'ag-grid-community';
 import {ArrowDownToLine,LoaderCircle,Search} from 'lucide-react';
 import {api} from './api';
-import {boundaryLabel,datetime,money,operationLabels,requesterLabels} from './labels';
+import {datetime,money,operationLabels,requesterLabels} from './labels';
+import {BoundaryBadge} from './StatusBadge';
+import tokens from './brand-tokens.json';
 import type {LedgerEntry} from './types';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
-const theme=themeQuartz.withParams({accentColor:'#11695b',fontFamily:"'DM Sans', sans-serif",fontSize:14,foregroundColor:'#1a3430',
-  borderColor:'#e4eae7',headerBackgroundColor:'#f7f9f8',headerFontWeight:650,rowHoverColor:'#f3f8f5',wrapperBorderRadius:14,spacing:7});
+const colors=tokens.colors;
+const theme=themeQuartz.withParams({accentColor:colors.evergreen,fontFamily:"'DM Sans', sans-serif",fontSize:14,foregroundColor:colors.ink,
+  borderColor:colors.line,headerBackgroundColor:colors.cloud,headerFontWeight:700,rowHoverColor:colors.successBg,wrapperBorderRadius:tokens.radii.control,spacing:8,rowHeight:52});
 // A completed capture counts once; a refund takes its payment back out.
 const paid=(e:LedgerEntry)=>e.state!=='SUCCEEDED'?0:['CAPTURE_ORDER','CAPTURE_AUTHORIZATION'].includes(e.operation)?1:e.operation==='REFUND_CAPTURE'?-1:0;
 type Total={total:true;amountMinor:number;count:number};
 type Row=LedgerEntry|Total;
 const isTotal=(row?:Row):row is Total=>!!row&&'total' in row;
-const tone=(state:string)=>state==='SUCCEEDED'?'good':['ESCALATE','HELD'].includes(state)?'waiting':['BLOCK','BLOCKED','NOT_EXECUTED','AUTHORITY_UNAVAILABLE'].includes(state)?'bad':'neutral';
 
 function Decision({data}:ICellRendererParams<Row>) {
   if(!data||isTotal(data))return null;
-  return <span className={`chip chip-${tone(data.state)}`}>{boundaryLabel(data.state)}</span>;
+  return <BoundaryBadge state={data.state}/>;
 }
 
 /** Every payment across the organizer's plans, filterable, with what was actually paid totalled for the rows shown. */

@@ -1,0 +1,59 @@
+{
+  "name": "SwarmPay",
+  "version": "2026-11-10",
+  "colors": {
+    "evergreen": "#11695B",
+    "citron": "#D5FF5F",
+    "sky": "#A9E7FF",
+    "ink": "#142F2B",
+    "cloud": "#F7FAF7",
+    "muted": "#52665F",
+    "line": "#D7E3DB",
+    "white": "#FFFFFF",
+    "successBg": "#E8F5EE",
+    "hold": "#6D4C00",
+    "holdBg": "#FFF0C2",
+    "blocked": "#9B3B2C",
+    "blockedBg": "#FFE5DD",
+    "violet": "#66519C",
+    "violetBg": "#F0EAFB"
+  },
+  "typography": {
+    "display": {
+      "family": "Manrope",
+      "weights": [
+        700,
+        800
+      ]
+    },
+    "body": {
+      "family": "DM Sans",
+      "weights": [
+        400,
+        500,
+        700
+      ]
+    }
+  },
+  "radii": {
+    "control": 12,
+    "card": 20,
+    "pill": 999
+  },
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64
+  ],
+  "usage": {
+    "product": "70% light surfaces, 20% green and ink, up to 10% bright accents. Citron is emphasis, never small white-text backgrounds.",
+    "cover": "Citron may dominate the cover.",
+    "status": "Always pair color with words and an icon. Authorization is distinct from paid.",
+    "mark": "Preserve the existing four rounded tiles and slight negative rotation."
+  }
+}

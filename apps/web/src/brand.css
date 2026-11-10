@@ -1,0 +1,47 @@
+/* SwarmPay's November 10 identity. Keep in step with brand-tokens.json for embedded views. */
+@font-face { font-family: 'DM Sans'; src: url('/brand/fonts/DMSans-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('/brand/fonts/DMSans-Medium.ttf') format('truetype'); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('/brand/fonts/DMSans-Bold.ttf') format('truetype'); font-weight: 650 900; font-display: swap; }
+@font-face { font-family: 'Manrope'; src: url('/brand/fonts/Manrope-Bold.ttf') format('truetype'); font-weight: 400 750; font-display: swap; }
+@font-face { font-family: 'Manrope'; src: url('/brand/fonts/Manrope-ExtraBold.ttf') format('truetype'); font-weight: 800 900; font-display: swap; }
+
+:root {
+  --green: #11695B;
+  --citron: #D5FF5F;
+  --sky: #A9E7FF;
+  --ink: #142F2B;
+  --canvas: #F7FAF7;
+  --muted: #52665F;
+  --line: #D7E3DB;
+  --surface: #FFFFFF;
+  --paid-bg: #E8F5EE;
+  --waiting: #6D4C00;
+  --waiting-bg: #FFF0C2;
+  --held: #9B3B2C;
+  --held-bg: #FFE5DD;
+  --pending: #66519C;
+  --pending-bg: #F0EAFB;
+  /* Inputs need stronger boundaries than decorative card dividers. */
+  --control-line: #72867D;
+  --green-hover: #0C5146;
+  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Manrope', 'DM Sans', sans-serif;
+  --radius-control: 12px;
+  --radius-card: 20px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}

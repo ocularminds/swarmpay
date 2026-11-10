@@ -1,0 +1,24 @@
+/* Proposed Kintlo commercial brand tokens. Import explicitly; not applied to the live app. */
+:root {
+  --kintlo-evergreen: #11695B;
+  --kintlo-citron: #D5FF5F;
+  --kintlo-sky: #A9E7FF;
+  --kintlo-ink: #142F2B;
+  --kintlo-cloud: #F7FAF7;
+  --kintlo-muted: #52665F;
+  --kintlo-line: #D7E3DB;
+  --kintlo-white: #FFFFFF;
+  --kintlo-successBg: #E8F5EE;
+  --kintlo-hold: #6D4C00;
+  --kintlo-holdBg: #FFF0C2;
+  --kintlo-blocked: #9B3B2C;
+  --kintlo-blockedBg: #FFE5DD;
+  --kintlo-violet: #66519C;
+  --kintlo-violetBg: #F0EAFB;
+  --kintlo-font-display: 'Manrope', sans-serif;
+  --kintlo-font-body: 'DM Sans', sans-serif;
+  --kintlo-radius-control: 12px;
+  --kintlo-radius-card: 20px;
+}
+/* Primary: white on evergreen. Bright accents: deep ink on citron or sky. */
+/* Keyboard focus: 3px evergreen ring with 3px cloud offset. */

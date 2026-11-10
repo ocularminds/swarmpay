@@ -1,0 +1,154 @@
+{
+  "name": "Kintlo",
+  "selectedOn": "2026-11-10",
+  "status": "Commercial identity selected; public rollout pending",
+  "hackathonName": "SwarmPay",
+  "proposedTagline": "Many agents. Your rules.",
+  "domain": {
+    "candidate": "kintlo.com",
+    "checkDate": "2026-11-10",
+    "registryResult": "No record at preliminary check",
+    "purchased": false,
+    "ownershipVerified": false,
+    "trademarkClearance": "Open"
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1750,
+      "sha256": "99a6246dec525028173f5b4c0834f0ca33351bb87f6f5b828d5a752b97166aaa"
+    },
+    {
+      "path": "art-direction.md",
+      "bytes": 2371,
+      "sha256": "b3f15a4012514010789684423daf9b985f7228e18bc50b43283484eea28947e0"
+    },
+    {
+      "path": "brand-decision.md",
+      "bytes": 4305,
+      "sha256": "15491ddb9af2f8b306a6a8b53ea953cc0845bbc5b6f6151aacffea6b4db57774"
+    },
+    {
+      "path": "brand-tokens.css",
+      "bytes": 822,
+      "sha256": "b850c4f042143af3b92949fea7a16cc0261e6e20f0e4e47ae27a97780a476b94"
+    },
+    {
+      "path": "brand-tokens.json",
+      "bytes": 1332,
+      "sha256": "e95b977572101c8d3ef9a82c1acd5a68d5bf6e749d15bda484d774aaad6b36ae"
+    },
+    {
+      "path": "contrast-checks.json",
+      "bytes": 1159,
+      "sha256": "e66d5c77d789e9b888dfb5fd1799d649e5a9fe66ef46f4d37091ff1bb9221714"
+    },
+    {
+      "path": "fonts/DMSans-Bold.ttf",
+      "bytes": 48200,
+      "sha256": "2a8e7f713ee79fbccdef3cef5c787aff47580299f7da60144961e7db2ec08211"
+    },
+    {
+      "path": "fonts/DMSans-Medium.ttf",
+      "bytes": 48308,
+      "sha256": "376427b5322148d8de1e03f263bcca4935a2d60ba71d9f94f4947ab664c711ae"
+    },
+    {
+      "path": "fonts/DMSans-OFL.txt",
+      "bytes": 4482,
+      "sha256": "9af36190332437f5ecd09974de43c1f7c77a310a996cdd8ceb25628b458840e1"
+    },
+    {
+      "path": "fonts/DMSans-Regular.ttf",
+      "bytes": 48280,
+      "sha256": "b0ae3e89a7d3ef2b1838bb4b1ceb0b17cc3435af061eee809d76aa623ff116e9"
+    },
+    {
+      "path": "fonts/Manrope-Bold.ttf",
+      "bytes": 96188,
+      "sha256": "ea1f264039fed13fd36e6d6f49fcae4fe7007def02cf2972b5c7f6d6f1349d06"
+    },
+    {
+      "path": "fonts/Manrope-ExtraBold.ttf",
+      "bytes": 96816,
+      "sha256": "a8291b05b2732801abdbbb6d06866c57431c3b990638462423e692151b5e0895"
+    },
+    {
+      "path": "fonts/Manrope-OFL.txt",
+      "bytes": 4387,
+      "sha256": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b"
+    },
+    {
+      "path": "kintlo-brand-palette.png",
+      "bytes": 170277,
+      "sha256": "95d037758fc4338ef610628007c36251f71c56a2140be1de1772bcd77098da14",
+      "width": 1800,
+      "height": 1180
+    },
+    {
+      "path": "kintlo-brand-palette.svg",
+      "bytes": 164472,
+      "sha256": "12c0f3044d81534aa958803a78c0bbd678389c826ead90835005f7197476e014"
+    },
+    {
+      "path": "kintlo-cover-project.png",
+      "bytes": 191592,
+      "sha256": "7e77b252cd099b41070eff8cdbc4905f8f0d3b686271417d0c20d2e9c96ca61d",
+      "width": 1800,
+      "height": 1200
+    },
+    {
+      "path": "kintlo-cover-project.svg",
+      "bytes": 42012,
+      "sha256": "75ee880d06e2f7a1e2ad6dcc1fd2564547ebed38176afb949c04eb121efe8def"
+    },
+    {
+      "path": "kintlo-cover-social.png",
+      "bytes": 95334,
+      "sha256": "b22089856260212d46bacc4e8f189e074faf85f1f9f67b6301ef2ce0358ebedf",
+      "width": 1200,
+      "height": 630
+    },
+    {
+      "path": "kintlo-cover-social.svg",
+      "bytes": 30918,
+      "sha256": "c8175bbd1061055a19aac254674fb54cfaadf602410136d5a382393bbff14a8b"
+    },
+    {
+      "path": "kintlo-cover-wide.png",
+      "bytes": 169920,
+      "sha256": "1684fabdead37e3dd85b5fd562b585f8a45d3cdf4c3263cdb56bc82b955fc9bd",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "kintlo-cover-wide.svg",
+      "bytes": 30842,
+      "sha256": "a0c6459b79cb4a8975a31e1380b4be3c80539799b6477a909979ae0efd1021a1"
+    },
+    {
+      "path": "kintlo-payment-states.png",
+      "bytes": 124832,
+      "sha256": "d5975d518da79456e988943d84fed2898d6e24de2b43d075662bc40e7f925466",
+      "width": 1600,
+      "height": 780
+    },
+    {
+      "path": "kintlo-payment-states.svg",
+      "bytes": 185848,
+      "sha256": "de52e5ea484d31cff61b459bfed543d0e44f74d7aa904005011856b408cb7c05"
+    },
+    {
+      "path": "kintlo-wordmark.png",
+      "bytes": 9227,
+      "sha256": "6ef79aeab1d1badecada6b85c1283700c1a9714f3692d87eba6f14ca0396968f",
+      "width": 680,
+      "height": 160
+    },
+    {
+      "path": "kintlo-wordmark.svg",
+      "bytes": 2227,
+      "sha256": "4e374dbd7a7fcfba3c62333a1e9293e63519da7ebea6b23ce2a72ccd7afa6d5b"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "reviewDate": "2026-11-10",
+  "timezone": "Europe/Stockholm",
+  "sourceCommit": "10c58a85e5f20ba2bfd366b27e45b618d42b9372",
+  "sourceCommitDate": "2026-10-31",
+  "repo": "https://github.com/ocularminds/swarmpay",
+  "repositoryVisibility": "PRIVATE",
+  "site": "https://swarm.decionis.com",
+  "anonymousLiveChecks": "PASS",
+  "checks": [
+    "landing and JS/CSS assets respond",
+    "PayPal sandbox mode and Azure AI configured",
+    "both merchant public client IDs configured",
+    "anonymous plans and MCP rejected",
+    "PayPal sandbox sign-in redirect present",
+    "TLS certificate valid for 74 more days"
+  ],
+  "publicConfigSubset": {
+    "mode": "sandbox",
+    "aiProvider": "azure",
+    "model": "Azure OpenAI \u00b7 gpt-6-astra",
+    "demoSessionEnabled": false,
+    "paypalSignIn": true,
+    "tentPurchases": true,
+    "authority": "AgentSafe \u00b7 local test authority",
+    "catalogSource": "Curated demo catalog and Channel3 product data"
+  },
+  "notVerifiedThisReview": [
+    "interactive browser flow (browser controls disabled)",
+    "fresh PayPal checkout or refund",
+    "private Devpost testing instructions or submitted status",
+    "finished public video",
+    "latest full CI run"
+  ],
+  "historicalPaymentEvidence": "Repository-recorded October 28, 2026 PayPal sandbox run; not re-executed",
+  "illustrationMethod": "Original vector geometry with outlined type; no image-generation model used",
+  "artifactValidation": {
+    "pdfPages": 10,
+    "allPngDimensionsChecked": true,
+    "devpostUnder5MB": true,
+    "svgXmlValid": true,
+    "allListedTextPairsAA": true
+  }
+}

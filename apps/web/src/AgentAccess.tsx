@@ -7,8 +7,13 @@ type Grant={id:string;label:string;hint:string;createdAt:string;lastUsedAt:strin
 const when=(value:string)=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(value));
 
 function CopyButton({value,label}:{value:string;label:string}) {
-  const [done,setDone]=useState(false);
-  return <button className="copy-button" aria-label={`Copy ${label}`} onClick={()=>{void navigator.clipboard?.writeText(value).then(()=>{setDone(true);setTimeout(()=>setDone(false),1500);});}}>{done?<Check size={15}/>:<Copy size={15}/>}{done?'Copied':'Copy'}</button>;
+  const [done,setDone]=useState(false);const [error,setError]=useState('');
+  async function copy(){
+    setError('');
+    try{if(!navigator.clipboard)throw new Error();await navigator.clipboard.writeText(value);setDone(true);setTimeout(()=>setDone(false),1500);}
+    catch{setError(`Select and copy the ${label} manually. Clipboard access is unavailable.`);}
+  }
+  return <><button className="copy-button" aria-label={`Copy ${label}`} onClick={()=>void copy()}>{done?<Check size={15}/>:<Copy size={15}/>}{done?'Copied':'Copy'}</button>{error&&<small className="copy-error" role="status">{error}</small>}</>;
 }
 
 /** The organizer grants their own agent, or Postman, access to their plans: never approval, and every payment it asks for meets AgentSafe. */
@@ -35,9 +40,9 @@ export function AgentAccess({plans,onClose}:{plans:Plan[];onClose:()=>void}) {
           <button className="button button-primary" disabled={busy||!label.trim()}>{busy?<LoaderCircle className="spin" size={16}/>:<KeyRound size={16}/>}Create agent token</button>
         </form>}
       <h3>Active agents</h3>
-      {!grants?<p className="quiet-note">Loading…</p>:grants.length===0?<p className="quiet-note">No agent has access yet.</p>
+      {!grants?<p className="quiet-note" role="status">{error?'Agent access could not be loaded. Close this dialog and try again.':'Loading…'}</p>:grants.length===0?<p className="quiet-note">No agent has access yet.</p>
         :<ul className="agent-list">{grants.map(g=><li key={g.id}><div><strong>{g.label}</strong><small>…{g.hint} · {g.lastUsedAt?`last used ${when(g.lastUsedAt)}`:'not used yet'}</small></div>
-          <button className="text-link" disabled={busy} onClick={()=>void work(async()=>{await api(`/api/agent-tokens/${g.id}`,'DELETE');if(issued)setIssued(undefined);await load();})}>Revoke</button></li>)}</ul>}
+          <button className="text-link" aria-label={`Revoke ${g.label}`} disabled={busy} onClick={()=>void work(async()=>{await api(`/api/agent-tokens/${g.id}`,'DELETE');if(issued)setIssued(undefined);await load();})}>Revoke</button></li>)}</ul>}
       {plans.length>0&&<><h3>Plan IDs your agent can use</h3><ul className="agent-list">{plans.slice(0,5).map(p=><li key={p.id}><div><strong>{p.intent.venue}</strong><small><code>{p.id}</code></small></div><CopyButton value={p.id} label={`plan ID for ${p.intent.venue}`}/></li>)}</ul></>}
       <p className="quiet-note">Try it with the SwarmPay Postman collection in the repository’s <code>postman</code> folder.</p>
     </div>

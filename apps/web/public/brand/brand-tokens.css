@@ -1,0 +1,24 @@
+/* Proposed SwarmPay polish tokens. Import explicitly; not applied to the live app. */
+:root {
+  --swarm-evergreen: #11695B;
+  --swarm-citron: #D5FF5F;
+  --swarm-sky: #A9E7FF;
+  --swarm-ink: #142F2B;
+  --swarm-cloud: #F7FAF7;
+  --swarm-muted: #52665F;
+  --swarm-line: #D7E3DB;
+  --swarm-white: #FFFFFF;
+  --swarm-successBg: #E8F5EE;
+  --swarm-hold: #6D4C00;
+  --swarm-holdBg: #FFF0C2;
+  --swarm-blocked: #9B3B2C;
+  --swarm-blockedBg: #FFE5DD;
+  --swarm-violet: #66519C;
+  --swarm-violetBg: #F0EAFB;
+  --swarm-font-display: 'Manrope', sans-serif;
+  --swarm-font-body: 'DM Sans', sans-serif;
+  --swarm-radius-control: 12px;
+  --swarm-radius-card: 20px;
+}
+/* Primary: white on evergreen. Bright accents: deep ink on citron or sky. */
+/* Keyboard focus: 3px evergreen ring with 3px cloud offset. */

@@ -1,3 +1,6 @@
 * text=auto eol=lf
 *.bat text eol=crlf
 *.jar -text
+# Preserve the supplied third-party font licenses byte for byte.
+apps/web/public/brand/fonts/*-OFL.txt -text whitespace=-blank-at-eol
+docs/brand/kintlo/fonts/*-OFL.txt -text whitespace=-blank-at-eol

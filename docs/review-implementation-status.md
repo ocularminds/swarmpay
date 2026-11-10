@@ -1,0 +1,71 @@
+# November 10 review implementation
+
+Source: [eleven-page brief](review/baseline/brief.review.pdf), [implementation instructions](review/baseline/instruct.review.md) and [original evidence snapshot](review/baseline/evidence.json). The supplied originals remain unchanged. This record describes implementation work, not a new commercial launch or a submitted entry.
+
+Started from synced `master` **2e9c5d4** on November 10, 2026 (Europe/Stockholm), after the brief's `10c58a8` baseline. Delivery is a three-PR stack: **brand and UX → technical review → submission**. Each PR is based on the preceding part so reviewers see only that part's changes. Review the final stack together before deployment.
+
+## Evidence labels
+
+**Verified on the current deployment** means the stated check reached the existing public site. **Historical sandbox evidence** refers to the preserved October records. **Fixture-tested** means isolated, simulated provider/model behavior, including stand-in PayPal SDK tests. **Simulated** names catalog, payment, AI or venue behavior explicitly. **Planned** is not implementation evidence.
+
+The anonymous site check passed on November 10: landing/assets, sandbox configuration, anonymous denial, MCP authentication, PayPal sign-in redirect and TLS. It does not exercise buyer approval or a current capture. A subsequent November 10 GitHub check reports the repository **PUBLIC**; anonymous Git access resolves `master` to `2e9c5d4`, and the Apache 2.0 license is present. The deployed checkout revision is not exposed by that health check; do not equate it with this branch.
+
+This matrix is updated at each part. Rows marked “next part” are work in the same stack, not completed requirements. Final statuses are **implemented and verified**, **already satisfied with current evidence**, or **blocked by a specific missing prerequisite**.
+
+## Requirements and acceptance
+
+| ID / brief page | Acceptance condition | Implementation / evidence | Status |
+| --- | --- | --- | --- |
+| P0.1 · p3 | Intended source opens signed out; license visible; fresh clone follows setup | `LICENSE`, public GitHub metadata and anonymous `ls-remote` verified November 10 | Public access satisfied; fresh-clone setup verification in part 3 |
+| P0.2 · p3,6 | Public video under three minutes shows the actual sequence; working link in entry and docs | `demo/video-script.md`; current capture and edit package in part 3 | Next part: prepare video; public video URL and publication remain prerequisites |
+| P0.3 · p3 | Clean sandbox buyer and organizer route works; private Devpost instructions contain the actual credentials | Hosted sign-in and isolated TLS tests; private testing handoff in part 3 | Next part: verify available access; private entry requires account access |
+| P0.4 · p3,4 | Dated, revision-bound full rehearsal: both approvals, early hold/no capture, signed receipt, capture and replay | Browser, REST/MCP, payment isolation and evidence checks in part 2 | Next part: distinguish fixture proof from authenticated current sandbox proof |
+| P0.5 · p3,4 | Every claim has a current, historical, fixture, simulated or planned label; approval count is accurate | Application approval copy in part 1; README, submission draft, checklist and script in part 3 | Next part: reconcile documentation |
+| PROOF-SITE · p4 | Anonymous live checks reported with their limits | `node demo/check-live.mjs` passed November 10; existing site uses local test authority | Already satisfied with current evidence for read-only health only |
+| PROOF-AI · p4,9 | Changed briefs exercise actual interpretation, selection and invalid-choice rejection | Evaluation set and recorded results in part 2 | Next part |
+| PROOF-PAYMENTS · p4 | Keep October 28 payments separate from current results | `infra/azure/releases/2026-10-28.sandbox.json` preserved | Next part: document current verification scope |
+| PROOF-MCP · p4 | Outside agent uses real MCP with organizer scoping, denied approval and a ledger consequence | Actual AgentSafe runtime, token/MCP and isolation checks in part 2 | Next part |
+| PROOF-RENEWAL · p4 | Actual aged authorization renewed, or exact missing live result named | Existing PayPal HTTP fixtures; live renewal requires a valid, sufficiently aged authorization and approved buyer flow | Next part: inspect available historical results |
+| PROOF-REFUND · p4 | Actual sandbox refund settlement, or precise missing result named | Existing cancellation/refund fixtures; current sandbox result requires approved test payment | Next part |
+| PROOF-AUTHORITY · p4,9 | Verify hosted contract, credentials, signed grant and approval/resume before claiming hosted enforcement | Local AgentSafe authority remains explicitly labeled; private executor boundary preserved | Blocked: provisioned hosted enforcement contract/credentials and verified resume path |
+| PROOF-DELIVERY · p4,9 | Match real issuer contract, signer lifecycle, revocation and disputes | Simulated venue signs; executor verifies receipt; UI explains assertion vs physical delivery | Blocked for real fulfillment: provided issuer contract, onboarding, keys/revocation and contested-delivery agreement |
+| POSITION · p1,2,5,6 | Event-organizer job and two merchants lead; no novelty, negotiation or unsupported retailer-order claims | `Landing.tsx`, `main.tsx`; document reconciliation in part 3 | Implemented and verified for the application; documentation continues in part 3 |
+| APPROVAL · p6,8 | One exact plan consent plus separate merchant-specific PayPal approvals | Consent and checkout guidance; native `PayPalCheckout` component retained | Implemented and verified: seven isolated HTTPS browser cases |
+| BRAND-PALETTE · p7 | Exact evergreen, citron, sky, ink, cloud and slate; semantic states; light product surfaces | `brand.css`, `brand-tokens.json`, `styles.css`, Grid/Studio themes and Bryntum CSS properties | Implemented and verified for the application; documentation continues in part 3 |
+| BRAND-TYPE · p7 | Local licensed Manrope/DM Sans; 16px body, readable secondary text, tabular amounts and control/card radii | `/brand/fonts/` with both OFLs; shared CSS and embedded theme parameters | Implemented and verified: build and rendered font checks |
+| ARTWORK · p6–8 | Durable public assets, responsive illustration separate from live controls; source SVGs/licenses kept | `apps/web/public/brand/`; `event-terms.svg` extracted from supplied vector | Implemented and verified: eight served assets match source SHA-256 hashes |
+| SHARING · p8 | Absolute canonical/social URLs; 1200×630 image; metadata and built assets served | `apps/web/index.html`, public social cover | Implemented and verified in the built HTTPS fixture; public share preview blocked on deployment of this stack |
+| ACCESSIBILITY · p7,8 | Meaningful text ≥4.5:1; visible focus, keyboard/dialog operation, reduced motion, alt text, no narrow overflow | Shared CSS, skip links, native dialogs, evidence focus; desktop/mobile browser checks | Implemented and verified for the application; documentation continues in part 3 |
+| STATES · p8 | Plan approval, buyer approval, authorization, paid, held, pending/unknown, refund and void states remain distinct | Shared `StatusBadge`; settlement-aware mapping and regressions in part 2 | Next part: lifecycle mapping |
+| NEXT-ACTION · p8 | One main action, exact merchant/amount/timing and simulated-venue disclosure at confirmation | `main.tsx`, explicit receipt condition | Implemented and verified: seven isolated HTTPS browser cases |
+| HOLD-EVIDENCE · p8 | Plain reason links to actual decision and missing receipt condition; technical IDs in details | Focusable decision records, request/dossier/decision/intent correlation | Implemented and verified: keyboard opens and focuses the matching decision |
+| TOTALS · p8 | Schedule, ledger, overview and explanation agree; authorizations and reservations never count as paid | Shared payment projections and targeted regressions in part 2 | Next part |
+| SCREENSHOTS · p6,8 | Fresh landing, approval, checkout, delivery wait, held, completion, dashboard, ledger, schedule and agents captures | Browser capture points added; label the environment and revision | Next part: finish verification and package gallery |
+| P1-AUDIENCE · p9 | Three actual event operators' workflows and willingness-to-pay findings, with sample size | Interview protocol and blank findings log in part 3 | Blocked for findings: actual participants and permission to contact them |
+| P1-MEASUREMENT · p9 | Brief-to-plan timing, organizer actions, held requests, delivery/capture and exception times without sensitive briefs | Scoped measurements and tests in part 2 | Next part; no ROI claim from fixture measurements |
+| P1-MERCHANT · p9 | Display supported timing/cancellation terms and obtain supplier/venue acceptance | Current full-amount USD terms in UI; agreement checklist in part 3 | Blocked for acceptance: tent supplier, caterer and venue agreements |
+| P2-OPERATIONS · p9 | Isolated backup/restore rehearsal and monitoring/incident ownership | Recovery checks and operating runbook in part 2 | Next part; named operating owner still required |
+| P2-COMMERCE · p9 | Cover supported full lifecycle; require decisions/contracts before partial delivery, fees, refunds, currencies or extra milestones | Current USD/two-merchant/full-amount domain; scope table in part 2 | Blocked for expansion: approved settlement rules, merchant terms and provider capabilities |
+| SPONSORS · p2,4,10 | Current API description matches SDK/docs generation; correct Grid/Studio, Bryntum, Channel3 and Render claims | Contract checks, generated artifacts and license scope audit in parts 2/3 | Next part; trial suitability through judging must be established |
+| NAME · p11 | Keep SwarmPay consistent now; preserve Kintlo as the selected commercial identity | `docs/brand/README.md`, preserved `docs/brand/kintlo/` kit | Implemented; launch is separately blocked below |
+| COMMERCIAL-LAUNCH · p11 | Authorized coherent rollout after schedule/entry check, confirmed domain, trademark decision and redirects; preserve payment IDs/judge access | Prepared Kintlo kit; no runtime rename or identifier migration | Blocked: owner launch decision, domain ownership, trademark clearance and organizer rules |
+| SUBMISSION-RULES · p3,9,11 | Recheck official dates, post-deadline edit rules and actual submitted entry | Official rules and entry-status handoff in part 3 | Next part; account-visible submitted status still unverified |
+
+## Verification record
+
+- November 10: `master` synchronized to `2e9c5d4`; no tracked user changes were present. Supplied untracked review inputs were preserved.
+- November 10: reviewed all eleven PDF pages, both identity kits, source vectors, typography licenses and the payment-state specimen.
+- November 10: `npm --prefix apps/web run build` passed after the brand/UX implementation. Heavy Grid/Studio/Scheduler bundles remain lazy-loaded; Vite reports the existing large-chunk warning.
+- November 10: anonymous `node demo/check-live.mjs` passed. The initial repository check reported PRIVATE; the later check reports PUBLIC and anonymous Git access succeeds. These checks do not establish current payment completion or private judge access.
+
+Additional outcomes are recorded as each part is verified. No real customer findings, payment outcomes, publication or commercial launch may be inferred from prepared material.
+
+## Part 1 result
+
+The brand and UX implementation builds and all seven hosted browser cases pass. Screenshots cover desktop and 390px layouts, approval, both checkout actions, the delivery wait, held-request evidence, completion, payments, ledger, schedule and agent access. The PayPal SDK case drives the actual application component through a stand-in SDK and simulated provider; it is not a live PayPal approval.
+
+[Rendered checks](review/evidence/brand/rendered-checks.json) record the source fingerprint, served asset hashes, 3px evergreen focus ring with 3px offset, and text contrast samples from landing, workspace/schedule, agent access and ledger. No sampled pair failed; the lowest was 5.47:1. Canvas charts, pseudo-elements and gradient backgrounds also received visual inspection; this is scoped verification, not a full accessibility certification. Desktop/mobile overflow and keyboard dialog/focus behavior pass.
+
+[Desktop landing](review/evidence/brand/landing-desktop.png), [mobile landing](review/evidence/brand/landing-mobile.png), [held request](review/evidence/brand/desktop-held-request.png), [mobile held request](review/evidence/brand/mobile-held-request.png), [completion](review/evidence/brand/desktop-completed.png), [payments](review/evidence/brand/desktop-payments.png), [ledger](review/evidence/brand/desktop-ledger.png) and [agent access](review/evidence/brand/desktop-agent-access.png) are actual fixture screenshots. They contain no bearer tokens, buyer credentials or live customer data. The supplied artwork is stored separately.
+
+The owner supplied the canonical [Devpost project](https://devpost.com/software/swarmpay-multi-agent-commerce-escrow). A November 10 signed-out HTTP check shows “Submitted to PayPal AI Hackathon” and a [YouTube video](https://www.youtube.com/watch?v=SHIB2tTIrmc). YouTube's player metadata reports playable, non-private and 115 seconds. Part 3 will reconcile the text, video proof and current requirements. The public page alone does not expose private judge instructions.

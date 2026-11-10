@@ -1,7 +1,7 @@
 export type Intent={request:string;attendees:number;tents:number;budgetMinor:number;eventAt:string;timezone:string;venue:string;weather:string;tentMode:'RENT'|'BUY'};
 export type Offer={id:string;merchantId:string;merchantName:string;category:'TENTS'|'CATERING';title:string;description:string;unitMinor:number;capacity:number;badge:string};
 export type Line={id:string;offerId:string;merchantId:string;merchantName:string;category:'TENTS'|'CATERING';title:string;quantity:number;unitMinor:number;totalMinor:number;paymentIntent:'CAPTURE'|'AUTHORIZE';source:ProductSource|null};
-/** Where a purchasable tent's product data came from; the line's merchant still fills the order and is paid. */
+/** Purchase-listing provenance. The demo pays the configured sandbox merchant; it places no retailer order. */
 export type ProductSource={provider:string;productId:string;brand:string|null;store:string;productUrl:string|null;rating?:number|null;ratingCount?:number|null;offersCompared?:number|null};
 export type Assessment={role:string;summary:string;facts:string[];source:string};
 export type Plan={id:string;version:number;intent:Intent;lines:Line[];assessments:Assessment[];totalMinor:number;expiresAt:string;status:string;createdAt:string};

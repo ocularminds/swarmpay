@@ -18,11 +18,13 @@ export function Landing({config,busy,error,request,onRequest,onDismiss,onDemo,on
   // Locally the description opens a demo workspace; hosted, the organizer signs in first. Either way it's read next.
   function plan(){if(!described||busy)return;if(config.demoSessionEnabled)onDemo();else openSignIn();}
   return <div className="landing">
+    <a className="skip-link" href="#main-content">Skip to event planner</a>
     <header className="landing-header"><Brand/><div className="landing-header-actions"><ModePill config={config}/><button className="landing-signin-link" onClick={openSignIn}>Sign in</button></div></header>
-    <main className="landing-main">
+    <main className="landing-main" id="main-content" tabIndex={-1}>
       <section className="landing-pitch">
-        <h1>Book your event.<br/>Pay only on your terms.</h1>
-        <p className="landing-lede">Describe your event and AI agents source tents and catering within your budget. Approve the plan once. Each merchant is paid through PayPal on the terms you agreed, and catering only after the venue confirms delivery.</p>
+        <p className="landing-eyebrow">For office and community event organizers</p>
+        <h1>Plan with AI.<br/>Pay on your terms.</h1>
+        <p className="landing-lede">One event brief. Two merchants. A plan you approve, with catering paid after a verified delivery receipt.</p>
         {error&&!signingIn&&<div className="message error" role="alert"><AlertCircle size={18}/><span>{error}</span><button aria-label="Dismiss error" onClick={onDismiss}><X size={16}/></button></div>}
         <form className="composer" onSubmit={e=>{e.preventDefault();plan();}}>
           <textarea ref={input} aria-label="Describe your event" rows={3} maxLength={4000} value={request} onChange={e=>onRequest(e.target.value)}
@@ -34,13 +36,14 @@ export function Landing({config,busy,error,request,onRequest,onDismiss,onDemo,on
           </div>
         </form>
         <p className="composer-note">{config.demoSessionEnabled?'No account needed.':config.paypalSignIn?'Next, continue with PayPal to create your account or sign in.':'You’ll sign in with your organizer account next.'} Nothing is paid until you approve a plan.</p>
+        <p className="approval-note"><strong>Approve the plan once, then confirm each merchant in PayPal.</strong>{config.mode==='sandbox'?'PayPal sandbox payments.':'Simulated payments.'} Rentals, catering and venue delivery are simulated.</p>
         <ul className="landing-outcomes">
           <li><span><Wallet size={17}/></span><div><strong>Stay on budget</strong>Nothing is paid beyond the plan you approve.</div></li>
           <li><span><LockKeyhole size={17}/></span><div><strong>Pay on delivery</strong>Catering is charged only after a signed delivery receipt.</div></li>
-          <li><span><ShieldCheck size={17}/></span><div><strong>Agents can’t overspend</strong>Every payment request is checked before any money moves.</div></li>
+          <li><span><ShieldCheck size={17}/></span><div><strong>See why a request is held</strong>Each payment request is checked against your approved terms.</div></li>
         </ul>
       </section>
-      <ExamplePlan/>
+      <aside className="landing-visual" aria-label="How the payment terms work"><img className="landing-art" src="/brand/event-terms.svg" width="920" height="900" alt="Illustration of tents and catering connected by your approved terms"/><ExamplePlan/></aside>
     </main>
     <SiteFooter config={config} className="landing-footer"/>
     {signingIn&&<SignInDialog paypal={config.paypalSignIn} request={request} busy={busy} error={error} onDismiss={onDismiss} onClose={()=>{setSigningIn(false);onDismiss();}} onSignIn={onSignIn}/>}
@@ -82,7 +85,7 @@ function SignInDialog({paypal,request,busy,error,onDismiss,onClose,onSignIn}:{pa
 /** What is real and what is simulated, said once at the foot of every page. */
 export function SiteFooter({config,className}:{config:Config;className:string}) {
   const disclosure=config.tentPurchases
-    ? `${config.mode==='sandbox'?'Payments run in the PayPal sandbox.':'Payments are simulated in this demo.'} Tent purchases use Channel3 listings. Rentals, catering and the venue are simulated.`
+    ? `${config.mode==='sandbox'?'Payments run in the PayPal sandbox.':'Payments are simulated in this demo.'} Channel3 supplies purchase listings; this demo does not order from the listed retailer. Rentals, catering and the venue are simulated.`
     : config.mode==='sandbox'?'Payments run in the PayPal sandbox. The catalog and venue are simulated.':'Payments, catalog and venue are simulated in this demo.';
   return <footer className={className}><div><p>{disclosure} {config.aiProvider==='demo'?'Agent responses are simulated.':`Planning uses ${config.model}.`} {config.authority==='AgentSafe · local test authority'?'AgentSafe checks payments with a local test authority.':`${config.authority} decides every payment.`}</p><span>Built for the PayPal AI Hackathon</span></div></footer>;
 }
@@ -98,7 +101,7 @@ function ExamplePlan() {
     <figcaption><span>Example plan</span><strong>Riverside meetup</strong><small>30 guests · rain expected</small></figcaption>
     <div className="example-row"><span className="example-icon"><Tent size={18}/></span><div><strong>5 tent rentals</strong><small>Canopy Collective · $500</small></div><em className="paid"><CheckCheck size={13}/>Paid at checkout</em></div>
     <div className="example-row"><span className="example-icon"><UtensilsCrossed size={17}/></span><div><strong>30 catered meals</strong><small>Gather Kitchen · $900</small></div><em className="waiting"><LockKeyhole size={12}/>Pays on delivery</em></div>
-    <div className="example-row agent"><span className="example-icon"><ShieldAlert size={17}/></span><div><strong>Agent asks to pay catering now</strong><small>No delivery receipt yet</small></div><em className="held">Held</em></div>
+    <div className="example-row agent"><span className="example-icon"><ShieldAlert size={17}/></span><div><strong>Agent asks to pay catering now</strong><small>No delivery receipt yet</small></div><em className="held"><ShieldAlert size={13}/>Request held</em></div>
     <div className="example-budget"><div><span>Committed</span><strong>$1,400 <small>of $1,500</small></strong></div><span className="example-bar"><span/></span><small><Check size={13}/>Within budget</small></div>
   </figure>;
 }

@@ -32,6 +32,8 @@ class CommerceRepositoryTest {
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V5__organizer_accounts.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V6__agent_tokens.sql")));
             statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V7__refunded_orders.sql")));
+            statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V8__command_settlement_time.sql")));
+            statement.execute(Files.readString(Path.of("../../apps/commerce-app/src/main/resources/db/commerce/V9__review_measurements.sql")));
         }
     }
     Plan plan(long budget) {
@@ -169,12 +171,71 @@ class CommerceRepositoryTest {
         var authorize=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.AUTHORIZE_ORDER,"catering",90000,"USD","order-c",null,plan.id().toString(),"test-v1"));
         repository.finish(authorize,succeeded(new ProviderResult("AUTHORIZED","order-c","auth",null,null,90000,"USD","catering","TEST")));
         assertTrue(repository.holdsToRenew().stream().noneMatch(p->p.id().equals(plan.id())));
-        sql.update("UPDATE commerce.commands SET updated_at=now()-interval '4 days' WHERE id=?",authorize.id());
+        sql.update("UPDATE commerce.commands SET settled_at=now()-interval '4 days' WHERE id=?",authorize.id());
         assertTrue(repository.holdsToRenew().stream().anyMatch(p->p.id().equals(plan.id())));
         var renew=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.REAUTHORIZE_AUTHORIZATION,"catering",90000,"USD","auth",null,plan.id().toString(),"test-v1"));
         repository.finish(renew,succeeded(new ProviderResult("AUTHORIZED","order-c","renewed",null,null,90000,"USD","catering","TEST")));
         assertEquals("renewed",repository.order(plan,catering.id()).authorizationId());
         assertTrue(repository.holdsToRenew().stream().noneMatch(p->p.id().equals(plan.id())));
+    }
+    @Test void pendingProviderResponsesAreNotSettledMoneyAndLateRepliesCannotEraseSettlement() throws Exception {
+        var plan=plan(150000);repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);
+        var tents=plan.lines().getFirst();
+        var capture=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,tents.id(),Operation.CAPTURE_ORDER,"tents",50000,"USD","order",null,plan.id().toString(),"test-v1"));
+        var pending=succeeded(new ProviderResult("PENDING","order",null,"capture",null,50000,"USD","tents","TEST"));
+        repository.finish(capture,pending);
+        assertEquals("PENDING",repository.ledger("organizer",plan.id()).getFirst().providerStatus());
+        assertEquals(0,balance(plan).capturedMinor());assertEquals(50000,balance(plan).pendingMinor());
+        repository.finish(capture,succeeded(new ProviderResult("CAPTURED","order",null,"capture",null,50000,"USD","tents","TEST")));
+        var settled=repository.ledger("organizer",plan.id()).getFirst().settledAt();
+        repository.finish(capture,pending);
+        repository.finish(capture,new GateResult("INDETERMINATE","INDETERMINATE",null,null,null,null,"Late timeout",null));
+        assertEquals("CAPTURED",repository.ledger("organizer",plan.id()).getFirst().providerStatus());
+        assertEquals(settled,repository.ledger("organizer",plan.id()).getFirst().settledAt());
+        assertEquals(50000,balance(plan).capturedMinor());assertEquals(0,balance(plan).pendingMinor());
+        assertTrue(repository.balances("someone-else").isEmpty());
+    }
+    @Test void cancellingAnUnprojectedUnknownAttemptKeepsItsReservationUntilNonDispatchIsConfirmed() {
+        var plan=plan(150000);repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);
+        var attempt=repository.enqueue(command(plan,plan.lines().getFirst(),50000));repository.claim(attempt.id());
+        repository.cancel(plan);
+        assertEquals(140000,repository.committedMinor(plan.id()));
+        repository.finish(attempt,new GateResult("INDETERMINATE","INDETERMINATE",null,null,null,null,"Unknown",null));
+        assertEquals(140000,repository.committedMinor(plan.id()));
+        assertEquals(50000,balance(plan).pendingMinor());
+        repository.finish(attempt,new GateResult("NOT_EXECUTED","NOT_FORWARDED",null,null,null,null,"No provider attempt",null));
+        assertEquals(0,repository.committedMinor(plan.id()));
+        assertTrue(balance(plan).cancellationRequested());assertTrue(repository.verifyChain(plan.id()));
+    }
+    @Test void cancellationRecoveryKeepsPaidMoneyAndTheReservationWhileARefundIsPending() {
+        var plan=plan(150000);repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);
+        var tents=plan.lines().getFirst();
+        var capture=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,tents.id(),Operation.CAPTURE_ORDER,"tents",50000,"USD","order",null,plan.id().toString(),"test-v1"));
+        repository.finish(capture,succeeded(new ProviderResult("CAPTURED","order",null,"capture",null,50000,"USD","tents","TEST")));
+        repository.cancel(plan);
+        assertTrue(repository.pendingCancellations().stream().anyMatch(p->p.id().equals(plan.id())));
+        var refund=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,tents.id(),Operation.REFUND_CAPTURE,"tents",50000,"USD","capture",null,plan.id().toString(),"test-v1"));
+        repository.finish(refund,succeeded(new ProviderResult("PENDING","order",null,"capture",null,50000,"USD","tents","TEST","refund")));
+        var pending=balance(plan);
+        assertEquals(50000,pending.capturedMinor());assertEquals(50000,pending.refundPendingMinor());assertEquals(0,pending.refundedMinor());
+        assertEquals(140000,pending.committedMinor());
+        repository.finish(refund,succeeded(new ProviderResult("REFUNDED","order",null,"capture",null,50000,"USD","tents","TEST","refund")));
+        var settled=balance(plan);
+        assertEquals(0,settled.capturedMinor());assertEquals(0,settled.refundPendingMinor());assertEquals(50000,settled.refundedMinor());assertEquals(0,settled.committedMinor());
+        assertTrue(repository.pendingCancellations().stream().noneMatch(p->p.id().equals(plan.id())));
+    }
+    private PlanBalance balance(Plan plan) { return repository.balances("organizer").stream().filter(b->b.id().equals(plan.id())).findFirst().orElseThrow(); }
+    @Test void measurementsAreScopedAndOldPlansDoNotAcquireInventedTiming() {
+        var old=plan(150000);repository.create(old);
+        var measured=plan(150000);repository.create(measured,42L);repository.briefTiming(measured.id(),1100);
+        repository.approve(measured.id(),"organizer",1,factory);
+        var readings=repository.measurements("organizer");
+        var before=readings.stream().filter(m->m.workflowId().equals(old.id())).findFirst().orElseThrow();
+        var after=readings.stream().filter(m->m.workflowId().equals(measured.id())).findFirst().orElseThrow();
+        assertNull(before.planningMillis());assertNull(before.briefToPlanMillis());
+        assertEquals(42L,after.planningMillis());assertEquals(1100L,after.briefToPlanMillis());assertEquals(1,after.organizerActions());
+        assertNull(after.receiptToCaptureMillis());assertEquals(0,after.heldAgentRequests());
+        assertTrue(repository.measurements("unrelated-organizer").isEmpty());
     }
     @Test void aHoldWhoseEventHasPassedIsNeverRenewedAndStaleHoldsCannotCrowdOutOneThatIsDue() {
         // More stale holds than one pass of the worker reads; they must not fill it ahead of the hold that is due.
@@ -198,7 +259,7 @@ class CommerceRepositoryTest {
         repository.create(plan);repository.approve(plan.id(),"organizer",1,factory);var catering=plan.lines().get(1);
         var authorize=repository.enqueue(new PaymentCommand(UUID.randomUUID(),plan.id(),1,catering.id(),Operation.AUTHORIZE_ORDER,"catering",90000,"USD","order-c",null,plan.id().toString(),"test-v1"));
         repository.finish(authorize,succeeded(new ProviderResult("AUTHORIZED","order-c","auth",null,null,90000,"USD","catering","TEST")));
-        sql.update("UPDATE commerce.commands SET updated_at=now()-interval '4 days' WHERE id=?",authorize.id());
+        sql.update("UPDATE commerce.commands SET settled_at=now()-interval '4 days' WHERE id=?",authorize.id());
         return plan;
     }
     static GateResult succeeded(ProviderResult result) { return new GateResult("SUCCEEDED","FORWARDED","decision","dossier","a".repeat(64),null,"Done",result); }

@@ -371,7 +371,7 @@
           }
         ],
         "operationId": "listPlans",
-        "description": "Lists recent plans owned by the signed-in organizer."
+        "description": "Lists the 30 most recent plans owned by the signed-in organizer."
       },
       "post": {
         "summary": "Prepare a plan",
@@ -883,7 +883,7 @@
           }
         ],
         "operationId": "cancelEvent",
-        "description": "Stops all further payments for the plan, then voids an outstanding catering authorization and refunds a captured tents payment, each as an AgentSafe-guarded command. Only before the event starts. The budget reservation is released once nothing is held or paid."
+        "description": "Before the event starts and while catering is unpaid, freezes further payment attempts, requests a full tents refund and voids unpaid catering. Already dispatched requests still require reconciliation. Reservation remains until no paid, authorized or uncertain exposure exists. Completed catering requires merchant resolution."
       }
     },
     "/api/plans/{id}/freeze": {
@@ -1365,7 +1365,7 @@
     },
     "/api/ledger": {
       "get": {
-        "summary": "Every payment across the organizer's plans",
+        "summary": "Recent payment records for the organizer",
         "tags": [
           "Records"
         ],
@@ -1409,7 +1409,7 @@
           }
         ],
         "operationId": "listLedgerEntries",
-        "description": "Lists payment records and agent requests across the signed-in organizer's plans, optionally filtered by a search query."
+        "description": "Returns at most 500 commands and 500 agent requests owned by the signed-in organizer. Optional workflowId is applied before the limit. Totals of these rows cover only this recent window; /api/balances includes every approved plan."
       }
     },
     "/api/ai/responses": {
@@ -1548,7 +1548,7 @@
             "$ref": "#/components/responses/Forbidden"
           }
         },
-        "description": "For the organizer's own MCP client at /mcp (Authorization: Bearer swp_…). It acts on this organizer's plans only and can never approve one. Up to five active.",
+        "description": "For the organizer's own MCP client at /mcp (Authorization: Bearer swp_\u2026). It acts on this organizer's plans only and can never approve one. Up to five active.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1617,6 +1617,84 @@
         ],
         "operationId": "revokeAgentToken",
         "description": "Revokes an organizer-owned agent token so it can no longer call authenticated MCP tools."
+      }
+    },
+    "/api/balances": {
+      "get": {
+        "summary": "Current balances for every approved plan",
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlanBalance"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "operationId": "listPlanBalances",
+        "description": "One consistent database snapshot per approved plan. An authorization is not paid. Pending refunds leave captured money and the reservation in place. A frozen plan is not necessarily a cancelled event."
+      }
+    },
+    "/api/measurements": {
+      "get": {
+        "summary": "Measured workflow timing and outcomes",
+        "tags": [
+          "Records"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewMeasurement"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "operationId": "listReviewMeasurements",
+        "description": "Organizer-scoped measured processing/session time, recorded human actions, held agent requests, verified-receipt ingestion to settled capture, and exception-to-settlement durations. Missing historical timing remains null. No brief, venue, credentials or model text is returned."
       }
     }
   },
@@ -2206,10 +2284,12 @@
             }
           },
           "committedMinor": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Actual active budget reservation; remains reserved for unknown outcomes."
           },
           "capturedMinor": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Settled captures less settled refunds, in integer USD cents. Authorizations and pending capture/refund responses are excluded."
           },
           "mode": {
             "type": "string"
@@ -2302,7 +2382,8 @@
           },
           "settledAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "First completed provider observation, or last observation for an unsettled row. Historical rows use the best pre-migration timestamp; repeated reconciliation does not change new settlement times."
           },
           "workflowId": {
             "type": "string",
@@ -2379,6 +2460,13 @@
               "null"
             ],
             "description": "PayPal refund ID, for a refund of a captured payment"
+          },
+          "providerStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Recorded provider outcome. SUCCEEDED alone is authority permission, not settlement. Only CAPTURED captures count as paid; only REFUNDED refunds reduce paid."
           }
         }
       },
@@ -2416,9 +2504,164 @@
           },
           "token": {
             "type": "string",
-            "description": "swp_…; shown once"
+            "description": "swp_\u2026; shown once"
           }
         }
+      },
+      "PlanBalance": {
+        "type": "object",
+        "required": [
+          "id",
+          "venue",
+          "eventAt",
+          "budgetMinor",
+          "totalMinor",
+          "committedMinor",
+          "capturedMinor",
+          "authorizedMinor",
+          "refundedMinor",
+          "pendingMinor",
+          "refundPendingMinor",
+          "paymentFrozen",
+          "cancellationRequested",
+          "orderStates"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venue": {
+            "type": "string"
+          },
+          "eventAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "budgetMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "committedMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "capturedMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "authorizedMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "refundedMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "pendingMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "refundPendingMinor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "paymentFrozen": {
+            "type": "boolean"
+          },
+          "cancellationRequested": {
+            "type": "boolean"
+          },
+          "orderStates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "One consistent database snapshot per approved plan. An authorization is not paid. Pending refunds leave captured money and the reservation in place. A frozen plan is not necessarily a cancelled event."
+      },
+      "ReviewMeasurement": {
+        "type": "object",
+        "required": [
+          "workflowId",
+          "planningMillis",
+          "briefToPlanMillis",
+          "receiptToCaptureMillis",
+          "organizerActions",
+          "heldAgentRequests",
+          "resolvedExceptionMillis",
+          "resolvedExceptions",
+          "unresolvedExceptions"
+        ],
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "planningMillis": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "briefToPlanMillis": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "receiptToCaptureMillis": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "organizerActions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "heldAgentRequests": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "resolvedExceptionMillis": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "resolvedExceptions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "unresolvedExceptions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "description": "Organizer-scoped measured processing/session time, recorded human actions, held agent requests, verified-receipt ingestion to settled capture, and exception-to-settlement durations. Missing historical timing remains null. No brief, venue, credentials or model text is returned."
       }
     },
     "securitySchemes": {

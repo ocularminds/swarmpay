@@ -52,6 +52,8 @@ services:
     mem_limit: 512m
   agentsafe:
     build: ./infra/agentsafe
+    # The gateway drains for up to 10s, then checkpoints its evidence heads. Docker's default 10s can kill that flush.
+    stop_grace_period: 45s
     environment:
       SWARM_MODE: ${SWARM_MODE}
       SWARM_AUTHORITY: ${SWARM_AUTHORITY:-}

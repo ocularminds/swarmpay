@@ -40,6 +40,7 @@ jobs:
       - name: Build the web application
         run: |
           npm --prefix apps/web ci
+          npm --prefix apps/web test
           npm --prefix apps/web run build
           npm --prefix apps/web audit --audit-level=high
       - name: Verify the published authority boundary
@@ -72,6 +73,8 @@ jobs:
         run: |
           node demo/hosted/run.mjs up
           node demo/hosted/run.mjs check
+      - name: Rehearse isolated database and authority-journal restore
+        run: NODE_EXTRA_CA_CERTS="$PWD/.local/hosted/tls.crt" node demo/review/backup-restore.mjs
       - name: Retain test reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

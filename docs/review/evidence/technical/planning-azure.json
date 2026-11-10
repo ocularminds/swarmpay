@@ -1,0 +1,266 @@
+{
+  "date": "2026-11-10T04:13:18.141Z",
+  "baseRevision": "71bd26ebbc5d778bbbc9d740f95c0d7ac9333495",
+  "datasetSha256": "fccd7e1d67948b2e6846d10cb6fe0659d65dd9cfe3af72a448c6422d4510836f",
+  "aiProvider": "azure",
+  "model": "Azure OpenAI · gpt-6-astra",
+  "payments": "simulated; drafts only",
+  "cases": [
+    {
+      "id": "rain-baseline",
+      "status": "passed",
+      "workflowId": "5e0698fe-3358-4ca0-9ec5-08fa42acea83",
+      "source": "Azure OpenAI · gpt-6-astra",
+      "offers": [
+        "tents-standard",
+        "catering-seasonal"
+      ],
+      "totalMinor": 140000,
+      "withinBudget": true,
+      "planningMillis": 14496,
+      "briefToPlanMillis": 21856,
+      "elapsedMillis": 22019,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Rain-ready rental canopies and warm meals with a vegetarian option suit this meetup. This is the only combination within budget.",
+          "facts": [
+            "5 tents cover up to 50 guests: $500.",
+            "Catering for 30 guests: $900.",
+            "Total including delivery and taxes: $1,400; $100 remaining."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Advisory only; I cannot approve funds.",
+          "facts": [
+            "Five tents accommodate 50; 30 meals plus rentals cost $1,400, leaving $100.",
+            "Rain expected: confirm weather suitability and setup/delivery timing.",
+            "Catering is authorized, then captured only on a trusted Ed25519 venue receipt matching the contract; a photo alone is insufficient."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "dry-comparison",
+      "status": "passed",
+      "workflowId": "cff5b81b-b5f3-437d-9df8-689b97d243ab",
+      "source": "Azure OpenAI · gpt-6-astra",
+      "offers": [
+        "tents-standard",
+        "catering-seasonal"
+      ],
+      "totalMinor": 140000,
+      "withinBudget": true,
+      "planningMillis": 14396,
+      "briefToPlanMillis": 18770,
+      "elapsedMillis": 18866,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Standard rental canopies suit dry weather, while the seasonal menu includes a vegetarian option. This is the only combination within budget.",
+          "facts": [
+            "5 tents: $500; capacity for 50 guests.",
+            "Catering for 30: $900.",
+            "Total: $1,400 including delivery and taxes; $100 under budget."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Advisory only; I cannot approve funds.",
+          "facts": [
+            "Five tents plus 30 meals: $1,400; $100 remaining. Tent capacity: 50.",
+            "Recheck dry forecast and setup timing.",
+            "Catering is authorized, then captured only on a trusted Ed25519 venue receipt matching the contract; a photo alone is insufficient."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "larger-event",
+      "status": "passed",
+      "workflowId": "208d37df-a4b3-4aa0-bf34-0cb4841fe169",
+      "source": "Azure OpenAI · gpt-6-astra",
+      "offers": [
+        "tents-premium",
+        "catering-signature"
+      ],
+      "totalMinor": 440000,
+      "withinBudget": true,
+      "planningMillis": 18270,
+      "briefToPlanMillis": 22355,
+      "elapsedMillis": 22444,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Premium canopies with sidewalls provide extra rain shelter. Signature catering offers a hot buffet and sufficient capacity for 90 guests. Both offers cover the requested quantities and stay within budget.",
+          "facts": [
+            "5 tent rentals: $800.",
+            "Catering for 90 guests: $3,600.",
+            "Total including delivery and taxes: $4,400; $600 under budget."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Advisory only; I cannot approve funds.",
+          "facts": [
+            "Rain: five tents shelter 40/90 guests; 50 lack coverage.",
+            "Tents plus catering: $4,400; $600 under budget.",
+            "Catering is authorized first, then captured only on a trusted Ed25519 venue receipt matching the contract; a photo alone is insufficient."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "higher-service-budget",
+      "status": "passed",
+      "workflowId": "e538caa3-596b-4def-9f6b-0e0830bf9a84",
+      "source": "Azure OpenAI · gpt-6-astra",
+      "offers": [
+        "tents-premium",
+        "catering-signature"
+      ],
+      "totalMinor": 200000,
+      "withinBudget": true,
+      "planningMillis": 13183,
+      "briefToPlanMillis": 16616,
+      "elapsedMillis": 16717,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Your preferred premium canopies and signature sharing menu fit the $2,000 budget exactly, cover all 30 guests, and suit the expected dry weather.",
+          "facts": [
+            "5 rental tents: $800; capacity 40 guests.",
+            "Catering for 30: $1,200; capacity 100.",
+            "Total: $2,000, including delivery and taxes."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Premium package: $800 tents + $1,200 catering = $2,000; no contingency.",
+          "facts": [
+            "Capacity: 40 for 30; dry forecast; confirm setup timing.",
+            "Catering is authorized, then captured only on a trusted Ed25519 venue receipt matching the contract; a photo alone is insufficient.",
+            "Advisory only; I cannot approve funds."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "below-minimum-price",
+      "status": "passed",
+      "workflowId": "7212eb40-64e2-4e6a-9695-8ad3b1b3de8e",
+      "source": "Azure OpenAI · gpt-6-astra",
+      "offers": [
+        "tents-standard",
+        "catering-seasonal"
+      ],
+      "totalMinor": 140000,
+      "withinBudget": false,
+      "planningMillis": 16132,
+      "briefToPlanMillis": 19643,
+      "elapsedMillis": 19719,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "No combination fits the $1,300 budget. This lowest-cost pairing totals $1,400 ($100 over), with rain-ready shelter and warm food, including a vegetarian option.",
+          "facts": [
+            "5 rental tents: $500; capacity 50 guests.",
+            "30 meals: $900; catering capacity 80 guests.",
+            "Delivery and taxes included."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Advisory only; I cannot approve funds.",
+          "facts": [
+            "Total: $1,400—$100 over budget. Five tents’ listed capacity: 50 guests.",
+            "Rain expected; confirm weather suitability and setup timing.",
+            "Catering requires authorization, then capture only on a trusted Ed25519 venue receipt matching the contract; a photo alone is insufficient."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "buy-tents",
+      "status": "passed",
+      "workflowId": "330dcc0d-8f74-4237-935d-b58d24c6209b",
+      "source": "Azure OpenAI · gpt-6-astra",
+      "offers": [
+        "c3-W1kmSYh",
+        "catering-seasonal"
+      ],
+      "totalMinor": 157490,
+      "withinBudget": true,
+      "planningMillis": 15827,
+      "briefToPlanMillis": 19664,
+      "elapsedMillis": 19782,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Choose GARVEE’s four-waterproof-sidewall tents for expected rain and Gather Kitchen’s warm meal with vegetarian option. Prices and stock are demo fixtures.",
+          "facts": [
+            "5 tents × $134.98 = $674.90; capacity 100.",
+            "30 meals × $30 = $900; catering capacity 80.",
+            "Total: $1,574.90 including delivery/taxes; $8,425.10 under budget."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Advisory only; cannot approve funds.",
+          "facts": [
+            "Five tents plus 30 meals: $1,574.90; $8,425.10 remains.",
+            "Listed capacity suffices; confirm rain protection and delivery timing.",
+            "Catering is authorized, then captured only on a trusted Ed25519 venue receipt matching the contract; a photo alone is insufficient."
+          ],
+          "source": "Azure OpenAI · gpt-6-astra"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "too-many-guests",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    },
+    {
+      "id": "missing-tent-mode",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    },
+    {
+      "id": "outside-booking-window",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    },
+    {
+      "id": "foreign-offer",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    }
+  ],
+  "interpretation": "Weather is changed while price and counts stay fixed; both available tent offers cover these conditions, so an unchanged affordable pair is valid. Guest count forces a capacity change; the higher-service request and budget permit another pair. This small set is not customer impact or a general model benchmark.",
+  "sourceBinding": {
+    "baseRevision": "71bd26ebbc5d778bbbc9d740f95c0d7ac9333495",
+    "sourceFingerprintSha256": "9cae06eb0de301bf1c508bb60a2f00b0e4661b0f28bf4bca3cc85a33689cf583",
+    "sourceFileCount": 243,
+    "sourceScope": "Tracked and new non-ignored application, module, infrastructure, demo, contract and CI files; excludes private configuration and generated reports.",
+    "note": "Source fingerprint recorded after the evaluation; intervening application edits concern responsive dashboard layout and cancellation confirmation copy, not planning behavior."
+  }
+}

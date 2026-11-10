@@ -47,4 +47,8 @@ const server = new GatewayHttpServer(gateway);
 await server.listen(config.listen.port, config.listen.host);
 gateway.started(`http://${config.listen.host}:${config.listen.port}`);
 console.log(JSON.stringify({ payments: mode, source: local ? 'LOCAL_SYNTHETIC_AUTHORITY' : 'DECIONIS', policy: local ? 'swarm-pay-demo-v1' : process.env.DECIONIS_POLICY_VERSION }));
-for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => { await server.close(); await gateway.close(); process.exit(0); });
+let closing=false;
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => {
+  if(closing)return;closing=true;
+  await server.close();await gateway.close();process.exit(0);
+});

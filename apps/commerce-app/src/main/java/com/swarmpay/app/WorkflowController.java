@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.security.Principal;
+import jakarta.servlet.http.HttpSession;
 import java.util.*;
 
 @RestController
@@ -19,9 +20,19 @@ class WorkflowController {
     record BuyerApproval(String providerOrderId) {}
     record DescribeIntent(String request,String timezone) {}
     @GetMapping("/api/catalog") List<Offer> catalog() { return catalog.offers(); }
-    @PostMapping("/api/intent") IntentSuggestion interpret(@RequestBody DescribeIntent body) { return interpreter.interpret(body.request(),body.timezone()); }
+    @PostMapping("/api/intent") IntentSuggestion interpret(@RequestBody DescribeIntent body,HttpSession session) {
+        session.setAttribute("swarm.briefStarted",System.nanoTime());
+        return interpreter.interpret(body.request(),body.timezone());
+    }
     @GetMapping("/api/plans") List<Plan> plans(Principal user) { return flows.list(user.getName()); }
-    @PostMapping("/api/plans") Plan create(@RequestBody CreatePlan body,Principal user) { return flows.propose(user.getName(),body.intent(),body.tentOfferId(),body.cateringOfferId()); }
+    @PostMapping("/api/plans") Plan create(@RequestBody CreatePlan body,Principal user,HttpSession session) {
+        var plan=flows.propose(user.getName(),body.intent(),body.tentOfferId(),body.cateringOfferId());
+        if(session.getAttribute("swarm.briefStarted") instanceof Long start) {
+            flows.briefTiming(plan.id(),user.getName(),java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-start));
+            session.removeAttribute("swarm.briefStarted");
+        }
+        return plan;
+    }
     @GetMapping("/api/plans/{id}") Workflow workflow(@PathVariable UUID id,Principal user) { return flows.get(id,user.getName()); }
     @PostMapping("/api/plans/{id}/approve") Plan approve(@PathVariable UUID id,@RequestBody Approval body,Principal user) { return flows.approve(id,user.getName(),body.version()); }
     @PostMapping("/api/plans/{id}/orders/{order}/checkout") GateResult checkout(@PathVariable UUID id,@PathVariable UUID order,Principal user) { return flows.checkout(id,order,user.getName()); }
@@ -40,6 +51,8 @@ class WorkflowController {
     @PostMapping("/api/commands/{id}/reconcile") GateResult reconcile(@PathVariable UUID id,Principal user) { return flows.reconcile(id,user.getName()); }
     @PostMapping("/api/commands/{id}/retry") GateResult retry(@PathVariable UUID id,Principal user) { return flows.retry(id,user.getName()); }
     @GetMapping("/api/ledger") List<LedgerEntry> ledger(@RequestParam(required=false) UUID workflowId,Principal user) { return flows.ledger(user.getName(),workflowId); }
+    @GetMapping("/api/balances") List<PlanBalance> balances(Principal user) { return flows.balances(user.getName()); }
+    @GetMapping("/api/measurements") List<ReviewMeasurement> measurements(Principal user) { return flows.measurements(user.getName()); }
     @GetMapping("/api/plans/{id}/evidence") Map<String,Object> evidence(@PathVariable UUID id,Principal user) { return flows.evidence(id,user.getName()); }
 }
 @RestControllerAdvice

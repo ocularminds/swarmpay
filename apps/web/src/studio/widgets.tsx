@@ -26,7 +26,7 @@ function useMapped<K extends string>(params:AgWidgetParams,keys:readonly K[]) {
   return {rows,value};
 }
 
-const GUARDRAIL=['plan','budget','committed','paid','held'] as const;
+const GUARDRAIL=['id','plan','budget','committed','paid','held'] as const;
 /** Each plan's budget as one bar: paid, held until delivery, approved but unpaid, and what is left. */
 function BudgetGuardrail(params:AgWidgetParams) {
   const {rows,value}=useMapped(params,GUARDRAIL);
@@ -35,8 +35,8 @@ function BudgetGuardrail(params:AgWidgetParams) {
       const plan=String(value(row,'plan')??'Plan'),budget=Number(value(row,'budget')??0),committed=Number(value(row,'committed')??0);
       const paid=Math.max(0,Number(value(row,'paid')??0)),held=Number(value(row,'held')??0),rest=Math.max(0,committed-paid-held);
       const pct=(n:number)=>`${budget?Math.min(100,n/budget*100):0}%`;
-      return <div className="guardrail-row" key={i}>
-        <div className="guardrail-head"><strong>{plan}</strong><span>{usd(paid)} paid · {usd(held)} held · {usd(Math.max(0,budget-committed))} under budget</span></div>
+      return <div className="guardrail-row" key={String(value(row,'id')??i)}>
+        <div className="guardrail-head"><strong>{plan} <small>· {String(value(row,'id')??'').slice(0,8)}</small></strong><span>{usd(paid)} paid · {usd(held)} authorized · {usd(Math.max(0,budget-committed))} uncommitted</span></div>
         <div className="guardrail-bar" role="img" aria-label={`${plan}: ${usd(paid)} paid, ${usd(held)} held on delivery, of a ${usd(budget)} budget`}>
           <i className="paid" style={{width:pct(paid)}}/><i className="held" style={{width:pct(held)}}/><i className="committed" style={{width:pct(rest)}}/></div>
       </div>;})}
@@ -44,14 +44,16 @@ function BudgetGuardrail(params:AgWidgetParams) {
   </div>;
 }
 
-const DECISIONS=['when','plan','merchant','step','askedBy','decision','dossier'] as const;
+const DECISIONS=['id','when','plan','merchant','step','askedBy','decision','outcome','dossier'] as const;
 /** Every request AgentSafe held or blocked, with its dossier: the record that agents asked and were stopped. */
 function AgentSafeDecisions(params:AgWidgetParams) {
   const {rows,value}=useMapped(params,DECISIONS);
   const text=(row:Record<string,unknown>,key:typeof DECISIONS[number])=>{const v=value(row,key);return v instanceof Date?v.toLocaleDateString('en-US',{month:'short',day:'numeric'}):String(v??'');};
-  const stopped=rows.filter(row=>text(row,'decision')!=='Allowed');
+  const stopped=rows.filter(row=>['Held','Blocked'].includes(text(row,'outcome')));
+  const allowed=rows.filter(row=>text(row,'outcome')==='Allowed').length;
+  const other=rows.length-stopped.length-allowed;
   return <div className="studio-widget agentsafe-decisions">
-    <p className="decision-summary"><strong>{stopped.length}</strong> {stopped.length===1?'request':'requests'} held or blocked · <strong>{rows.length-stopped.length}</strong> allowed</p>
+    <p className="decision-summary"><strong>{stopped.length}</strong> {stopped.length===1?'request':'requests'} held or blocked · <strong>{allowed}</strong> allowed{other>0&&<> · <strong>{other}</strong> pending or not executed</>}</p>
     <ul>{stopped.slice(0,8).map((row,i)=><li key={i}>
       <span className="decision-chip">{text(row,'decision')}</span>
       <div><strong>{text(row,'askedBy')}: {text(row,'step').toLowerCase()} · {text(row,'merchant')}</strong>
@@ -69,17 +71,17 @@ const mappingForm=(labels:Record<string,string>)=>(params:AgWidgetFormParams)=>p
 export const swarmPayWidgets=createWidgets<any>({
   additionalTypes:[
     {id:'budget-guardrail',label:'Budget guardrail',icon:GUARDRAIL_ICON,
-      dataMapping:{plan:one(['category']),budget:one(['numeric']),committed:one(['numeric']),paid:one(['numeric']),held:one(['numeric'])},
-      form:mappingForm({plan:'Plan',budget:'Budget',committed:'Committed',paid:'Paid',held:'Held until delivery'}),comp:BudgetGuardrail,
+      dataMapping:{id:one(['category']),plan:one(['category']),budget:one(['numeric']),committed:one(['numeric']),paid:one(['numeric']),held:one(['numeric'])},
+      form:mappingForm({id:'Plan ID',plan:'Plan',budget:'Budget',committed:'Committed',paid:'Paid',held:'Held until delivery'}),comp:BudgetGuardrail,
       defaultSize:{width:640,height:260},minSize:{width:280,height:160},
       ai:{description:'One bar per plan: paid to merchants, held until delivery, approved but unpaid, against the plan budget.',
-        usage:'Use to show how close each plan is to its budget and how much is still held on delivery. Map plans.plan and the budget, committed, paid and held measures.'}},
+        usage:'Use to show each plan against its budget. Map plans.id as identity, plans.plan as the label and the budget, committed, paid and held measures. Never group distinct plans only by venue.'}},
     {id:'agentsafe-decisions',label:'AgentSafe decisions',icon:AGENTSAFE_ICON,
-      dataMapping:{when:one(['temporal','category']),plan:one(['category']),merchant:one(['category']),step:one(['category']),askedBy:one(['category']),decision:one(['category']),dossier:one(['category'])},
-      form:mappingForm({when:'Date',plan:'Plan',merchant:'Merchant',step:'Step',askedBy:'Asked by',decision:'AgentSafe decision',dossier:'Dossier'}),comp:AgentSafeDecisions,
+      dataMapping:{id:one(['category']),when:one(['temporal','category']),plan:one(['category']),merchant:one(['category']),step:one(['category']),askedBy:one(['category']),decision:one(['category']),outcome:one(['category']),dossier:one(['category'])},
+      form:mappingForm({id:'Request ID',when:'Date',plan:'Plan',merchant:'Merchant',step:'Step',askedBy:'Asked by',decision:'AgentSafe decision',outcome:'Decision group',dossier:'Dossier'}),comp:AgentSafeDecisions,
       defaultSize:{width:420,height:300},minSize:{width:260,height:180},
       ai:{description:'Lists every payment request AgentSafe held or blocked, with who asked, the merchant and the dossier ID.',
-        usage:'Use to show that agents asked to pay and were stopped. Map the payments date, plan, merchant, step, asked-by, decision and dossier fields.'}},
+        usage:'Map the payments id, date, plan, merchant, step, asked-by, decision, outcome and dossier fields. Outcome Held/Blocked counts stopped requests; Pending and Not executed are separate.'}},
   ],
   menu:[{label:'SwarmPay',widgetIds:['budget-guardrail','agentsafe-decisions']}],
 } as never);

@@ -1,6 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import {signIntoWorkspace} from './login';
+import type {PlanBalance,LedgerEntry} from '../src/types';
 
 // Each test reads one description on arrival; the web's per-client planning limit (20 a minute) allows a whole run.
 test('one next action per step: agent sourcing, both checkouts, an agent request held by AgentSafe, venue delivery and evidence',async({page,request},info)=>{
@@ -63,6 +64,14 @@ test('one next action per step: agent sourcing, both checkouts, an agent request
   await expect(dashboard).toContainText(/requests? held or blocked/);
   await expect(dashboard.getByText(/Loading/).filter({visible:true})).toHaveCount(0);
   await page.screenshot({path:info.outputPath('desktop-payments.png'),fullPage:true});
+  const balances:PlanBalance[]=await(await page.request.get('/api/balances')).json();
+  const totalPaid=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(balances.reduce((sum,p)=>sum+p.capturedMinor,0)/100);
+  await page.setViewportSize({width:390,height:844});
+  await expect(dashboard.getByText(totalPaid,{exact:true}).first()).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:info.outputPath('mobile-payments.png'),fullPage:true});
+  await page.setViewportSize({width:1366,height:950});
+  await expect(dashboard.getByText(totalPaid,{exact:true}).first()).toBeVisible();
   await page.getByRole('tab',{name:'Ledger'}).click();
   const ledger=page.locator('.ledger-grid');
   await page.getByLabel('Search payments').fill(venue);
@@ -117,11 +126,11 @@ test('cancelling before the event refunds the tents through PayPal, voids the ca
   await expect(plan).toContainText('Authorized · awaiting delivery');
   await page.getByText('Pause or cancel').click();
   await page.getByRole('button',{name:'Cancel the event'}).click();
-  await expect(page.getByRole('group',{name:'Confirm cancellation'})).toContainText('PayPal refunds the $500 tents payment');
+  await expect(page.getByRole('group',{name:'Confirm cancellation'})).toContainText('a full $500 refund for tents');
   await page.getByRole('button',{name:'Yes, cancel the event'}).click();
   await expect(next.getByRole('heading',{name:'Your event is cancelled'})).toBeVisible();
   await expect(next).toContainText('your budget is released');
-  await expect(plan).toContainText('Refunded');await expect(plan).toContainText('Cancelled');
+  await expect(plan).toContainText('Refunded');await expect(plan).toContainText('Authorization voided');
   await expect(page.locator('.timeline')).toContainText('PayPal refunded the $500.00 tents payment to you.');
   await page.getByRole('button',{name:'All payments'}).click();
   await page.getByRole('tab',{name:'Ledger'}).click();
@@ -193,4 +202,55 @@ test('sandbox checkout: polling keeps the popup open, and each merchant uses its
   expect(pollsDuringCheckout).toBeGreaterThanOrEqual(2);
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+test('receipt confirmation reports a pending outcome and makes a subsequent hold inspectable',async({page,request},info)=>{
+  await signIntoWorkspace(page,request);
+  await page.getByRole('radio',{name:'Rent tents'}).check();await page.getByRole('button',{name:'Prepare my plan'}).click();
+  const next=page.locator('.next-card'),dialog=page.getByRole('dialog');
+  await page.getByRole('checkbox',{name:/I approve these merchants/}).check();await next.getByRole('button',{name:'Approve $1,400',exact:true}).click();
+  await next.getByRole('button',{name:'Pay $500'}).click();await dialog.getByRole('button',{name:'Pay $500'}).click();
+  await next.getByRole('button',{name:'Authorize $900'}).click();await dialog.getByRole('button',{name:'Authorize $900'}).click();
+  await expect(next.getByRole('heading',{name:'Confirm the catering delivery'})).toBeVisible();
+  // This browser-only fault fixture accepts delivery but leaves the provider outcome unresolved.
+  let phase='waiting';let cateringId='';
+  await page.route(/\/api\/plans\/[^/]+$/,async route=>{
+    const response=await route.fetch(),flow=await response.json();
+    if(phase!=='waiting') {flow.receiptVerified=true;cateringId=flow.orders.find((o:{category:string})=>o.category==='CATERING').id;flow.events.push({type:'FIXTURE_OUTCOME',sequence:999,source:'APPLICATION',message:'Browser fault fixture',at:new Date().toISOString()});}
+    await route.fulfill({response,json:flow});
+  });
+  await page.route('**/api/plans/*/commands',async route=>{
+    const response=await route.fetch(),commands=await response.json();
+    if(phase!=='waiting')commands.push({command:{id:'pending-capture',orderId:cateringId||commands.at(-1).command.orderId,operation:'CAPTURE_AUTHORIZATION',merchantId:'catering',amountMinor:90000},
+      state:phase==='held'?'HELD':'EXECUTION_INDETERMINATE',result:{state:phase==='held'?'HELD':'EXECUTION_INDETERMINATE',execution:'INDETERMINATE',dossierId:'fixture-dossier',message:'The payment needs review.',result:null}});
+    await route.fulfill({response,json:commands});
+  });
+  await page.route('**/venue/deliveries',async route=>{phase='pending';await route.fulfill({json:{accepted:true}});});
+  await next.getByRole('button',{name:'Confirm delivery as the venue'}).click();
+  await expect(page.locator('.message.notice')).toContainText('outcome unknown');
+  await expect(page.locator('.message.notice')).not.toContainText('payment is complete');
+  await expect(page.locator('.budget-meta')).toContainText('$500 paid');
+  await expect(next).toContainText('Payment pending');
+  await page.screenshot({path:info.outputPath('desktop-payment-pending.png'),fullPage:true});
+  phase='held';
+  await expect(next.getByRole('heading',{name:'Catering payment was held'})).toBeVisible({timeout:10000});
+  await next.getByRole('button',{name:'Review the payment decision'}).click();
+  await expect(page.locator('#decision-pending-capture')).toBeFocused();
+  await expect(page.locator('#decision-pending-capture')).toContainText('fixture-dossier');
+});
+test('dashboard separates plans at one venue and distinguishes unknown requests from holds',async({page,request})=>{
+  const balances:PlanBalance[]=['plan-one','plan-two'].map((id,i)=>({id,venue:'Same pavilion',eventAt:'2026-11-10T12:00:00Z',budgetMinor:i?200000:150000,totalMinor:i?180000:140000,
+    committedMinor:i?180000:140000,capturedMinor:i?100000:50000,authorizedMinor:0,refundedMinor:0,pendingMinor:0,refundPendingMinor:0,paymentFrozen:false,cancellationRequested:false,orderStates:['CAPTURED','NEW']}));
+  const entries:LedgerEntry[]=['ESCALATE','EXECUTION_INDETERMINATE'].map((state,i)=>({id:`request-${i}`,workflowId:balances[i].id,at:'2026-11-10T10:00:00Z',settledAt:'2026-11-10T10:00:00Z',venue:'Same pavilion',eventAt:'2026-11-10T12:00:00Z',
+    merchantName:'Gather Kitchen',category:'CATERING',operation:'CAPTURE_AUTHORIZATION',requestedBy:'AGENT',amountMinor:90000,state,execution:'NOT_FORWARDED',message:'Browser fixture request',
+    dossierId:`fixture-${i}`,providerOrderId:null,authorizationId:null,captureId:null,refundId:null,providerStatus:null}));
+  await page.route('**/api/balances',route=>route.fulfill({json:balances}));
+  await page.route('**/api/ledger',route=>route.fulfill({json:entries}));
+  await signIntoWorkspace(page,request);
+  await page.getByRole('button',{name:'All payments'}).click();
+  const guardrail=page.locator('.guardrail-row');
+  await expect(guardrail).toHaveCount(2,{timeout:30000});
+  await expect(guardrail.filter({hasText:'plan-one'})).toContainText('$500 paid');
+  await expect(guardrail.filter({hasText:'plan-two'})).toContainText('$1,000 paid');
+  await expect(page.locator('.decision-summary')).toContainText('1 request held or blocked');
+  await expect(page.locator('.decision-summary')).toContainText('1 pending or not executed');
 });

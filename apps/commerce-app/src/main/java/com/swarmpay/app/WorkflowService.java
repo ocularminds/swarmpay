@@ -26,6 +26,7 @@ public final class WorkflowService {
     }
     /** With no offers chosen, the Sourcing Agent chooses them; Java checks its choice like any other before a plan exists. */
     public Plan propose(String owner,Intent intent,String tentOfferId,String cateringOfferId) {
+        long started=System.nanoTime();
         if(tentOfferId!=null && tentOfferId.isBlank()) tentOfferId=null;
         if(cateringOfferId!=null && cateringOfferId.isBlank()) cateringOfferId=null;
         boolean agentChooses=tentOfferId==null && cateringOfferId==null;
@@ -53,7 +54,7 @@ public final class WorkflowService {
                 assessments=agents.assess(intent,List.of(tents,catering));
             }
             var plan=factory.create(owner,intent,tents,catering,assessments);
-            db.create(plan); return plan;
+            db.create(plan,java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-started)); return plan;
         } finally { planning.release(); }
     }
     private static Offer proposed(List<Offer> offers,String id,Category category) {
@@ -72,15 +73,19 @@ public final class WorkflowService {
         catch(CommerceException e) { if(!e.code().equals("NOT_FOUND")) db.evidence(db.owned(id,owner).id(),"APPROVAL_BLOCKED",e.getMessage(),"APPLICATION"); throw e; }
     }
     public Workflow get(UUID id,String owner) {
+        return db.snapshot(()->snapshot(id,owner));
+    }
+    private Workflow snapshot(UUID id,String owner) {
         var plan=db.owned(id,owner); var orders=db.orders(plan);
         long paid=orders.stream().filter(o->o.status().equals("CAPTURED")).mapToLong(OrderView::amountMinor).sum();
         boolean receipt=orders.stream().filter(o->o.category()==Category.CATERING).anyMatch(o->db.receiptDigest(o.id())!=null);
-        return new Workflow(plan,orders,db.events(id),plan.status().equals("APPROVED")?plan.totalMinor():0,paid,mode,receipt,db.frozen(id),db.agentRequests(id));
+        return new Workflow(plan,orders,db.events(id),db.committedMinor(id),paid,mode,receipt,db.frozen(id),db.agentRequests(id));
     }
     public GateResult checkout(UUID id,UUID orderId,String owner) { return payment(db.owned(id,owner),orderId,Operation.CREATE_ORDER); }
     public GateResult buyerApproved(UUID id,UUID orderId,String owner,String providerOrderId) {
         var plan=db.owned(id,owner); var order=db.order(plan,orderId);
         if(!Objects.equals(order.providerOrderId(),providerOrderId)) throw CommerceException.held("Buyer approval does not match this checkout");
+        db.evidence(id,"BUYER_APPROVAL_RECEIVED","You returned from this merchant's checkout. The provider must still confirm approval and the payment outcome.","HUMAN");
         // PayPal independently verifies the buyer's native approval during authorize/capture.
         return payment(plan,orderId,order.category()==Category.TENTS?Operation.CAPTURE_ORDER:Operation.AUTHORIZE_ORDER);
     }
@@ -128,14 +133,19 @@ public final class WorkflowService {
         var plan=db.approvedForVoid(db.owned(id,owner).id());
         if(db.frozen(id)) throw CommerceException.conflict("This plan's payments are already stopped.");
         if(!java.time.Instant.now().isBefore(plan.intent().eventAt())) throw CommerceException.held("The event has started. Ask the merchants about a refund.");
+        if(db.orders(plan).stream().anyMatch(o->o.category()==Category.CATERING && o.status().equals("CAPTURED")))
+            throw CommerceException.held("Catering has already been paid. Pause payments and contact the merchants to resolve the completed delivery; automatic cancellation only covers unpaid catering.");
         db.cancel(plan);
+        cancelSettlements(plan);
+        return get(id,owner);
+    }
+    private void cancelSettlements(Plan plan) {
         for(var order:db.orders(plan)) {
             try {
                 if(order.category()==Category.CATERING && order.status().equals("AUTHORIZED")) payment(plan,order.id(),Operation.VOID_AUTHORIZATION);
                 if(order.category()==Category.TENTS && order.status().equals("CAPTURED")) payment(plan,order.id(),Operation.REFUND_CAPTURE);
             } catch(CommerceException ignored) { /* The reason is on the plan's record; the command can be retried or reconciled. */ }
         }
-        return get(id,owner);
     }
     private GateResult payment(Plan plan,UUID orderId,Operation operation) {
         try {
@@ -222,9 +232,11 @@ public final class WorkflowService {
             "proofScope","Application hash chain plus AgentSafe correlation IDs. Hosted Decionis signature verification is a separate integration check.");
     }
     public List<LedgerEntry> ledger(String owner,UUID workflowId) {
-        var entries=db.ledger(owner);
-        return workflowId==null?entries:entries.stream().filter(e->e.workflowId().equals(workflowId)).toList();
+        return db.ledger(owner,workflowId);
     }
+    public List<PlanBalance> balances(String owner) { return db.balances(owner); }
+    public List<ReviewMeasurement> measurements(String owner) { return db.measurements(owner); }
+    public void briefTiming(UUID id,String owner,long elapsedMillis) { db.owned(id,owner);db.briefTiming(id,elapsedMillis); }
     public List<Map<String,Object>> commands(UUID id,String owner) {
         var plan=db.owned(id,owner);
         return db.commandsFor(plan).stream().map(c -> { var m=new LinkedHashMap<String,Object>(); m.put("command",c); m.put("state",db.commandState(c.id())); m.put("result",db.commandResult(c.id())); return (Map<String,Object>)m; }).toList();
@@ -236,6 +248,7 @@ public final class WorkflowService {
             var result=authority.reconcile(command);
             db.finish(command,result);
         }
+        for(var plan:db.pendingCancellations()) cancelSettlements(plan);
         for(var plan:db.readyMilestones()) {
             try { milestone(plan.id(),plan.ownerId()); } catch(CommerceException ignored) { /* Held reason is persisted by payment(). */ }
         }

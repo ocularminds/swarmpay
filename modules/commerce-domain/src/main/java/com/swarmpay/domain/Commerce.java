@@ -71,7 +71,15 @@ public final class Commerce {
     /** One row of an organizer's payment ledger: a payment command, or an agent's request the authority decided. {@code requestedBy} is ORGANIZER, AGENT or SWARMPAY. */
     public record LedgerEntry(UUID id, Instant at, Instant settledAt, UUID workflowId, String venue, Instant eventAt, String merchantName, Category category,
                               Operation operation, String requestedBy, long amountMinor, String state, String execution, String message,
-                              String dossierId, String providerOrderId, String authorizationId, String captureId, String refundId) {}
+                              String dossierId, String providerOrderId, String authorizationId, String captureId, String refundId, String providerStatus) {}
+    /** Current balances from the persisted orders and reservation, independent of the recent ledger window. */
+    public record PlanBalance(UUID id, String venue, Instant eventAt, long budgetMinor, long totalMinor,
+                              long committedMinor, long capturedMinor, long authorizedMinor, long refundedMinor,
+                              long pendingMinor, long refundPendingMinor, boolean paymentFrozen, boolean cancellationRequested,
+                              List<String> orderStates) {}
+    public record ReviewMeasurement(UUID workflowId, Long planningMillis, Long briefToPlanMillis, long organizerActions,
+                                    long heldAgentRequests, Long receiptToCaptureMillis, long resolvedExceptionMillis,
+                                    long resolvedExceptions, long unresolvedExceptions) {}
     public record PaymentCommand(UUID id, UUID workflowId, int planVersion, UUID orderId, Operation operation,
                                  String merchantId, long amountMinor, String currency,
                                  String providerResourceId, String evidenceDigest, String reservationId, String policyVersion) {

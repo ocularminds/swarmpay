@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-10T04:39:16.321Z",
+  "baseRevision": "71bd26ebbc5d778bbbc9d740f95c0d7ac9333495",
+  "sourceFingerprintSha256": "9cae06eb0de301bf1c508bb60a2f00b0e4661b0f28bf4bca3cc85a33689cf583",
+  "sourceFileCount": 243,
+  "sourceScope": "Tracked and new non-ignored application, module, infrastructure, demo, contract and CI files; excludes private configuration and generated reports.",
+  "environment": "isolated localhost demo/HTTPS fixtures unless separately identified",
+  "checks": {
+    "java": {
+      "tests": 179,
+      "failed": 0,
+      "skipped": 0,
+      "runtime": 21
+    },
+    "configuration": {
+      "tests": 52,
+      "failed": 0
+    },
+    "paymentState": {
+      "tests": 4,
+      "failed": 0
+    },
+    "authority": {
+      "tests": 6,
+      "failed": 0
+    },
+    "authorityBoundary": {
+      "attacksRefused": 6,
+      "attacks": 6,
+      "authorizedExecutions": 1
+    },
+    "webBuild": "passed",
+    "npmAudits": {
+      "webVulnerabilities": 0,
+      "authorityVulnerabilities": 0
+    },
+    "hostedBrowser": {
+      "tests": 9,
+      "failed": 0,
+      "seconds": 39.9,
+      "mobileDashboard": "amounts visible at 390px; resize preserves values"
+    },
+    "hostedSecurity": "TLS, secure sessions, origin/host binding, private executor and PayPal network isolation, webhook routing passed",
+    "postmanMcp": {
+      "requests": 8,
+      "assertions": 13,
+      "failed": 0,
+      "scope": "actual organizer-issued/revoked agent token over local HTTPS; consent denied and early request held"
+    },
+    "restMcp": "signed receipt, duplicate/replay, identity boundaries and measurements verified; $1,400 total preserved"
+  },
+  "separatelyRecorded": {
+    "planning": "planning-azure.json",
+    "analyst": "analyst.json",
+    "sdk": "apimatic.json",
+    "restore": "restore.json",
+    "historicalSandbox": "sandbox-history.json",
+    "preservedLocalJournal": "preserved-journal.json"
+  },
+  "logSha256": {
+    "java": "b546718681a7ce60ec0df86a226fc86f3629e5f5b546f01589f45db9ba95acdd",
+    "configuration": "526979b06430274b40015381c0321eb7e3aea6b939ec50e118a2d9b998fc7da0",
+    "web": "2315debe273f967c5e62e9fbbae4db883c6bcd29d704d59a6f2ee567a41742a0",
+    "paymentState": "4287d5ccf49cb77728de3a27d9e8675492836d3957b7d18f18ee8b41a080ab28",
+    "authority": "4c5bed8c77262cb1f36f485de2d003fdbddd54093496807534cf114f67c3f0c5",
+    "boundary": "8631deb7c089a067e76670a0f138e95c8a23f600ae0c148f11f3e6d33210e591",
+    "hostedSecurityAndMcp": "2bee0f41499a144cfb5d462ee838b5856485020f627b0a1e0257ce2e9ca5fa53",
+    "browser": "54b653a4d870cebb200a0e53ec1a442ffea5732c0352edf178f3f0f859b8c3a3",
+    "restore": "2b99d4427d280f087affaf1a2cdc170e6e1be429bb00e4310ba49b5b2cb7746b",
+    "model": "8b9f42f8c4fa9e7043c468918996a6dadaed46044d05c0967c2ae143a269b2cf",
+    "analyst": "1118ef1aa1b6eb00f2f7d33e09bc5dc81faa26b5a91cebe377bb9dd3b9855624"
+  },
+  "limits": "No deployment of this stack, new live buyer approval/refund, hosted Decionis contract, real delivery issuer or production backup policy is established by these fixture checks. The old local native journal fails verification; fresh restore success does not repair it."
+}

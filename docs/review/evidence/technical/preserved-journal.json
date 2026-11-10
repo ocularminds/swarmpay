@@ -1,0 +1,54 @@
+{
+  "checkedAt": "2026-11-10T04:36:56.239Z",
+  "environment": "reused localhost demo fixture; original journal retained",
+  "result": {
+    "ok": false,
+    "lines": 899,
+    "ignored": 0,
+    "streams": {
+      "agent-safe.gateway-events/1": {
+        "lines": 29,
+        "head": {
+          "seq": 25,
+          "hash": "sha256:6819d51c01f710a3ce6e60ee3dd83cc02de3d895e0e846766be8963f3186631e"
+        },
+        "starts": 1
+      },
+      "agent-safe.executor-evidence/1": {
+        "lines": 870,
+        "head": {
+          "seq": 869,
+          "hash": "sha256:9e608e0f91cb5d8b19652eca09f7cdd13511dfb5f6bda8c4bf0170ff52e4011a"
+        },
+        "starts": 1
+      }
+    },
+    "findings": [
+      {
+        "code": "CHAIN_SEQ_GAP",
+        "line": 424,
+        "stream": "agent-safe.gateway-events/1",
+        "seq": 15,
+        "expected": 18,
+        "found": 15
+      },
+      {
+        "code": "CHAIN_SEQ_GAP",
+        "line": 425,
+        "stream": "agent-safe.executor-evidence/1",
+        "seq": 406,
+        "expected": 407,
+        "found": 406
+      },
+      {
+        "code": "CHAIN_SEQ_GAP",
+        "line": 776,
+        "stream": "agent-safe.gateway-events/1",
+        "seq": 23,
+        "expected": 24,
+        "found": 23
+      }
+    ]
+  },
+  "scope": "Native chain verification fails with sequence gaps. Exact historical cause/time is not established. Another gap was observed after Docker storage recovery. The separate fresh restore proof does not repair or certify this journal."
+}

@@ -4,7 +4,8 @@ import {DateHelper} from '@bryntum/scheduler';
 import '@bryntum/scheduler/scheduler.css';
 import '@bryntum/scheduler/svalbard-light.css';
 import {api} from './api';
-import {money} from './labels';
+import {boundaryLabel,money,operationLabels} from './labels';
+import {isHeld,isRetryable,isUncertain,settled as providerSettled} from './payment-state';
 import tokens from './brand-tokens.json';
 import type {LedgerEntry,Order,Plan} from './types';
 
@@ -18,16 +19,18 @@ const c=tokens.colors;
 const stateColors:Record<string,[string,string]>={green:[c.evergreen,c.successBg],teal:[c.evergreen,c.successBg],orange:[c.hold,c.holdBg],red:[c.blocked,c.blockedBg],purple:[c.violet,c.violetBg],indigo:[c.violet,c.violetBg],gray:[c.muted,c.cloud],blue:[c.ink,c.sky]};
 // EventModel.style is Bryntum's per-event styling interface. Keep semantic text pairs at AA contrast.
 const themed=(bar:Bar)=>{const [text,background]=stateColors[bar.eventColor]??stateColors.gray;return {...bar,style:`--b-sch-event-color:${text};--b-sch-event-background:${background};--b-sch-event-hover-background:${background};--b-sch-event-selected-background:${background}`};};
-const settled=(entries:LedgerEntry[],operation:string)=>entries.find(e=>e.operation===operation&&e.state==='SUCCEEDED');
+const settled=(entries:LedgerEntry[],operation:string)=>entries.find(e=>providerSettled(e,operation));
 /** What the tooltip says about a recorded payment: who decided it and the PayPal reference. */
 const proof=(e:LedgerEntry)=>[e.dossierId?`AgentSafe allowed it · dossier ${e.dossierId}`:'',e.refundId??e.captureId??e.authorizationId??e.providerOrderId?`PayPal ${e.refundId??e.captureId??e.authorizationId??e.providerOrderId}`:''].filter(Boolean);
 type Bar={id:string;resourceId:string;name:string;startDate:Date;endDate:Date;eventColor:string;detail:string[];cls?:string};
 type Range={id:string;resourceId:string;startDate:Date;endDate:Date;cls:string};
 
 /** When each merchant is paid: tents at checkout, catering held until the venue can confirm delivery. Times are the recorded ones. */
-export default function PaymentSchedule({plan,orders,refreshKey}:{plan:Plan;orders:Order[];refreshKey:number}) {
-  const [entries,setEntries]=useState<LedgerEntry[]>([]);
-  useEffect(()=>{api<LedgerEntry[]>(`/api/ledger?workflowId=${plan.id}`).then(setEntries).catch(()=>setEntries([]));},[plan.id,refreshKey]);
+export default function PaymentSchedule({plan,orders,frozen,refreshKey}:{plan:Plan;orders:Order[];frozen:boolean;refreshKey:number}) {
+  const [ledger,setLedger]=useState<{planId:string;entries:LedgerEntry[]}>();const [error,setError]=useState('');
+  const entries=ledger?.planId===plan.id?ledger.entries:[];
+  useEffect(()=>{let live=true;setError('');api<LedgerEntry[]>(`/api/ledger?workflowId=${plan.id}`).then(entries=>{if(live)setLedger({planId:plan.id,entries});})
+    .catch(()=>{if(live)setError('Recorded payment times could not be loaded. Refresh the plan to try again.');});return()=>{live=false;};},[plan.id,refreshKey]);
   // The frame's width and font size, so ticks and labels are sized to what is actually on screen.
   const frame=useRef<HTMLDivElement>(null);const [fit,setFit]=useState({width:0,em:16});const nameWidth=window.innerWidth<600?132:190;
   useLayoutEffect(()=>{const el=frame.current!;const measure=()=>{const width=el.clientWidth,em=parseFloat(getComputedStyle(el).fontSize);setFit(f=>f.width===width&&f.em===em?f:{width,em});};
@@ -44,31 +47,34 @@ export default function PaymentSchedule({plan,orders,refreshKey}:{plan:Plan;orde
     const ranges:Range[]=[];
     const tentsPaid=settled(entries,'CAPTURE_ORDER'),refunded=settled(entries,'REFUND_CAPTURE');
     if(tentsPaid)bars.push({id:'tents-paid',resourceId:'tents',name:`Paid ${money(tentsPaid.amountMinor)}`,startDate:new Date(tentsPaid.settledAt),endDate:new Date(tentsPaid.settledAt),eventColor:'green',detail:['Captured at checkout',...proof(tentsPaid)]});
-    else bars.push({id:'tents-due',resourceId:'tents',name:`Pay ${money(tents.amountMinor)} at checkout`,startDate:created,endDate:expires,eventColor:'teal',detail:['After you approve the plan']});
+    else if(!frozen&&['NEW','APPROVAL_REQUIRED'].includes(tents.status))bars.push({id:'tents-due',resourceId:'tents',name:`Pay ${money(tents.amountMinor)} at checkout`,startDate:created,endDate:expires,eventColor:'gray',cls:'planned',detail:['Planned: after plan consent and your separate PayPal approval']});
     if(refunded)bars.push({id:'tents-refunded',resourceId:'tents',name:`Refunded ${money(refunded.amountMinor)}`,startDate:new Date(refunded.settledAt),endDate:new Date(refunded.settledAt),eventColor:'purple',detail:['You cancelled the event; PayPal returned the payment',...proof(refunded)]});
     const authorized=settled(entries,'AUTHORIZE_ORDER'),cateringPaid=settled(entries,'CAPTURE_AUTHORIZATION');
     const renewed=settled(entries,'REAUTHORIZE_AUTHORIZATION'),voided=settled(entries,'VOID_AUTHORIZATION');
     if(authorized){
       const from=new Date(authorized.settledAt),ended=cateringPaid??voided;
       const to=ended?new Date(ended.settledAt):new Date(Math.max(event.getTime()+deliveryCloses,from.getTime()+hour/4));
-      bars.push({id:'catering-held',resourceId:'catering',name:`${money(authorized.amountMinor)} authorized, held`,startDate:from,endDate:to,eventColor:'orange',
-        detail:['Authorized, not taken, until a signed delivery receipt',`PayPal guarantees the funds until ${DateHelper.format(new Date(from.getTime()+honorPeriod),'ddd MM/DD HH:mm')} (shaded) and keeps the authorization until ${DateHelper.format(new Date(from.getTime()+authorizationLife),'ddd MM/DD')}`,...proof(authorized)]});
+      bars.push({id:'catering-held',resourceId:'catering',name:`${money(authorized.amountMinor)} authorization${ended?' · settled':''}`,startDate:from,endDate:to,eventColor:'orange',
+        detail:['Recorded authorization; it is not a payment',`Current catering status: ${catering.status.toLowerCase()}`,`PayPal honor period ends ${DateHelper.format(new Date(from.getTime()+honorPeriod),'ddd MM/DD HH:mm')} (shaded); authorization lifetime ends ${DateHelper.format(new Date(from.getTime()+authorizationLife),'ddd MM/DD')}`,...proof(authorized)]});
       // The honor periods shade the row without stretching the axis: funds are guaranteed only inside them.
       ranges.push({id:'honor-1',resourceId:'catering',startDate:from,endDate:new Date(from.getTime()+honorPeriod),cls:'honor-period'});
       if(renewed) {
         const at=new Date(renewed.settledAt);
         bars.push({id:'catering-renewed',resourceId:'catering',name:'Hold renewed',startDate:at,endDate:at,eventColor:'indigo',detail:['SwarmPay reauthorized the hold: a new authorization with a fresh 3-day honor period covers the delivery. No money moved.',`Funds guaranteed until ${DateHelper.format(new Date(at.getTime()+honorPeriod),'ddd MM/DD HH:mm')} (shaded)`,...proof(renewed)]});
         ranges.push({id:'honor-2',resourceId:'catering',startDate:at,endDate:new Date(at.getTime()+honorPeriod),cls:'honor-period'});
-      } else if(!ended&&event.getTime()-from.getTime()>honorPeriod) {
+      } else if(!ended&&!frozen&&catering.status==='AUTHORIZED'&&event.getTime()-from.getTime()>honorPeriod) {
         // The delivery falls after the honor period, so SwarmPay will renew the hold once it is over and the event is within 3 days.
         const at=new Date(Math.max(from.getTime()+honorPeriod,event.getTime()-honorPeriod));
-        bars.push({id:'catering-renewal',resourceId:'catering',name:'Renews the hold',startDate:at,endDate:at,eventColor:'gray',cls:'planned',detail:['Planned: the delivery is after PayPal’s 3-day honor period, so SwarmPay reauthorizes the hold here, then pays the caterer from the fresh authorization']});
+        bars.push({id:'catering-renewal',resourceId:'catering',name:'Planned renewal',startDate:at,endDate:at,eventColor:'gray',cls:'planned',detail:['Planned: request one renewal after the first honor period and within 3 days of the event. Successful renewal must be confirmed by PayPal before claiming a fresh hold.']});
       }
       if(voided)bars.push({id:'catering-voided',resourceId:'catering',name:'Hold released',startDate:new Date(voided.settledAt),endDate:new Date(voided.settledAt),eventColor:'purple',detail:['The authorization was voided; no catering payment was taken',...proof(voided)]});
     }
     if(cateringPaid)bars.push({id:'catering-paid',resourceId:'catering',name:`Paid ${money(cateringPaid.amountMinor)} after delivery`,startDate:new Date(cateringPaid.settledAt),endDate:new Date(cateringPaid.settledAt),eventColor:'green',detail:['Captured after the venue’s signed receipt',...proof(cateringPaid)]});
     for(const asked of entries.filter(e=>e.requestedBy==='AGENT'))
-      bars.push({id:`agent-${asked.id}`,resourceId:'catering',name:'Agent asked early · held',startDate:new Date(asked.at),endDate:new Date(asked.at),eventColor:'red',detail:['AgentSafe held the request; no delivery receipt yet',...(asked.dossierId?[`Dossier ${asked.dossierId}`]:[])]});
+      bars.push({id:`agent-${asked.id}`,resourceId:'catering',name:`Agent request · ${boundaryLabel(asked.state)}`,startDate:new Date(asked.at),endDate:new Date(asked.at),eventColor:isHeld(asked.state)?'red':'purple',detail:[asked.message??'No decision explanation was recorded',`Request ${asked.id}`,...(asked.dossierId?[`Dossier ${asked.dossierId}`]:[])]});
+    for(const pending of entries.filter(e=>e.requestedBy!=='AGENT'&&(e.providerStatus==='PENDING'||isUncertain(e.state)||isHeld(e.state)||isRetryable(e.state))))
+      bars.push({id:`pending-${pending.id}`,resourceId:pending.category==='TENTS'?'tents':'catering',name:`${operationLabels[pending.operation]??pending.operation} · ${pending.providerStatus==='PENDING'?'pending':boundaryLabel(pending.state)}`,
+        startDate:new Date(pending.at),endDate:new Date(pending.at),eventColor:isHeld(pending.state)?'red':'purple',detail:[pending.message??'Outcome not yet recorded',`Request ${pending.id}`]});
     const times=[created,now,...bars.map(b=>b.startDate),new Date(event.getTime()+deliveryCloses)].map(t=>t.getTime());
     // Lead-in in proportion to the span, so the first payment sits clear of the names; labels run to the right of their time.
     const first=Math.min(...times),last=Math.max(...times),pad=Math.max(hour/2,(last-first)*0.12);
@@ -87,11 +93,13 @@ export default function PaymentSchedule({plan,orders,refreshKey}:{plan:Plan;orde
     const days={base:'dayAndWeek',headers:[{unit:'month',dateFormat:'MMM YYYY'},{unit:'day',increment:dayStep,dateFormat:'ddd D'}]};
     return {resources,bars:bars.map(themed),startDate,endDate,viewPreset:span<=16?hours:days,
       ranges,timeRanges:[{id:'delivery',name:'Venue can confirm delivery',startDate:new Date(event.getTime()-deliveryOpens),endDate:new Date(event.getTime()+deliveryCloses),cls:'delivery-window'}]};
-  },[plan,orders,entries,fit.width,fit.em,nameWidth]);
+  },[plan,orders,entries,frozen,fit.width,fit.em,nameWidth]);
   return <section className="card schedule-card" aria-labelledby="schedule-title">
     <div className="card-head"><h2 id="schedule-title">When each merchant is paid</h2><span>Recorded times · shaded: delivery window and PayPal’s honor period · line: now</span></div>
+    {error&&<p className="message error" role="alert">{error}</p>}
+    {!error&&ledger?.planId!==plan.id&&<p className="quiet-note" role="status">Loading recorded payment times…</p>}
     <div className="schedule-frame" ref={frame}>
-      {fit.width>0&&<BryntumScheduler readOnly forceFit autoHeight rowHeight={56} barMargin={12} milestoneLayoutMode="measure" milestoneAlign="start"
+      {!error&&ledger?.planId===plan.id&&fit.width>0&&<BryntumScheduler readOnly forceFit autoHeight rowHeight={56} barMargin={12} milestoneLayoutMode="measure" milestoneAlign="start"
         startDate={view.startDate} endDate={view.endDate} viewPreset={view.viewPreset}
         columns={[{text:'',field:'name',width:nameWidth,renderer:({record}:{record:{getData:(f:string)=>string}})=>({children:[{tag:'strong',text:record.getData('name')},{tag:'small',text:record.getData('role')}]})}]}
         resources={view.resources} events={view.bars} timeRanges={view.timeRanges} resourceTimeRanges={view.ranges}

@@ -16,4 +16,9 @@ class DemoInterpreterTest {
         assertEquals(40,read.attendees());assertEquals(6,read.tents());
         assertNull(read.venue());assertNull(read.weather());assertNull(read.eventDate());
     }
+    @Test void rentalAndPurchaseModifiersDoNotDropTheExplicitTentCount() {
+        assertEquals(5,interpreter.interpret("30 guests with 5 rental tents, $1,500","UTC").tents());
+        assertEquals(7,interpreter.interpret("Buy 7 weatherproof canopy tents for 30 guests, $2,000","UTC").tents());
+        assertNull(interpreter.interpret("We have 5 volunteers to plan the tents","UTC").tents());
+    }
 }

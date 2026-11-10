@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test": "node --experimental-strip-types --test tests/payment-state.test.ts"
   },
   "dependencies": {
     "@bryntum/scheduler": "npm:@bryntum/scheduler-trial@7.3.7",

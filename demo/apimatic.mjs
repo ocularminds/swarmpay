@@ -12,7 +12,7 @@ const input = resolve(root, 'contracts/apimatic');
 const spec = resolve(input, 'src/spec/openapi.json');
 const portal = resolve(root, process.argv[2] ?? '.local/apimatic/portal');
 // The CLI appends the language to its destination directory.
-const sdkRoot = resolve(root, '.local/apimatic/sdk');
+const sdkRoot = resolve(root, process.env.SWARM_APIMATIC_SDK_OUTPUT ?? '.local/apimatic/sdk');
 const sdk = resolve(sdkRoot, 'typescript');
 
 let key = process.env.APIMATIC_API_KEY?.trim();

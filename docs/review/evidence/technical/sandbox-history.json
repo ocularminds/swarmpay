@@ -1,0 +1,68 @@
+{
+  "checkedAt": "2026-11-10T04:25:14.347Z",
+  "site": "https://swarm.decionis.com",
+  "mode": "sandbox",
+  "authority": "AgentSafe · local test authority",
+  "scope": "Authenticated GET of existing October sandbox workflows and their stored evidence. No new payment, renewal, refund, reconciliation or delivery was requested. This is a current read of historical application/provider records, not a fresh provider settlement test.",
+  "records": [
+    {
+      "workflowId": "17b8114f-aef3-4a85-988b-19831de5d996",
+      "eventAt": "2026-11-05T17:00:00Z",
+      "capturedMinor": 0,
+      "receiptVerified": false,
+      "applicationChainVerified": true,
+      "renewalEvents": [
+        {
+          "type": "PAYMENT_SUCCEEDED",
+          "at": "2026-11-03T00:59:01.236647Z",
+          "message": "PayPal renewed the catering hold: a new authorization with a fresh 3-day honor period covers the delivery. No money moved."
+        }
+      ],
+      "orders": [
+        {
+          "category": "TENTS",
+          "status": "NEW",
+          "amountMinor": 50000,
+          "authorizationId": null,
+          "captureId": null
+        },
+        {
+          "category": "CATERING",
+          "status": "AUTHORIZED",
+          "amountMinor": 90000,
+          "authorizationId": "97P017464E128624V",
+          "captureId": null
+        }
+      ],
+      "commands": [
+        {
+          "id": "739d5e2c-418f-4b70-841b-1bd01d60ff46",
+          "operation": "CREATE_ORDER",
+          "state": "SUCCEEDED",
+          "providerStatus": "APPROVAL_REQUIRED",
+          "authorizationId": null,
+          "captureId": null,
+          "refundId": null
+        },
+        {
+          "id": "e4e5abd9-ff39-4b51-bba3-2a76195c31c2",
+          "operation": "AUTHORIZE_ORDER",
+          "state": "SUCCEEDED",
+          "providerStatus": "AUTHORIZED",
+          "authorizationId": "07731015K3449464F",
+          "captureId": null,
+          "refundId": null
+        },
+        {
+          "id": "0b61e401-5920-48a8-b83d-0cc8b5af1c40",
+          "operation": "REAUTHORIZE_AUTHORIZATION",
+          "state": "SUCCEEDED",
+          "providerStatus": "AUTHORIZED",
+          "authorizationId": "97P017464E128624V",
+          "captureId": null,
+          "refundId": null
+        }
+      ]
+    }
+  ]
+}

@@ -3,14 +3,18 @@ import { readFileSync,mkdirSync,writeFileSync } from 'node:fs';
 import { randomUUID,sign } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import {parseEnv} from 'node:util';
 const root=fileURLToPath(new URL('../',import.meta.url));
+const env=parseEnv(readFileSync(resolve(root,process.env.SWARM_TEST_ENV??'.env'),'utf8'));
+assert.equal(env.SWARM_MODE,'demo','Smoke fixture requires an explicitly simulated environment');
+const output=resolve(root,process.env.SWARM_TEST_OUTPUT_DIR??'.local');
 const base=process.env.SWARM_TEST_URL??'http://localhost:5173';
 const config=await (await fetch(base+'/api/config')).json();
 assert.equal(config.mode,'demo','Smoke test refuses any non-demo provider');
 assert.equal(config.aiProvider,'demo','Use SWARM_AI_PROVIDER=demo for fixture tests; live inference is tested separately');
 let cookie='',csrf='';
-async function request(path,{method='GET',body,expect=200,headers={}}={}) {
-  const r=await fetch(base+path,{method,headers:{Cookie:cookie,...(body?{'Content-Type':'application/json'}:{}),...(method!=='GET'?{'X-CSRF-TOKEN':csrf}:{}),...headers},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(20000)});
+async function request(path,{method='GET',body,form,expect=200,headers={}}={}) {
+  const r=await fetch(base+path,{method,headers:{Cookie:cookie,...(body?{'Content-Type':'application/json'}:form?{'Content-Type':'application/x-www-form-urlencoded'}:{}),...(method!=='GET'?{'X-CSRF-TOKEN':csrf}:{}),...headers},body:body?JSON.stringify(body):form?new URLSearchParams(form):undefined,signal:AbortSignal.timeout(20000)});
   for(const c of r.headers.getSetCookie()) if(c.startsWith('JSESSIONID=')) cookie=c.split(';')[0];
   const text=await r.text();const value=text?JSON.parse(text):null;
   assert.equal(r.status,expect,`${method} ${path}: ${JSON.stringify(value)}`);return value;
@@ -18,7 +22,10 @@ async function request(path,{method='GET',body,expect=200,headers={}}={}) {
 async function readSession(){const s=await request('/api/session');csrf=s.csrfToken;return s;}
 assert.equal((await fetch(base+'/api/plans')).status,401);
 assert.equal((await fetch(base+'/mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).status,401);
-await readSession();await request('/api/demo-session',{method:'POST'});assert.equal((await readSession()).authenticated,true);
+await readSession();
+if(config.demoSessionEnabled)await request('/api/demo-session',{method:'POST'});
+else await request('/api/login',{method:'POST',form:{username:env.ORGANIZER_USERNAME,password:env.ORGANIZER_PASSWORD},expect:204});
+assert.equal((await readSession()).authenticated,true);
 function intent(budgetMinor){return {request:'Smoke test: rainy meetup for 30 people, five tent rentals.',attendees:30,tents:5,budgetMinor,eventAt:new Date(Date.now()+3600000).toISOString(),timezone:'UTC',venue:'Smoke test pavilion',weather:'Rain',tentMode:'RENT'};}
 const create=budgetMinor=>request('/api/plans',{method:'POST',body:{intent:intent(budgetMinor),tentOfferId:'tents-standard',cateringOfferId:'catering-seasonal'}});
 const expensive=await create(130000);
@@ -69,7 +76,7 @@ assert.equal((await request(path+'/commands')).length,4);
 console.log('PASS: AgentSafe holds an agent\'s early payment request; no payment command is queued');
 const catering=plan.lines.find(l=>l.category==='CATERING'),now=new Date().toISOString();
 const data={issuer:'demo-venue-fixture',workflowId:plan.id,orderId:catering.id,merchantId:'catering',venue:plan.intent.venue,quantity:30,deliveredAt:now,issuedAt:now,nonce:randomUUID()};
-const bytes=Buffer.from(JSON.stringify(data));const key=readFileSync(resolve(root,'.secrets/venue-private.pem'));
+const bytes=Buffer.from(JSON.stringify(data));const key=readFileSync(resolve(root,process.env.SWARM_TEST_VENUE_KEY_PATH??'.secrets/venue-private.pem'));
 const signed={payload:bytes.toString('base64'),signature:sign(null,bytes,key).toString('base64')};
 await request(path+'/receipt',{method:'POST',body:{...signed,payload:Buffer.from(JSON.stringify({...data,merchantId:'attacker'})).toString('base64')},expect:409});
 assert.equal((await request(path)).capturedMinor,50000);
@@ -100,7 +107,6 @@ await request(awaitingPath+'/approve',{method:'POST',body:{version:1}});
 const awaitingLine=awaiting.lines.find(line=>line.category==='CATERING');
 const awaitingCheckout=await request(`${awaitingPath}/orders/${awaitingLine.id}/checkout`,{method:'POST'});
 await request(`${awaitingPath}/orders/${awaitingLine.id}/buyer-approved`,{method:'POST',body:{providerOrderId:awaitingCheckout.result.providerOrderId}});
-const env=Object.fromEntries(readFileSync(resolve(root,'.env'),'utf8').split('\n').filter(l=>l.includes('=')&&!l.startsWith('#')).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1)]));
 // One MCP session per bearer: the operator's token, or an organizer's own agent token.
 function mcpClient(bearer){
 let mcpSession='',protocol='2025-11-25';
@@ -125,6 +131,7 @@ assert.equal(listed.result.tools.some(t=>t.name==='approve_plan'||t.name==='buye
 const searched=await mcp({jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'search_offers',arguments:{category:'ALL'}}});assert.equal(searched.result.isError??false,false);
 assert.ok(searched.result.content.some(c=>c.text?.includes('Canopy Collective')));
 const denied=await fetch(base+path+'/approve',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.MCP_TOKEN}`},body:'{"version":1}'});assert.equal(denied.status,403);
+for(const read of ['/api/balances','/api/measurements'])assert.ok([401,403].includes((await fetch(base+read,{headers:{Authorization:`Bearer ${env.MCP_TOKEN}`}})).status));
 console.log('PASS: authenticated MCP initialize/list/call; agent token cannot record human consent');
 const asked=await mcp({jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'request_milestone_payment',arguments:{workflowId:awaiting.id}}});
 assert.equal(asked.result.isError??false,false);assert.match(asked.result.content[0].text,/"state":"ESCALATE"/);
@@ -154,7 +161,13 @@ const confirmed=await venue();assert.equal(confirmed.status,200,await confirmed.
 const delivered=await request(awaitingPath);assert.equal(delivered.receiptVerified,true);assert.equal(delivered.capturedMinor,90000);
 assert.ok(delivered.events.some(e=>e.type==='VENUE_CONFIRMATION_REQUESTED'));
 console.log('PASS: only the signed-in organizer can ask the separate venue to sign a receipt, which releases the catering capture');
-mkdirSync(resolve(root,'.local'),{recursive:true});
-writeFileSync(resolve(root,'.local/smoke-workflow.json'),JSON.stringify(flow,null,2));
-writeFileSync(resolve(root,'.local/smoke-evidence.json'),JSON.stringify(evidence,null,2));
+const balance=(await request('/api/balances')).find(b=>b.id===plan.id);
+assert.equal(balance.capturedMinor,flow.capturedMinor);assert.equal(balance.committedMinor,flow.committedMinor);assert.equal(balance.authorizedMinor,0);
+const reading=(await request('/api/measurements')).find(m=>m.workflowId===plan.id);
+assert.ok(reading.planningMillis>=0);assert.equal(reading.heldAgentRequests,1);assert.ok(reading.receiptToCaptureMillis>=0);assert.ok(reading.organizerActions>=3);
+mkdirSync(output,{recursive:true,mode:0o700});
+writeFileSync(resolve(output,'smoke-workflow.json'),JSON.stringify(flow,null,2),{mode:0o600});
+writeFileSync(resolve(output,'smoke-evidence.json'),JSON.stringify(evidence,null,2),{mode:0o600});
+writeFileSync(resolve(output,'smoke-receipt.json'),JSON.stringify(signed),{mode:0o600});
+writeFileSync(resolve(output,'measurements.json'),JSON.stringify(reading,null,2),{mode:0o600});
 console.log(`PASS: local demo smoke complete (${plan.id}); no real provider was called`);

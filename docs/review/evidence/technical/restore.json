@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-10T04:16:03.898Z",
+  "environment": "two newly created isolated demo Compose projects; simulated payments, model and venue",
+  "baseRevision": "71bd26ebbc5d778bbbc9d740f95c0d7ac9333495",
+  "sourceFingerprintSha256": "f4c0faa08e22c5d4cc010967c4fd54af2f20cfb53f841c2950820625b72bab4a",
+  "sourceFileCount": 242,
+  "sourceScope": "Tracked and new non-ignored application, module, infrastructure, demo, contract and CI files; excludes private configuration and generated reports.",
+  "snapshotSha256": "090ff2755878587e9c71ea73d261019025cffe8b4f27e37752c4b4cfbf4fc5e6",
+  "snapshotBytes": 46121,
+  "restoredRows": {
+    "plans": 5,
+    "orders": 10,
+    "commands": 11,
+    "events": 36,
+    "receipts": 2,
+    "reservations": 3,
+    "planningMeasurements": 5
+  },
+  "restoreAndReplayMillis": 58391,
+  "applicationChainVerified": true,
+  "nativeAuthorityChainVerified": true,
+  "capturedBeforeMinor": 140000,
+  "capturedAfterReplayMinor": 140000,
+  "preservedCommandCount": 5,
+  "scope": "Both database schemas, role grants and native evidence journal restored. Same milestone replayed without another capture. No existing journal was reset or repaired. This does not validate production retention, encryption, recovery objectives or operational ownership."
+}

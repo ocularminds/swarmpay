@@ -1,0 +1,238 @@
+{
+  "date": "2026-11-10T04:08:32.933Z",
+  "baseRevision": "71bd26ebbc5d778bbbc9d740f95c0d7ac9333495",
+  "datasetSha256": "fccd7e1d67948b2e6846d10cb6fe0659d65dd9cfe3af72a448c6422d4510836f",
+  "aiProvider": "demo",
+  "model": "Simulated agent roles",
+  "payments": "simulated; drafts only",
+  "cases": [
+    {
+      "id": "rain-baseline",
+      "status": "passed",
+      "workflowId": "6bdfcaf6-65e8-46b0-b3e9-d68760cd2d4a",
+      "source": "DEMO_RULES",
+      "offers": [
+        "tents-standard",
+        "catering-seasonal"
+      ],
+      "totalMinor": 140000,
+      "withinBudget": true,
+      "planningMillis": 1,
+      "briefToPlanMillis": 25,
+      "elapsedMillis": 95,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Chose Weather-ready canopy and the Seasonal meetup menu: the fullest service that stays within your budget.",
+          "facts": [
+            "5 tent rentals and 30 catered meals",
+            "$1,400.00 of a $1,500.00 budget",
+            "1 of 4 combinations fit the budget",
+            "Catalog stock is simulated"
+          ],
+          "source": "DEMO_RULES"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Catering is authorized now and paid after a verified delivery receipt.",
+          "facts": [
+            "Seller and amount are fixed at approval",
+            "Photo-only evidence is held for review",
+            "A quote expires after 30 minutes"
+          ],
+          "source": "DEMO_RULES"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "dry-comparison",
+      "status": "passed",
+      "workflowId": "853dbcd7-ad42-4993-add8-736ea2dbcc22",
+      "source": "DEMO_RULES",
+      "offers": [
+        "tents-standard",
+        "catering-seasonal"
+      ],
+      "totalMinor": 140000,
+      "withinBudget": true,
+      "planningMillis": 0,
+      "briefToPlanMillis": 27,
+      "elapsedMillis": 105,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Chose Weather-ready canopy and the Seasonal meetup menu: the fullest service that stays within your budget.",
+          "facts": [
+            "5 tent rentals and 30 catered meals",
+            "$1,400.00 of a $1,500.00 budget",
+            "1 of 4 combinations fit the budget",
+            "Catalog stock is simulated"
+          ],
+          "source": "DEMO_RULES"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Catering is authorized now and paid after a verified delivery receipt.",
+          "facts": [
+            "Seller and amount are fixed at approval",
+            "Photo-only evidence is held for review",
+            "A quote expires after 30 minutes"
+          ],
+          "source": "DEMO_RULES"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "larger-event",
+      "status": "passed",
+      "workflowId": "535a93c9-3d83-4688-a1d4-851c7692c410",
+      "source": "DEMO_RULES",
+      "offers": [
+        "tents-premium",
+        "catering-signature"
+      ],
+      "totalMinor": 440000,
+      "withinBudget": true,
+      "planningMillis": 0,
+      "briefToPlanMillis": 15,
+      "elapsedMillis": 63,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Chose Premium event canopy and the Signature sharing menu: the fullest service that stays within your budget.",
+          "facts": [
+            "5 tent rentals and 90 catered meals",
+            "$4,400.00 of a $5,000.00 budget",
+            "2 of 2 combinations fit the budget",
+            "Catalog stock is simulated"
+          ],
+          "source": "DEMO_RULES"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Catering is authorized now and paid after a verified delivery receipt.",
+          "facts": [
+            "Seller and amount are fixed at approval",
+            "Photo-only evidence is held for review",
+            "A quote expires after 30 minutes"
+          ],
+          "source": "DEMO_RULES"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "higher-service-budget",
+      "status": "passed",
+      "workflowId": "21a14554-7fc6-4e31-95e6-d4ef84169f87",
+      "source": "DEMO_RULES",
+      "offers": [
+        "tents-premium",
+        "catering-signature"
+      ],
+      "totalMinor": 200000,
+      "withinBudget": true,
+      "planningMillis": 0,
+      "briefToPlanMillis": 4031,
+      "elapsedMillis": 8105,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Chose Premium event canopy and the Signature sharing menu: the fullest service that stays within your budget.",
+          "facts": [
+            "5 tent rentals and 30 catered meals",
+            "$2,000.00 of a $2,000.00 budget",
+            "4 of 4 combinations fit the budget",
+            "Catalog stock is simulated"
+          ],
+          "source": "DEMO_RULES"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Catering is authorized now and paid after a verified delivery receipt.",
+          "facts": [
+            "Seller and amount are fixed at approval",
+            "Photo-only evidence is held for review",
+            "A quote expires after 30 minutes"
+          ],
+          "source": "DEMO_RULES"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "below-minimum-price",
+      "status": "passed",
+      "workflowId": "0ee2f7af-b405-4e6b-a6ac-03b8c86bfd5b",
+      "source": "DEMO_RULES",
+      "offers": [
+        "tents-standard",
+        "catering-seasonal"
+      ],
+      "totalMinor": 140000,
+      "withinBudget": false,
+      "planningMillis": 1,
+      "briefToPlanMillis": 22,
+      "elapsedMillis": 4089,
+      "assessments": [
+        {
+          "role": "Sourcing",
+          "summary": "Chose Weather-ready canopy and the Seasonal meetup menu. No combination fits the budget, so this is the lowest total for your review.",
+          "facts": [
+            "5 tent rentals and 30 catered meals",
+            "$1,400.00 of a $1,300.00 budget",
+            "0 of 4 combinations fit the budget",
+            "Catalog stock is simulated"
+          ],
+          "source": "DEMO_RULES"
+        },
+        {
+          "role": "Risk & milestones",
+          "summary": "Catering is authorized now and paid after a verified delivery receipt.",
+          "facts": [
+            "Seller and amount are fixed at approval",
+            "Photo-only evidence is held for review",
+            "A quote expires after 30 minutes"
+          ],
+          "source": "DEMO_RULES"
+        }
+      ],
+      "paymentCommands": 0
+    },
+    {
+      "id": "buy-tents",
+      "status": "blocked",
+      "prerequisite": "Channel3 is not configured in this fixture; run the explicit live-AI/listing evaluation with the provided catalog key."
+    },
+    {
+      "id": "too-many-guests",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    },
+    {
+      "id": "missing-tent-mode",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    },
+    {
+      "id": "outside-booking-window",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    },
+    {
+      "id": "foreign-offer",
+      "status": "passed",
+      "rejection": "INVALID_REQUEST"
+    }
+  ],
+  "interpretation": "Weather is changed while price and counts stay fixed; both available tent offers cover these conditions, so an unchanged affordable pair is valid. Guest count forces a capacity change; the higher-service request and budget permit another pair. This small set is not customer impact or a general model benchmark.",
+  "sourceBinding": {
+    "baseRevision": "71bd26ebbc5d778bbbc9d740f95c0d7ac9333495",
+    "sourceFingerprintSha256": "9cae06eb0de301bf1c508bb60a2f00b0e4661b0f28bf4bca3cc85a33689cf583",
+    "sourceFileCount": 243,
+    "sourceScope": "Tracked and new non-ignored application, module, infrastructure, demo, contract and CI files; excludes private configuration and generated reports.",
+    "note": "Source fingerprint recorded after the evaluation; intervening application edits concern responsive dashboard layout and cancellation confirmation copy, not planning behavior."
+  }
+}

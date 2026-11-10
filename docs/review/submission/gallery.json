@@ -1,0 +1,142 @@
+{
+  "preparedAt": "2026-11-10T05:28:40.664435+00:00",
+  "environment": "Local HTTPS fixture; simulated model, payments, catalogs and venue; local test authority.",
+  "applicationTree": "f04d97349842d6d3d2b48eb6783f5d664a1e9d34 (identical application tree to tested eba7fba8b851c31ccf5169fd29e9c83b10896cba)",
+  "verificationSourceFingerprintSha256": "9cae06eb0de301bf1c508bb60a2f00b0e4661b0f28bf4bca3cc85a33689cf583",
+  "notPublicDeployment": true,
+  "cover": "../../../apps/web/public/brand/swarmpay-cover-devpost.png",
+  "images": [
+    {
+      "file": "gallery/landing-desktop.png",
+      "title": "Landing and event composer",
+      "width": 1366,
+      "height": 1093,
+      "bytes": 413189,
+      "sha256": "3316fb45ff82e4f9a07edcd42a2b076cc4767daff2f744730a4dfcf3dacb7b3d",
+      "capturedAt": "2026-11-10T04:37:05.825086+00:00",
+      "source": "apps/web/test-results/hosted/commerce-landing-and-sign--64ec2--screen-and-with-a-keyboard-hosted/desktop-landing.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/landing-mobile.png",
+      "title": "Mobile landing",
+      "width": 390,
+      "height": 2020,
+      "bytes": 238810,
+      "sha256": "3c8e9b0f34b5c60c8d9cdf5972329da00be337b6366f7ee8fe26c1e6c40856a8",
+      "capturedAt": "2026-11-10T04:37:05.594434+00:00",
+      "source": "apps/web/test-results/hosted/commerce-landing-and-sign--64ec2--screen-and-with-a-keyboard-hosted/mobile-landing.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/approval.png",
+      "title": "Exact plan consent",
+      "width": 1366,
+      "height": 1705,
+      "bytes": 194182,
+      "sha256": "1d0c9fcfcc5e41e15c9a7252bebcff74a4347f89b41b8f3bd6f0a8ba9e519356",
+      "capturedAt": "2026-11-10T04:36:58.377913+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-approval.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/checkout.png",
+      "title": "Merchant checkout handoff",
+      "width": 1366,
+      "height": 2076,
+      "bytes": 266936,
+      "sha256": "67b86c69ff79d19d813701b6f606c157920c5e9baac5497a7901f93e97d6c580",
+      "capturedAt": "2026-11-10T04:36:59.230535+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-checkout.png",
+      "notes": "Original pixels; full-page screenshot. The approval test uses separate simulated checkout dialogs, not real PayPal popups."
+    },
+    {
+      "file": "gallery/awaiting-delivery.png",
+      "title": "Authorization awaits delivery",
+      "width": 1366,
+      "height": 2691,
+      "bytes": 329451,
+      "sha256": "0b227cb9fe3c605846c779424578bcdde4416bb480b2be987548527a502ace2e",
+      "capturedAt": "2026-11-10T04:36:59.869464+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-awaiting-delivery.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/held-request.png",
+      "title": "Held request and its decision",
+      "width": 1366,
+      "height": 3550,
+      "bytes": 460245,
+      "sha256": "92621bc6e1ae3b7d58a5d5c57117c6c12f45e510a5985195301e9cc7a744b8fb",
+      "capturedAt": "2026-11-10T04:37:00.357736+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-held-request.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/held-mobile.png",
+      "title": "Mobile held-request evidence",
+      "width": 390,
+      "height": 4908,
+      "bytes": 410105,
+      "sha256": "9ff8cca5e79fa77fac8d166a57dc74da75e46db0045ef8e9cf387a67dd37d764",
+      "capturedAt": "2026-11-10T04:37:00.583046+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/mobile-held-request.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/completed.png",
+      "title": "Completed plan and payment schedule",
+      "width": 1366,
+      "height": 2372,
+      "bytes": 293282,
+      "sha256": "259e1ed086f725fec19d6d21d5ba3d3b11c810276a6d9e775f1e2db474b08152",
+      "capturedAt": "2026-11-10T04:37:04.906969+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-completed.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/payments.png",
+      "title": "Settlement-aware payment overview",
+      "width": 1366,
+      "height": 1601,
+      "bytes": 272570,
+      "sha256": "a4892aff70595ebcaf9e4bba863e4442ea6dfce05ff42446555a2c4323895140",
+      "capturedAt": "2026-11-10T04:37:03.187123+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-payments.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/payments-mobile.png",
+      "title": "Mobile dashboard widgets",
+      "width": 390,
+      "height": 3243,
+      "bytes": 211330,
+      "sha256": "2ad443e090035fc3a109c78f95e7e79405eb8886f14de0208d0a1452937d0552",
+      "capturedAt": "2026-11-10T04:37:03.449181+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/mobile-payments.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/ledger.png",
+      "title": "Filtered payment ledger",
+      "width": 1366,
+      "height": 1096,
+      "bytes": 179704,
+      "sha256": "20147170d1cb384b2372fdf7fdc032e52da8f54c45923a94666c1166636cee61",
+      "capturedAt": "2026-11-10T04:37:04.582001+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-ledger.png",
+      "notes": "Original pixels; no product states composited."
+    },
+    {
+      "file": "gallery/agent-access.png",
+      "title": "Bounded agent access",
+      "width": 1366,
+      "height": 2372,
+      "bytes": 392131,
+      "sha256": "dbfd72e17e738545e0d1dc25ddae8d4b51df853cf1bb30329235f3df1ab0fbe6",
+      "capturedAt": "2026-11-10T04:37:05.246837+00:00",
+      "source": "apps/web/test-results/hosted/commerce-one-next-action-p-5c54e-venue-delivery-and-evidence-hosted/desktop-agent-access.png",
+      "notes": "Original pixels; no product states composited."
+    }
+  ]
+}

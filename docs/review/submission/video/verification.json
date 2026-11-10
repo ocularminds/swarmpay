@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "file": "SwarmPay-review-demo-1080p.mp4",
+  "duration_seconds": 165.0,
+  "size_bytes": 7419354,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30.0,
+  "video_codec": "h264",
+  "audio_codec": "aac",
+  "checks": {
+    "duration_within_limit": true,
+    "size_within_limit": true,
+    "resolution_matches": true,
+    "frame_rate_matches": true,
+    "video_codec_h264": true,
+    "audio_present": true,
+    "audio_codec_aac": true
+  },
+  "audioMeanDb": -16.5,
+  "audioPeakDb": -1.5,
+  "visualInspection": "All scenes, native PayPal privacy masks, exact held intent, capture/replay evidence, actual analyst and close inspected."
+}

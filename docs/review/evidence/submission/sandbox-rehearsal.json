@@ -1,0 +1,172 @@
+{
+  "checkedAt": "2026-11-10T05:54:16.992976+00:00",
+  "site": "https://swarm.decionis.com",
+  "environment": "PayPal sandbox test money; Azure OpenAI; simulated rentals/catering/venue; AgentSafe local test authority",
+  "workflowId": "5f2b75f3-50e1-4980-a140-bbdda07b1e02",
+  "label": "Review Pavilion",
+  "eventStartsAt": null,
+  "deployedRevision": null,
+  "revisionLimit": "The public app does not expose its revision. The existing Kubernetes identity was denied a read of deployment metadata; no permissions were changed. This is not evidence that the review PRs were deployed.",
+  "nativeApprovals": {
+    "tents": {
+      "actualSDKButton": true,
+      "actualPayPalWindow": true,
+      "nativeCallbackObserved": true
+    },
+    "catering": {
+      "actualSDKButton": true,
+      "actualPayPalWindow": true,
+      "nativeCallbackObserved": true
+    }
+  },
+  "earlyMcpRequest": {
+    "evidence": "mcp-hold.json",
+    "state": "ESCALATE",
+    "execution": "HELD",
+    "dossierId": "synthetic-dossier-5",
+    "capturedMinorBefore": 50000,
+    "capturedMinorAfter": 50000,
+    "receiptVerified": false,
+    "commandsBeforeReceipt": 4,
+    "cateringCaptureCommandBeforeReceipt": false
+  },
+  "delivery": {
+    "source": "Simulated venue UI action using its signing service",
+    "receiptVerified": true,
+    "capturedMinorAfter": 140000,
+    "cateringCaptureId": "2YW87088SS338432L"
+  },
+  "repeatedMcpRequest": {
+    "evidence": "mcp-replay.json",
+    "capturedMinorBefore": 140000,
+    "capturedMinorAfter": 140000,
+    "captureIdsUnchanged": true,
+    "paymentCommandIdsUnchanged": true,
+    "paymentCommandsAfter": 5,
+    "cachedResultNote": "FORWARDED describes the stored successful result. It is not evidence of a second provider call."
+  },
+  "originalReceiptReplay": {
+    "freshLiveVerified": false,
+    "scope": "Fresh local receipt replay and isolated restore verification; historical October 31 sandbox replay. The public venue action returns acceptance, not the signed envelope; exports expose a digest, not the original bytes.",
+    "missingPrerequisite": "The original valid signed receipt envelope or authorized read access to the current signer/storage. A local saved key did not match its saved public key, so no additional receipt was sent."
+  },
+  "applicationChainVerified": true,
+  "nativeChainVerifiedThisLiveRun": false,
+  "nativeChainLimit": "Public evidence export covers the application record chain. Current native journal attestation was not available from this identity.",
+  "commands": [
+    {
+      "id": "48d30858-6115-4601-aa6f-3c81aff87711",
+      "operation": "CREATE_ORDER",
+      "merchantId": "tents",
+      "amountMinor": 50000,
+      "currency": "USD",
+      "evidenceDigest": null,
+      "state": "SUCCEEDED",
+      "dossierId": "synthetic-dossier-1",
+      "provider": {
+        "status": "APPROVAL_REQUIRED",
+        "providerOrderId": "99378333TL683262T",
+        "authorizationId": null,
+        "captureId": null,
+        "source": "PAYPAL_SANDBOX"
+      }
+    },
+    {
+      "id": "8049d5c2-4a3d-4ecf-bdcb-6a713a855cb0",
+      "operation": "CAPTURE_ORDER",
+      "merchantId": "tents",
+      "amountMinor": 50000,
+      "currency": "USD",
+      "evidenceDigest": null,
+      "state": "SUCCEEDED",
+      "dossierId": "synthetic-dossier-2",
+      "provider": {
+        "status": "CAPTURED",
+        "providerOrderId": "99378333TL683262T",
+        "authorizationId": null,
+        "captureId": "3WN51437L71088039",
+        "source": "PAYPAL_SANDBOX"
+      }
+    },
+    {
+      "id": "e49885be-ac2a-4841-b457-b084ae932bf6",
+      "operation": "CREATE_ORDER",
+      "merchantId": "catering",
+      "amountMinor": 90000,
+      "currency": "USD",
+      "evidenceDigest": null,
+      "state": "SUCCEEDED",
+      "dossierId": "synthetic-dossier-3",
+      "provider": {
+        "status": "APPROVAL_REQUIRED",
+        "providerOrderId": "1NS50691S6250244N",
+        "authorizationId": null,
+        "captureId": null,
+        "source": "PAYPAL_SANDBOX"
+      }
+    },
+    {
+      "id": "6b951d5e-3f2f-41c0-bd07-1f86f4a3923d",
+      "operation": "AUTHORIZE_ORDER",
+      "merchantId": "catering",
+      "amountMinor": 90000,
+      "currency": "USD",
+      "evidenceDigest": null,
+      "state": "SUCCEEDED",
+      "dossierId": "synthetic-dossier-4",
+      "provider": {
+        "status": "AUTHORIZED",
+        "providerOrderId": "1NS50691S6250244N",
+        "authorizationId": "83N7533909747615T",
+        "captureId": null,
+        "source": "PAYPAL_SANDBOX"
+      }
+    },
+    {
+      "id": "f61aa5f5-9d9c-417a-a955-193182339212",
+      "operation": "CAPTURE_AUTHORIZATION",
+      "merchantId": "catering",
+      "amountMinor": 90000,
+      "currency": "USD",
+      "evidenceDigest": "34afb3fb717c93d831ccc81a565f1b8a5f90f42c1fc9bd0116f437882395041b",
+      "state": "SUCCEEDED",
+      "dossierId": "synthetic-dossier-6",
+      "provider": {
+        "status": "CAPTURED",
+        "providerOrderId": "1NS50691S6250244N",
+        "authorizationId": "83N7533909747615T",
+        "captureId": "2YW87088SS338432L",
+        "source": "PAYPAL_SANDBOX"
+      }
+    }
+  ],
+  "analyst": {
+    "actualPublicAGStudioAnswer": true,
+    "askedAbout": "Earlier $900 catering hold for this exact workflow",
+    "correctHoldDossier": "synthetic-dossier-5",
+    "separateLaterCaptureDossier": "synthetic-dossier-6",
+    "holdTimeUTC": "05:16:26",
+    "captureTimeUTC": "05:18:57",
+    "readOnly": true,
+    "artifact": "analyst-answer.md"
+  },
+  "temporaryMcpToken": {
+    "revoked": true,
+    "rejectedAfterRevocation": 401,
+    "evidence": "mcp-revoked.json"
+  },
+  "separateRefundAttempt": {
+    "workflowId": "c1c37ffd-673f-4bf6-b35a-8d76a1a9b401",
+    "label": "Refund Pavilion",
+    "liveRefundVerified": false,
+    "result": "PayPal SDK stayed on Loading PayPal secure checkout in the existing tab, after reload and in a fresh tab. No checkout order or capture was created. The unpaid plan was cancelled before the event.",
+    "capturedMinor": 0,
+    "providerCommandCount": 0,
+    "paymentFrozen": true,
+    "planStatus": "APPROVED",
+    "reservationRelease": "Explicit application event and UI confirm release. The legacy committedMinor export remains the approved plan amount; it is not a reserved-balance measurement.",
+    "applicationChainVerified": true,
+    "missingPrerequisite": "A functioning sandbox checkout followed by a refundable settled tent capture, cancelled before the event while catering is unpaid.",
+    "screenshot": "unpaid-cancellation.png"
+  }
+}

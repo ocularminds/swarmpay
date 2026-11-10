@@ -1,86 +1,49 @@
-**SwarmPay submission checklist**
+# SwarmPay submission readiness — November 10, 2026
 
-The path from here to a submitted entry, and what keeps it working until judging ends. The repository stays private until [Go public and submit](#go-public-and-submit-november-11). Deadline: **November 12, 2026, 12:00 PT** (20:00 UTC); target November 11. Judging runs December 1–15, and the [rules](https://paypalaihackathon.devpost.com/rules) require the demo to stay usable, free and unrestricted until then.
+The [Devpost entry](https://devpost.com/software/swarmpay-multi-agent-commerce-escrow) already says **Submitted to PayPal AI Hackathon**. Its existing [public video](https://www.youtube.com/watch?v=SHIB2tTIrmc) is 115 seconds. The [repository](https://github.com/ocularminds/swarmpay) is public and carries Apache 2.0. This review prepares replacement materials; it does not publish them or deploy the PR stack.
 
-**Done in the repository**
+The [official rules](https://paypalaihackathon.devpost.com/rules), checked November 10, close submissions **November 12, 2026 at noon Pacific / 20:00 UTC / 21:00 Stockholm**. Judging runs **December 1–15**; results are expected around **December 21**. Section 5 restricts changes after the deadline, with limited organizer-permitted exceptions. Keep the submitted links usable and preserve SwarmPay throughout judging. See the [complete requirement matrix](review-implementation-status.md) for evidence and prerequisites.
 
-- [x] README: the **Deploy to Render** button, a live-demo row that matches the live footer, and a link to the latest release record.
-- [x] The Postman agent folder runs against the hosted HTTPS rehearsal with the live environment file and an organizer-issued token after password sign-in, the way the live site requires ([`check-hosted-agent.mjs`](../demo/check-hosted-agent.mjs), in CI). It also shows the site refuses Postman's browser client, which sends an `Origin`; the desktop app sends none.
-- [x] A browser test drives the real PayPal button component for both merchants against a stand-in SDK: each merchant loads its own client ID and intent, tents are paid and catering is authorized. Nothing had covered that component before, because CI runs simulated checkout.
-- [x] [`check-live.mjs`](../demo/check-live.mjs) and the [Watch the live demo](../.github/workflows/live.yml) workflow check swarm.decionis.com every six hours until December 15, anonymously: the landing and its assets, sandbox configuration, both seller client IDs, MCP, the PayPal sign-in redirect and at least 21 days left on the TLS certificate.
-- [x] Bryntum's trial expires **45 days after the schedule first renders in a browser** (it stores `b-scheduler-trial-start` in that browser), then a toast says the trial has expired and the schedule is masked. Each judge's browser starts its own 45 days. A browser that first showed the schedule around October 28 expires around December 12.
-- [x] The video script blurs the brand, product and store on a **Buy tents** line and keeps other companies' names and logos out of frame; the submission text names the store generically. The rules forbid third-party trademarks in the video without permission.
-- [x] Video frames in [`demo/video`](../demo/video): the architecture slide, the title card, a transparent lower third and the narration transcript for YouTube's caption auto-sync. `node demo/video/render.mjs` redraws the PNGs from `slides.html`.
+## Verified and prepared
 
-**Hold renewals and refunds live**
+- [x] Public source, open-source license and anonymous clone. A fresh clone of public `master` `2898d7a` completed `demo/setup.mjs`, `demo/doctor.mjs`, a Docker build/start and the full REST/MCP smoke test. Payments, catalogs and venue in that run were simulated.
+- [x] Existing Devpost submission and public video found directly. The older video remains historical sandbox footage; it does not establish that the review branch is deployed.
+- [x] Brand and UX [PR #39](https://github.com/ocularminds/swarmpay/pull/39) passed CI and was merged. Technical [PR #40](https://github.com/ocularminds/swarmpay/pull/40), rebased onto that merge with an identical source tree, passed [CI on the updated commit](https://github.com/ocularminds/swarmpay/actions/runs/42760202621).
+- [x] Corrected [README](../README.md), [submission story](submission-draft.md), [implementation status](implementation-status.md), [video script](../demo/video-script.md), [judge guide](review/submission/judge-guide.md) and [submission package](review/submission/README.md).
+- [x] Exact supplied SwarmPay colors, fonts/licenses, three cover formats, actual fixture screenshots and separate Kintlo commercial artwork. The 1800×1200 Devpost cover is below 5 MB.
+- [x] Current technical proof: 179 Java tests, 52 configuration/protocol tests, six gateway tests, four payment-state tests, nine hosted browser cases, full REST/MCP smoke, provider HTTP fixtures, isolation and an isolated database/journal restore.
+- [x] Six real Azure/Channel3 planning cases plus four invalid-input rejections; an actual AG Studio analyst answer linked to the recorded held request and dossier. No payment permission was granted by the analyst.
+- [x] Fresh APIMatic SDK and portal generation against all 35 current operations, with ESM and CJS builds. Generated output is prepared locally, not published.
+- [x] Historical PayPal renewal confirmed by an authenticated November 10 read: the October 31 authorization renewed on November 3 at 00:59:01 UTC. No timestamps were changed to simulate age.
+- [x] Existing anonymous live health check passed. It checks assets, sandbox settings, authentication boundaries, PayPal sign-in redirect and TLS; it does not check native checkout or expose the deployed revision.
+- [x] Fresh public sandbox run completed both native merchant popup callbacks, a real outside MCP hold/no capture, simulated venue receipt, later capture, unchanged repeated milestone request and the actual analyst's cited explanation. The temporary token was revoked and rejected afterward. [Evidence](review/evidence/submission/sandbox-rehearsal.json) states the original-receipt replay and deployed-revision limits.
+- [x] Dedicated judge buyer signed in through PayPal to an empty workspace and ledger. Its credentials match the existing saved private Devpost testing field; the owner view reports **SUBMITTED / 5/5 steps done**. [Read-back proof](review/evidence/submission/judge-access.json) contains no credentials.
+- [x] Prepared 165-second, 1920×1080, 30 fps H.264/AAC video with burned captions, SRT, transcript, contact sheet and provenance. It has not replaced the existing public video.
 
-- [x] Merged (#32, #33 through #34) and deployed to swarm.decionis.com on October 31, with the spend dashboard: the live bundle serves the dashboard and the cancel action, and the anonymous live check passes.
-- [x] On October 31, the plan *Stockholm renewal rehearsal* was approved on the live site, with $900 catering authorized and nothing captured, for an event on November 5 at 18:00 Stockholm time. Its hold becomes due for renewal around November 3, 01:59: its honor period ends then, after *event − 3 days* (November 2, 18:00). The tents are unpaid in this plan, which doesn't affect the renewal.
-- [ ] Redeploy the commerce application with #36 (merged October 31) before November 3, so only holds for events still ahead are renewed. Then check the ledger for any **Renew the hold** row on a past event: each stale order can have at most one, from before the fix.
-- [ ] After November 3, 02:00, check *Stockholm renewal rehearsal*. The timeline should say *PayPal renewed the catering hold*, the catering line should carry a new authorization ID, and the schedule should show two honor periods. If PayPal refuses, the timeline says so and the hold stays as it was; SwarmPay tries once per order. Record the result, with both authorization IDs, in [implementation status](implementation-status.md) and in the submission's live-verification TODO.
-- [x] The APIMatic PayPal Context Plugin is installed for Claude Code and Codex: its `paypal:java-*` skills load in this project's sessions. The renewal and refund code follows those skills. For APIMatic's form, link the repository and PR #32 and describe that use.
+## Finish in the owning accounts
 
-**The spend dashboard**
+| Item | Exact remaining action | Acceptance |
+| --- | --- | --- |
+| Review deployment | Merge the remaining reviewed changes, build immutable images through the repository release workflow and approve deployment to the existing judged site. Preserve database, journal, OAuth callbacks and payment identities. | Record the actual deployed commit/digests; run anonymous health, authenticated browser acceptance, a sandbox rehearsal and native-chain verification against that release. |
+| Devpost replacement | Review the exact story, fields, gallery and video package linked above, then save them in the existing entry using the owner account before the deadline. Keep the current slug and SwarmPay name. | Read back the saved fields, gallery, video and submitted status; inspect the public page signed out. |
+| Private judge instructions | The saved credentials already match the verified clean judge buyer. If applying the revised instructions, copy the prepared private text to the same field along with the reviewed submission update. | Preserve the working credentials and private visibility; read back the new text. Shared judge plans and the exact proof limits remain disclosed. |
+| New video publication | Review the prepared approximately 2:45 edit and its provenance, then upload it to the owner-selected public video account if replacing the existing 115-second video. | Public, playable, under three minutes, legible, captioned, no private credentials, precise simulation/deployment labels. Replace the entry link only after the public URL exists. |
+| Sandbox refund | Complete a new tent checkout when the sandbox SDK frame is available, then cancel before the event while catering is unpaid. The November 10 attempt created no payment and was cancelled. | Record the actual settled refund and reservation outcome. An unpaid cancellation or HTTP fixture is not a refund. |
+| Live original-receipt replay | Obtain the original valid signed envelope or authorized access to the deployed signer/storage. The public UI returns acceptance, and exports contain a digest rather than the signed bytes. | Resend the same valid receipt, verify unchanged capture IDs/total and command identities, and distinguish it from the passing live MCP payment-request replay. |
+| AG Studio | Obtain a license or written evaluation extension covering the entire judging window. The recorded AG Studio Pro trial expires **December 15 at 00:00 UTC**, before judging ends. | Written grant/key validity through the end of December 15 and a rendered check of the licensed build. Do not infer validity from absence of a watermark. |
+| Bryntum | Obtain the actual hackathon/evaluation grant or licensed package rights through judging. The current dependency is `scheduler-trial@7.3.7`. | Written scope/expiry and a rendered check. Keep notices visible; never reset trial storage or use a fresh profile as a licensing workaround. |
+| Operations | Name a primary and backup operator, agree backup storage, encryption/key access, retention, recovery objectives and incident authority. | Owners receive the existing monitoring/restore runbook; a restore of the actual deployment and its journal passes with provider reconciliation. |
 
-- [x] `AG_STUDIO_LICENSE_KEY` is set on the live site, and its `/api/config` serves the key. Check that it covers the AI features and lasts through December 15, and set it in your local `.env` too.
-- [x] On October 31, the dashboard's AI check passed on the live site, along with CI and the desktop and mobile checks; the video script's 1:56–2:18 beat stays.
+## Proof boundaries
 
-**Before recording (by November 6)**
+The October 28/31 records remain historical sandbox evidence. The separate October 31 rehearsal for workflow `56cd5676…` completed the app callback outside the popup; its coverage remains qualified. The November 10 public run freshly verified both native callbacks and a real MCP request/replay. Fresh fixture tests separately cover exact receipt replay, pending results, cancellation and recovery. See [implementation status](implementation-status.md) for precise dates and scopes.
 
-- [x] The submission-readiness work is merged; the live-demo watch runs from `master`.
-- [x] PR #35, the rewritten submission text and video script, is merged.
-- [ ] Regenerate the APIMatic SDK and docs portal (`node demo/apimatic.mjs`): they were generated from the 31-operation API description, which now has 33 operations (cancel and the dashboard agent).
-- [ ] Ask Bryntum (a sponsor) for a hackathon license. If one arrives, change the alias in `apps/web/package.json` to the licensed package, update `NOTICE`, and redeploy the web image before recording. Without one, judges are unaffected; record in a fresh browser profile, as the script already says.
-- [ ] Rehearse on the live site the same day you record, in the script's fresh profile:
-  - **Tents through the PayPal buttons.** Only catering has used the buttons live; the October 28 tents payment went through the API. If a button shows *Payment command is being processed*, the 3-second worker claimed the checkout first: choose the button again, and it continues the same order.
-  - **Postman as the agent.** Postman desktop app, **New → MCP → HTTP**, `https://swarm.decionis.com/mcp`, Bearer token from **Agents**. Or run the collection's **2 · Be the agent** folder with `SwarmPay-live.postman_environment.json`, as CI does on the rehearsal.
-  - When both pass, record them in [implementation status](implementation-status.md) (the MCP row and the sponsor-tools paragraph still say they are unverified live), and remove the rehearsal note from the [video script](../demo/video-script.md).
+A paid catering service cannot use the automatic pre-event cancellation path. Before the event, while catering remains unpaid, cancellation requests a full tents refund and releases the catering authorization; exposure stays reserved until settlement is known. Partial delivery/refunds, cancellation fees, extra milestones and other currencies require agreed rules. The [merchant checklist](review/submission/merchant-and-delivery-terms.md) names the missing agreements.
 
-**Record and publish the video (by November 8)**
+The current authority is AgentSafe's local test authority. The configured venue is a simulated Ed25519 signer. Real issuer credentials/contracts, hosted Decionis enforcement and approval/resume remain prerequisites, as do actual customer interviews. No local fixture or signed receipt establishes physical delivery or commercial acceptance.
 
-- [ ] Record from the [video script](../demo/video-script.md), under 3:00. Blur the PayPal sandbox login, the agent token and the brand, product and store on the **Buy tents** line.
-- [ ] Record the README's **Deploy to Render** cut after going public, or from a local Markdown preview, so GitHub's *Private* label isn't in frame.
-- [ ] Upload to YouTube as **Public**; add [`demo/video/transcript.txt`](../demo/video/transcript.txt) under **Subtitles → Add → Auto-sync**.
-- [ ] Put the link in the README's video row and the [submission draft](submission-draft.md). Revoke the agent token used for recording.
+## Keep the judged service usable
 
-**Devpost entry (by November 10)**
+[The existing workflow](../.github/workflows/live.yml) runs the anonymous health check every six hours through December 15. GitHub sends failure notifications according to its existing settings; the review has not assigned an incident owner. Use the [technical operating runbook](review/technical-review.md#recovery-and-operating-requirements) for native-chain integrity, stable payment reconciliation and recovery.
 
-- [ ] Gallery screenshots: the completed plan, a PayPal sandbox approval, the schedule, the ledger with a filtered total, and Postman's held answer. Keep the sandbox buyer's email and any Buy tents brand or store out of them, then remove the screenshots TODO from the draft.
-- [ ] Paste the [submission draft](submission-draft.md) as its note describes. Enter AG Grid, APIMatic, Bryntum, Channel3 and Render as sponsor tools.
-- [ ] A clean account for judges and the recording. Judges who sign in with the same sandbox buyer, or with the organizer password, all share one organizer account, and see every plan in it. The live organizer account now lists test plans such as *outdoors* and a plan named after a street address. Create a fresh PayPal sandbox buyer in the developer dashboard for judges, record in an account whose plans you're happy to show, and keep street addresses out of plan names and venues.
-- [ ] Testing instructions, privately in Devpost only: the PayPal sandbox buyer, the organizer password login, keeping the event about an hour ahead, and the delivery button. Use credentials that stay valid through December 15.
-
-**Go public and submit (November 11)**
-
-- [ ] In [implementation status](implementation-status.md), replace *This is not yet a completed hackathon submission*. In the draft, fill in the code URL and drop *it is private today*.
-- [ ] Make the repository public and set its About section; GitHub then shows the Apache-2.0 license there, as the rules require:
-
-  ```bash
-  gh repo edit ocularminds/swarmpay --visibility public --accept-visibility-change-consequences
-  ```
-
-  ```bash
-  gh repo edit ocularminds/swarmpay --description "Give agents a budget. Pay merchants only on agreed terms. PayPal + AI agent commerce." --homepage https://swarm.decionis.com --add-topic paypal --add-topic ai-agents --add-topic mcp --add-topic agentic-commerce
-  ```
-
-- [ ] Open the repository signed out: the license shows in About, and the **Deploy to Render** button opens Render's deploy page.
-- [ ] Run a judge's three commands from a fresh public clone. The project name keeps it apart from your own stack's volumes; stop your stack first (`docker compose stop`), because both use port 5173.
-
-  ```bash
-  git clone https://github.com/ocularminds/swarmpay.git /tmp/swarmpay-judge && cd /tmp/swarmpay-judge && node demo/setup.mjs && node demo/doctor.mjs && COMPOSE_PROJECT_NAME=swarm-pay-judge docker compose up --build -d --wait
-  ```
-
-  Walk the journey at <http://localhost:5173>, then `COMPOSE_PROJECT_NAME=swarm-pay-judge docker compose down --volumes` in that clone and `docker compose up -d --wait` in yours.
-- [ ] Submit on Devpost, and check that the entry shows as submitted, not as a draft.
-
-**Through judging (to December 15)**
-
-- [ ] Keep running: the `decionis-aks` deployments, the Azure OpenAI `gpt-6-astra` deployment and its quota, both PayPal sandbox seller apps, SwarmPay's PayPal sign-in app, the sandbox buyer, and the Channel3 key. The TLS certificate is valid until January 23, 2027.
-- [ ] Don't change the live site after submitting except to fix it. The rules require it to work as the video and text describe.
-- [ ] Watch for failed **Watch the live demo** runs; GitHub emails them to whoever last changed the schedule. After judging, delete `.github/workflows/live.yml`.
-
-**Decisions**
-
-- **Infrastructure names in public history.** `infra/azure/target.json` and the release records name the resource group, AKS cluster, registry, namespace and a private DNS address. None is a credential, and git history already holds them, so removing them now would mean rewriting history. Recommended: accept.
-- **A Render copy for judges (optional).** The Render prize judges may prefer a running copy. Six services run on Starter instances; check [docs/render.md](render.md) for costs and the sponsor's $50 credit.
-- **APIMatic's subscription offer (optional).** It also asks for evidence of the PayPal Context Plugin ([APIMatic](../contracts/apimatic/README.md)).
+The reused local journal has preserved sequence gaps. Do not erase, resequence or replace it to claim continuity. The fresh isolated restore passed independently. Keep public URLs, free judge access, sandbox resources, valid licenses, TLS, model/catalog access and operator availability through judging. Commercial Kintlo launch needs a separate owner decision, verified domain ownership and trademark clearance after checking the rules and actual results.

@@ -1,0 +1,304 @@
+{
+  "durationSeconds": 165,
+  "sampleRate": 24000,
+  "voice": "Kokoro v1.0 / af_heart",
+  "voiceKind": "Generic synthetic voice; no impersonation or human presenter supplied.",
+  "speed": 1.02,
+  "modelLicense": "Apache-2.0",
+  "modelSource": "https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.1",
+  "package": "0.6.1",
+  "scenes": [
+    {
+      "id": "intro",
+      "target": 10,
+      "title": "Plan with AI. Pay on your terms.",
+      "narration": "Office and community events involve different suppliers and payment terms. SwarmPay lets AI prepare the plan, while your approvals and verified delivery evidence control payment.",
+      "speechSeconds": 11.295333333333332,
+      "start": 0,
+      "duration": 12.782085240074984,
+      "end": 12.782085240074984
+    },
+    {
+      "id": "plan",
+      "target": 17,
+      "title": "One plan. Two PayPal approvals.",
+      "narration": "This is a fresh PayPal sandbox run. Azure interpreted thirty guests, five rental tents, rain, and a fifteen hundred dollar budget. Its sourced plan totals fourteen hundred dollars. I approve those exact terms.",
+      "speechSeconds": 13.091958333333332,
+      "start": 12.782085240074984,
+      "duration": 16.026411874149165,
+      "end": 28.80849711422415
+    },
+    {
+      "id": "tents",
+      "target": 14,
+      "title": "Tents: $500 captured",
+      "narration": "The native PayPal button opens the tents merchant's checkout. I approve five hundred dollars of test money. PayPal captures it, and the application receives the native callback.",
+      "speechSeconds": 10.79125,
+      "start": 28.80849711422415,
+      "duration": 13.24546365536395,
+      "end": 42.0539607695881
+    },
+    {
+      "id": "catering",
+      "target": 14,
+      "title": "Catering: $900 authorized",
+      "narration": "The caterer has a separate PayPal approval. Nine hundred dollars is authorized, while paid money stays at five hundred. An authorization is not escrow.",
+      "speechSeconds": 9.694666666666667,
+      "start": 42.0539607695881,
+      "duration": 12.901961017098401,
+      "end": 54.9559217866865
+    },
+    {
+      "id": "mcp",
+      "target": 17,
+      "title": "An outside agent asks to pay",
+      "narration": "Now an outside Node client connects through the real MCP endpoint. It can read this organizer's plan and request a milestone. Its attempt to grant human consent is refused.",
+      "speechSeconds": 11.489958333333334,
+      "start": 54.9559217866865,
+      "duration": 15.52458842874929,
+      "end": 70.4805102154358
+    },
+    {
+      "id": "held",
+      "target": 19,
+      "title": "ESCALATE \u00b7 HELD",
+      "narration": "The catering request returns ESCALATE and HELD. No verified delivery receipt is attached. The record cites synthetic dossier five, because this demo uses a local test authority. The authorization remains intact, and no catering capture is sent.",
+      "speechSeconds": 16.016583333333333,
+      "start": 70.4805102154358,
+      "duration": 18.316048892378166,
+      "end": 88.79655910781396
+    },
+    {
+      "id": "receipt",
+      "target": 18,
+      "title": "Evidence permits the capture",
+      "narration": "The simulated venue signs delivery facts bound to this event, merchant, and quantity. SwarmPay verifies the statement and time window. PayPal then captures nine hundred dollars. A signature authenticates the venue's statement; it does not prove physical delivery.",
+      "speechSeconds": 16.858666666666668,
+      "start": 88.79655910781396,
+      "duration": 18.34541857340832,
+      "end": 107.14197768122229
+    },
+    {
+      "id": "replay",
+      "target": 16,
+      "title": "Replay: still $1,400",
+      "narration": "I repeat the milestone request. It returns the same capture. Tents and catering still total fourteen hundred dollars, with one capture for each merchant. The evidence export verifies its application record chain.",
+      "speechSeconds": 13.427875,
+      "start": 107.14197768122229,
+      "duration": 15.444885222734548,
+      "end": 122.58686290395684
+    },
+    {
+      "id": "analyst",
+      "target": 23,
+      "title": "An explanation tied to the record",
+      "narration": "I ask AG Studio why the earlier request was held. Its analyst cites dossier five, explains the missing receipt, and separates that hold from the later completed capture. The assistant can explain payments, never approve them.",
+      "speechSeconds": 14.392583333333333,
+      "start": 122.58686290395684,
+      "duration": 20.55434161589321,
+      "end": 143.14120451985005
+    },
+    {
+      "id": "review",
+      "target": 10,
+      "title": "Review build \u00b7 prepared for publication",
+      "narration": "The pull requests also prepare the updated interface and gallery. These are local review screenshots; the recorded sandbox flow uses the existing public deployment.",
+      "speechSeconds": 10.616666666666667,
+      "start": 143.14120451985005,
+      "duration": 12.10341857340832,
+      "end": 155.24462309325838
+    },
+    {
+      "id": "close",
+      "target": 7,
+      "title": "Try SwarmPay",
+      "narration": "Try SwarmPay using the private judge instructions. AI plans. You approve. Payment follows verified terms.",
+      "speechSeconds": 8.268625,
+      "start": 155.24462309325838,
+      "duration": 9.755376906741652,
+      "end": 165.00000000000003
+    }
+  ],
+  "cues": [
+    {
+      "start": 0.35,
+      "end": 4.849333333333333,
+      "text": "Office and community events involve different suppliers and payment terms."
+    },
+    {
+      "start": 4.989333333333333,
+      "end": 11.505333333333333,
+      "text": "SwarmPay lets AI prepare the plan, while your approvals and verified delivery evidence control payment."
+    },
+    {
+      "start": 13.132085240074984,
+      "end": 15.449418573408318,
+      "text": "This is a fresh PayPal sandbox run."
+    },
+    {
+      "start": 15.589418573408317,
+      "end": 21.320085240074985,
+      "text": "Azure interpreted thirty guests, five rental tents, rain, and a fifteen hundred dollar budget."
+    },
+    {
+      "start": 21.46008524007498,
+      "end": 24.04471024007498,
+      "text": "Its sourced plan totals fourteen hundred dollars."
+    },
+    {
+      "start": 24.184710240074985,
+      "end": 26.084043573408316,
+      "text": "I approve those exact terms."
+    },
+    {
+      "start": 29.15849711422415,
+      "end": 32.79449711422415,
+      "text": "The native PayPal button opens the tents merchant's checkout."
+    },
+    {
+      "start": 32.93449711422415,
+      "end": 35.48912211422415,
+      "text": "I approve five hundred dollars of test money."
+    },
+    {
+      "start": 35.62912211422415,
+      "end": 39.80974711422415,
+      "text": "PayPal captures it, and the application receives the native callback."
+    },
+    {
+      "start": 42.4039607695881,
+      "end": 45.0299607695881,
+      "text": "The caterer has a separate PayPal approval."
+    },
+    {
+      "start": 45.1699607695881,
+      "end": 49.543960769588104,
+      "text": "Nine hundred dollars is authorized, while paid money stays at five hundred."
+    },
+    {
+      "start": 49.683960769588104,
+      "end": 51.95862743625477,
+      "text": "An authorization is not escrow."
+    },
+    {
+      "start": 55.305921786686504,
+      "end": 59.783921786686506,
+      "text": "Now an outside Node client connects through the real MCP endpoint."
+    },
+    {
+      "start": 59.923921786686506,
+      "end": 63.571213453353174,
+      "text": "It can read this organizer's plan and request a milestone."
+    },
+    {
+      "start": 63.71121345335317,
+      "end": 66.65588012001983,
+      "text": "Its attempt to grant human consent is refused."
+    },
+    {
+      "start": 70.8305102154358,
+      "end": 73.66984354876912,
+      "text": "The catering request returns ESCALATE and HELD."
+    },
+    {
+      "start": 73.80984354876912,
+      "end": 76.50851021543579,
+      "text": "No verified delivery receipt is attached."
+    },
+    {
+      "start": 76.64851021543579,
+      "end": 82.34380188210245,
+      "text": "The record cites synthetic dossier five, because this demo uses a local test authority."
+    },
+    {
+      "start": 82.48380188210245,
+      "end": 86.70709354876912,
+      "text": "The authorization remains intact, and no catering capture is sent."
+    },
+    {
+      "start": 89.14655910781396,
+      "end": 94.49922577448062,
+      "text": "The simulated venue signs delivery facts bound to this event, merchant, and quantity."
+    },
+    {
+      "start": 94.63922577448062,
+      "end": 97.78722577448062,
+      "text": "SwarmPay verifies the statement and time window."
+    },
+    {
+      "start": 97.92722577448062,
+      "end": 100.60455910781396,
+      "text": "PayPal then captures nine hundred dollars."
+    },
+    {
+      "start": 100.74455910781396,
+      "end": 105.86522577448062,
+      "text": "A signature authenticates the venue's statement; it does not prove physical delivery."
+    },
+    {
+      "start": 107.49197768122228,
+      "end": 109.47797768122228,
+      "text": "I repeat the milestone request."
+    },
+    {
+      "start": 109.61797768122229,
+      "end": 111.41326934788896,
+      "text": "It returns the same capture."
+    },
+    {
+      "start": 111.55326934788894,
+      "end": 116.90722768122228,
+      "text": "Tents and catering still total fourteen hundred dollars, with one capture for each merchant."
+    },
+    {
+      "start": 117.04722768122228,
+      "end": 120.77985268122228,
+      "text": "The evidence export verifies its application record chain."
+    },
+    {
+      "start": 122.93686290395684,
+      "end": 126.24282123729017,
+      "text": "I ask AG Studio why the earlier request was held."
+    },
+    {
+      "start": 126.38282123729017,
+      "end": 133.76344623729017,
+      "text": "Its analyst cites dossier five, explains the missing receipt, and separates that hold from the later completed capture."
+    },
+    {
+      "start": 133.90344623729015,
+      "end": 137.18944623729016,
+      "text": "The assistant can explain payments, never approve them."
+    },
+    {
+      "start": 143.49120451985004,
+      "end": 147.45987118651672,
+      "text": "The pull requests also prepare the updated interface and gallery."
+    },
+    {
+      "start": 147.5998711865167,
+      "end": 153.9678711865167,
+      "text": "These are local review screenshots; the recorded sandbox flow uses the existing public deployment."
+    },
+    {
+      "start": 155.59462309325838,
+      "end": 158.92191475992504,
+      "text": "Try SwarmPay using the private judge instructions."
+    },
+    {
+      "start": 159.06191475992503,
+      "end": 160.27524809325837,
+      "text": "AI plans."
+    },
+    {
+      "start": 160.41524809325838,
+      "end": 161.4692480932584,
+      "text": "You approve."
+    },
+    {
+      "start": 161.60924809325837,
+      "end": 163.72324809325838,
+      "text": "Payment follows verified terms."
+    }
+  ]
+}

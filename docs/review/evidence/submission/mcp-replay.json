@@ -1,0 +1,98 @@
+{
+  "checkedAt": "2026-11-10T05:23:06.146Z",
+  "site": "https://swarm.decionis.com",
+  "mode": "sandbox",
+  "authority": "AgentSafe · local test authority",
+  "workflowId": "5f2b75f3-50e1-4980-a140-bbdda07b1e02",
+  "scope": "Real HTTP MCP client outside the browser, dedicated fictional recording buyer, PayPal sandbox test money. Public deployment; not proof that the review PR is deployed.",
+  "protocol": "2025-11-25",
+  "tools": [
+    "assess_plan",
+    "get_offer",
+    "get_payment_evidence",
+    "get_workflow_status",
+    "propose_checkout",
+    "request_milestone_payment",
+    "search_offers"
+  ],
+  "humanConsentDenied": 403,
+  "request": {
+    "method": "tools/call",
+    "name": "request_milestone_payment",
+    "arguments": {
+      "workflowId": "5f2b75f3-50e1-4980-a140-bbdda07b1e02"
+    }
+  },
+  "result": {
+    "state": "SUCCEEDED",
+    "execution": "FORWARDED",
+    "decisionId": "synthetic-decision-6",
+    "dossierId": "synthetic-dossier-6",
+    "intentHash": "sha256:cb5f20c963e7fe91801cb029fde588ca4a3a26de13cd6bee1849d9e39b6d7f8b",
+    "intentId": null,
+    "message": "Payment capture confirmed for catering.",
+    "result": {
+      "status": "CAPTURED",
+      "providerOrderId": "1NS50691S6250244N",
+      "authorizationId": "83N7533909747615T",
+      "captureId": "2YW87088SS338432L",
+      "approvalUrl": null,
+      "amountMinor": 90000,
+      "currency": "USD",
+      "merchantId": "catering",
+      "source": "PAYPAL_SANDBOX",
+      "refundId": null
+    }
+  },
+  "before": {
+    "capturedMinor": 140000,
+    "receiptVerified": true,
+    "committedMinor": 140000,
+    "orders": [
+      {
+        "id": "f9418511-7f3f-4018-99ac-2a111d282e0c",
+        "category": "TENTS",
+        "status": "CAPTURED",
+        "amountMinor": 50000,
+        "providerOrderId": "99378333TL683262T",
+        "authorizationId": null,
+        "captureId": "3WN51437L71088039"
+      },
+      {
+        "id": "6ce3d20e-b535-4c24-8e09-54c4f27a8179",
+        "category": "CATERING",
+        "status": "CAPTURED",
+        "amountMinor": 90000,
+        "providerOrderId": "1NS50691S6250244N",
+        "authorizationId": "83N7533909747615T",
+        "captureId": "2YW87088SS338432L"
+      }
+    ]
+  },
+  "after": {
+    "capturedMinor": 140000,
+    "receiptVerified": true,
+    "committedMinor": 140000,
+    "orders": [
+      {
+        "id": "f9418511-7f3f-4018-99ac-2a111d282e0c",
+        "category": "TENTS",
+        "status": "CAPTURED",
+        "amountMinor": 50000,
+        "providerOrderId": "99378333TL683262T",
+        "authorizationId": null,
+        "captureId": "3WN51437L71088039"
+      },
+      {
+        "id": "6ce3d20e-b535-4c24-8e09-54c4f27a8179",
+        "category": "CATERING",
+        "status": "CAPTURED",
+        "amountMinor": 90000,
+        "providerOrderId": "1NS50691S6250244N",
+        "authorizationId": "83N7533909747615T",
+        "captureId": "2YW87088SS338432L"
+      }
+    ]
+  },
+  "captureIdsUnchanged": true
+}

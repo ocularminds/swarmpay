@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-11-10T05:16:27.214Z",
+  "site": "https://swarm.decionis.com",
+  "mode": "sandbox",
+  "authority": "AgentSafe · local test authority",
+  "workflowId": "5f2b75f3-50e1-4980-a140-bbdda07b1e02",
+  "scope": "Real HTTP MCP client outside the browser, dedicated fictional recording buyer, PayPal sandbox test money. Public deployment; not proof that the review PR is deployed.",
+  "protocol": "2025-11-25",
+  "tools": [
+    "assess_plan",
+    "get_offer",
+    "get_payment_evidence",
+    "get_workflow_status",
+    "propose_checkout",
+    "request_milestone_payment",
+    "search_offers"
+  ],
+  "humanConsentDenied": 403,
+  "request": {
+    "method": "tools/call",
+    "name": "request_milestone_payment",
+    "arguments": {
+      "workflowId": "5f2b75f3-50e1-4980-a140-bbdda07b1e02"
+    }
+  },
+  "result": {
+    "state": "ESCALATE",
+    "execution": "HELD",
+    "decisionId": "synthetic-decision-5",
+    "dossierId": "synthetic-dossier-5",
+    "intentHash": "sha256:e8367be39ccbcf7dc73138b154ce022d6e715a98f7d5613e1a7da259ec5c545f",
+    "intentId": "4f44cfce-ac4c-4560-8ce2-8725413b6bd4",
+    "message": "AgentSafe held the agent's request to pay catering for human review: no verified delivery receipt is attached. No payment was sent.",
+    "result": null
+  },
+  "before": {
+    "capturedMinor": 50000,
+    "receiptVerified": false,
+    "committedMinor": 140000,
+    "orders": [
+      {
+        "id": "f9418511-7f3f-4018-99ac-2a111d282e0c",
+        "category": "TENTS",
+        "status": "CAPTURED",
+        "amountMinor": 50000,
+        "providerOrderId": "99378333TL683262T",
+        "authorizationId": null,
+        "captureId": "3WN51437L71088039"
+      },
+      {
+        "id": "6ce3d20e-b535-4c24-8e09-54c4f27a8179",
+        "category": "CATERING",
+        "status": "AUTHORIZED",
+        "amountMinor": 90000,
+        "providerOrderId": "1NS50691S6250244N",
+        "authorizationId": "83N7533909747615T",
+        "captureId": null
+      }
+    ]
+  },
+  "after": {
+    "capturedMinor": 50000,
+    "receiptVerified": false,
+    "committedMinor": 140000,
+    "orders": [
+      {
+        "id": "f9418511-7f3f-4018-99ac-2a111d282e0c",
+        "category": "TENTS",
+        "status": "CAPTURED",
+        "amountMinor": 50000,
+        "providerOrderId": "99378333TL683262T",
+        "authorizationId": null,
+        "captureId": "3WN51437L71088039"
+      },
+      {
+        "id": "6ce3d20e-b535-4c24-8e09-54c4f27a8179",
+        "category": "CATERING",
+        "status": "AUTHORIZED",
+        "amountMinor": 90000,
+        "providerOrderId": "1NS50691S6250244N",
+        "authorizationId": "83N7533909747615T",
+        "captureId": null
+      }
+    ]
+  },
+  "captureIdsUnchanged": true
+}

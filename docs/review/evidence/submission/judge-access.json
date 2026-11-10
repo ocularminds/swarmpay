@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-11-10T05:58:18.440Z",
+  "site": "https://swarm.decionis.com",
+  "route": "Sign in → Continue with PayPal → existing dedicated sandbox judge buyer → native redirect",
+  "loginVerified": true,
+  "existingAccount": true,
+  "workspaceHadNoPlans": true,
+  "ledgerText": "No payments yet. Approve a plan and pay a merchant to see it here.",
+  "testPlanCreated": false,
+  "paymentCreated": false,
+  "credentialsLocation": "Private operator file; never in public source or media",
+  "privateDevpostFieldReadBack": true,
+  "savedField": {
+    "checkedAt": "2026-11-10T05:59:23.100Z",
+    "field": "Testing instructions or credentials the judges need to test your project, if any.",
+    "savedFieldReadBack": true,
+    "containsVerifiedJudgeEmail": true,
+    "containsVerifiedJudgePassword": true,
+    "containsLiveSite": true,
+    "formChanged": false
+  }
+}

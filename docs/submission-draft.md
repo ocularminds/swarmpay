@@ -1,226 +1,91 @@
-**SwarmPay Devpost submission text**
+# SwarmPay — prepared Devpost update
 
-_Maintainer notes, not for pasting:_
+Prepared November 10, 2026. This is reviewable replacement text; it has not been pasted or published by this review. The [existing entry](https://devpost.com/software/swarmpay-multi-agent-commerce-escrow) already shows **Submitted to PayPal AI Hackathon**. Keep the SwarmPay identity and working project URL. The name in the URL is historical; the product is not escrow.
 
-- _The [submission checklist](submission-checklist.md) has the steps and dates. Submit before **November 12, 2026, 12:00 PT** (20:00 UTC); target November 11. Submitting by November 5 gets an early eligibility review, and the entry stays editable until the deadline._
-- _Where things go: the **Elevator pitch** goes in the tagline field, **Built with** in the tags, and everything from **SwarmPay at a glance** to **What's next** in **About the project**. **Testing instructions** go in Devpost's private testing field and never in this file._
-- _Replace every `[TODO …]` or delete the sentence it sits in. Each one marks a result that has to be verified on the live site first, so never fill one with an expected value._
-- _Sponsor tools to tick: AG Grid, APIMatic, Bryntum, Channel3, Render and Postman. A project can win at most one sponsor prize, plus either one grand prize or one honorable mention._
-- _Before submitting: make the repository public (it is private today), recheck the [official rules](https://paypalaihackathon.devpost.com/rules), and remove this note block._
+Use the tagline below in **Elevator pitch**, the narrative in **About the project**, and the technology list in **Built with**. Sponsor-field text and gallery instructions are in [the submission package](review/submission/README.md). Credentials belong only in the private judge field. Review the [checklist](submission-checklist.md) before applying changes; this document is not publication evidence.
 
----
+## Elevator pitch
 
-**Elevator pitch** (Devpost tagline, under 200 characters)
+AI plans your event. You approve the plan and each PayPal checkout. Catering is paid only after a verified venue receipt.
 
-AI agents plan your event and pick the merchants; PayPal pays each one only on the terms you approved. Agents can ask to pay, but they can never move money.
+## About the project
 
-- **Video:** [TODO: public YouTube URL, under three minutes]
-- **Live demo:** https://swarm.decionis.com. PayPal sandbox payments with test money. Sign up with a PayPal sandbox buyer; the testing instructions have one.
-- **Code:** [TODO: public repository URL], Apache-2.0. Three commands run the whole journey locally with simulated payments, and a **Deploy to Render** button deploys your own copy.
+### Inspiration
 
-## SwarmPay at a glance
+Office and community event organizers coordinate suppliers with different payment terms. Tents may need payment at checkout; catering should be paid against the agreed delivery evidence. The organizer needs one understandable budget and a record of what each merchant was paid.
 
-- **Problem:** an organizer pays several merchants on different terms: tents up front, the caterer only once the food arrives. Handing an AI agent a card puts the whole budget at risk; keeping agents to suggestions wastes them.
-- **Who it's for:** event organizers, small-business owners, office managers and community groups who book vendors for an event, and anyone who pays contractors when a job is signed off.
-- **What it does:** you describe the event in a sentence. AI agents build a plan across two merchants. You approve the exact plan once, and PayPal pays each merchant directly on its own terms: tents captured at checkout, catering authorized and captured only after the venue signs a delivery receipt.
-- **The idea:** agents can ask to pay, but they cannot pay. Every payment command passes AgentSafe, a fail-closed gateway, before a private executor that alone holds the merchants' PayPal credentials. The agents' network has no route to PayPal at all.
-- **PayPal:**
-  - JavaScript SDK Buttons for two sellers on one page.
-  - Orders v2, with a `CAPTURE` intent for tents and `AUTHORIZE` for catering.
-  - Payments v2: capture, void, **reauthorize** and **refund**.
-  - Log in with PayPal, and webhook signature verification for each seller.
-  - The PayPal Java Server SDK for every payment call.
-- **AI:** Azure OpenAI `gpt-6-astra` in three strict-schema roles. An MCP server lets any outside agent ask, including Postman. An AG Studio agent team, with SwarmPay's own **AgentSafe analyst**, explains every payment decision.
-- **Sponsor tools:**
-  - **AG Grid:** an AG Studio spend dashboard with custom widgets and a custom agent.
-  - **Bryntum:** a payment schedule showing PayPal's authorization windows.
-  - **Channel3:** real tent listings, with ratings, for the agent to choose from.
-  - **APIMatic:** a tested OpenAPI document, a generated SDK and docs portal, and the PayPal Context Plugin used to build the PayPal SDK code.
-  - **Render:** a one-button copy of the stack.
-  - **Postman:** plays the agent, in CI too.
+SwarmPay uses AI to prepare that plan and a separate execution boundary to enforce its approved terms.
 
-| Judging criterion | What SwarmPay shows |
-| --- | --- |
-| Technological implementation | PayPal from two-seller checkout to reauthorization and refunds, behind replay-safe, reconciled payment commands. Azure OpenAI in strict-schema roles that code revalidates, an authenticated MCP server, and an AG Studio agent team. Verified in the PayPal sandbox; 173 Java, 58 Node and 11 browser tests run on every change. |
-| Design | One sentence to start, then one next action per step. Plain-language timelines, a schedule of when each merchant is paid, and a spend dashboard you can question. It works on a phone. |
-| Potential impact | Pay up front where that's normal and on delivery where it matters, within one budget. Book catering weeks ahead inside PayPal's authorization rules, and cancel with an automatic refund. The same pattern serves any vendor paid on a milestone. |
-| Innovation | The boundary is infrastructure, not a prompt: a fail-closed gateway, an executor that rechecks everything, and an agent network with no route to PayPal. Signed delivery receipts release funds, and PayPal's own authorize, reauthorize and capture lifecycle replaces escrow. |
-| Presentation | A video of the live sandbox journey in under three minutes, a hosted demo, a three-command local run and a Render copy. |
+### What it does
 
-## Inspiration
+Describe an outdoor meetup for 30 people, five rental tents and catering, with rain forecast and a $1,500 budget. AI turns the brief into editable details and proposes a $1,400 plan: $500 for tents and $900 for catering.
 
-Agent commerce tends to offer two bad options: the agent only recommends, or it gets a card and spends freely. Real purchases sit in between.
+**Approve the plan once, then confirm each merchant in PayPal.** The exact merchants, amounts and receipt condition are bound to the approved plan. Tents are captured at checkout. Catering is authorized, with capture permitted after a matching venue-signed receipt.
 
-Someone organizing a meetup pays the tent company up front but should pay the caterer only once the food arrives, and both have to fit one budget. They may book weeks ahead and still need to cancel cleanly. Small-business owners, office managers and community organizers juggle this across vendors by hand.
+An outside agent can connect through MCP and request the catering payment. An early request is held because its delivery condition is missing. The decision is inspectable. A photo alone cannot release payment, and replaying the same receipt does not create another capture.
 
-We wanted agents to do the legwork of finding and booking, while every payment follows terms the organizer agreed to and no agent can change.
+The workspace keeps one main next action. Its schedule, payments dashboard and ledger distinguish approved budget, authorizations, completed captures, held requests, unknown outcomes and refunds. The dashboard analyst explains a decision using the recorded request and dossier IDs; it has no payment tool.
 
-## What it does
+### How we built it
 
-SwarmPay plans and pays for an event across two merchants, each on its own terms.
+SwarmPay is a Java 21 / Spring Boot application with a React and TypeScript interface and PostgreSQL. It separates planning from payment execution:
 
-1. **Describe the event.** The landing page starts with one box: "An outdoor tech meetup for 30 people at Riverside Pavilion. Rain is forecast. Five tents and catering, $1,500 in total."
-2. **Sign up with PayPal.** **Continue with PayPal** creates the organizer's account from their PayPal name and email, and the description comes along through sign-in.
-3. **Agents plan.**
-   - GPT-6 Astra on Azure OpenAI reads the description into editable details. It never invents a venue the description doesn't name.
-   - The organizer chooses to rent or buy tents.
-   - The **Sourcing Agent** picks the tents and one caterer, from a curated catalog or, to buy tents, from Channel3's in-stock listings, rating included.
-   - A **Risk and Milestone Agent** reviews budget, capacity, weather and timing.
-4. **Approve once.** The organizer approves one exact plan, $1,400 of the $1,500, and the whole amount is reserved.
-5. **Pay each merchant on its terms.** Each merchant gets its own PayPal approval and is paid directly, with no escrow in between. Tents are captured at checkout. Catering is only authorized: the money is held, not taken.
-6. **Agents can ask but not pay.** When an agent asks to pay the caterer before delivery, its own or one connected over MCP, the request goes through AgentSafe and is held. Without a receipt, nothing is paid.
-7. **Pay on delivery.** The caterer is paid when the venue's signed receipt matches the event, merchant, quantity and delivery window. A photo alone is never enough, and replaying a receipt can't pay twice. In the demo, a separate simulated venue signs the receipt.
-8. **Book weeks ahead.** PayPal guarantees an authorization's funds for 3 days and keeps it for 29. So catering can be authorized up to 27 days before the event: SwarmPay renews the hold once its honor period is over and the event is near, and pays the caterer from the fresh authorization. No money moves when a hold is renewed.
-9. **Cancel cleanly.** Cancelling before the event stops all further payments, refunds the tents through PayPal and voids the catering hold, each through AgentSafe. It then releases the budget.
+- The commerce app records the exact consent and whole-plan reservation in integer USD cents. It can reach the configured AI/catalog services but cannot reach PayPal or the private executor directly.
+- AgentSafe is a fail-closed gateway before the private payment executor. The executor alone holds merchant payment credentials and repeats the consent, amount, payee, reservation and receipt checks.
+- Each payment command has a durable identity and PayPal request ID. An uncertain response is reconciled under that identity while budget stays reserved.
+- A separate simulated venue holds the Ed25519 signing key. Receipt verification binds the issuer, event, merchant, quantity, time window and nonce to the approved contract.
+- Seven typed MCP tools give an organizer's agent bounded access. Human plan approval and token issuance are excluded. Tokens are revocable and stored as hashes.
 
-Around that journey:
+### PayPal and AI
 
-- **See when each merchant is paid.** A schedule shows each payment against the delivery window, shades PayPal's honor period for every authorization, and marks renewals, refunds and held requests.
-- **Ask about your money.** **Payments** opens a spend dashboard: what was paid, what is held until delivery, what AgentSafe stopped, and each plan against its budget. Ask its agents "why was the caterer's payment held?" and SwarmPay's AgentSafe analyst answers from the ledger, citing the decision record.
-- **Bring your own agent.** Organizers issue agent tokens under **Agents**, and any MCP client can connect with one, including Postman's. An agent reads the plan and can ask for payments. It cannot approve a plan or issue another token, and it acts only for the organizer who issued it.
-- **Prove it.** A plain-language timeline shows what happened, and the full payment record exports as tamper-evident evidence.
+The PayPal JavaScript SDK loads each merchant with its own namespace and intent. Orders v2 captures tents and authorizes catering. Payments v2 captures on verified receipt, can renew an eligible catering authorization, and supports the full tents refund/catering void used by cancellation. Webhooks are signature-verified per seller and prompt provider reconciliation. A separate service handles Log in with PayPal.
 
-## How we built it
+Azure OpenAI `gpt-6-astra` performs typed extraction, a sourcing choice constrained to catalog offer IDs, and a risk/milestone assessment. Java validates the result; catalog prices determine the amounts. An over-budget draft cannot be approved or start checkout. The model does not choose arbitrary payees or control merchant credentials.
 
-We built SwarmPay from scratch during the hackathon; the first commit is from October 25, 2026. It is a Java 21 / Spring Boot monorepo with a React and TypeScript UI, running as eight services on Azure Kubernetes Service:
+### Sponsor tools
 
-- **Commerce app.** It plans, records consent and runs the agents. Its network has no route to PayPal: the only way out is an egress proxy that admits the model host and Channel3, and refuses PayPal by name and address.
-- **Private payment executor.** The only service with the merchants' PayPal credentials. Before every PayPal call it rechecks consent, the budget reservation, the exact amount and payee, and the delivery receipt.
-- **AgentSafe gateway.** Every payment command reaches the executor through this gateway in fail-closed mode. An agent's request takes the same path, so it can be held.
-- **PayPal sign-in service.** It alone holds SwarmPay's Log in with PayPal secret, and it returns who signed in, never a token.
-- **Simulated venue.** It holds the only receipt-signing key, an Ed25519 key.
-- **Egress proxy, web front end and PostgreSQL.** Money is kept in integer cents, with atomic whole-plan reservations, durable payment-command identities and a SHA-256 audit chain.
+- **AG Grid and AG Studio:** a searchable ledger, settled-money totals, configurable charts, per-plan budget widgets and inspectable authority decisions. Studio's agent framework delegates payment questions to SwarmPay's analyst, which reads the same recorded outcomes and cites the evidence.
+- **Bryntum Scheduler:** merchant payment timing, the delivery window, authorization honor periods, actual captures/voids/refunds and explicitly planned renewal markers.
+- **Channel3:** server-side sourcing of in-stock USD purchase listings when the organizer chooses to buy tents. The current sandbox pays the configured test tents merchant; it does not place an order with the listed retailer.
+- **APIMatic:** OpenAPI validation and fresh TypeScript SDK/documentation generation from the current **35-operation** description, with session/CSRF requirements. Both generated module builds passed. We also used the PayPal Context Plugin in the earlier renewal/refund implementation; its use is recorded with that work.
+- **Render:** a tested Blueprint for a copy with simulated payments. Render's deployment does not enforce the payment isolation required for real merchant credentials, so the copy contains none.
+- **Postman:** an outside MCP client with an organizer-issued token. The hosted fixture collection exercises denied approval, an early held request, evidence retrieval and revocation.
 
-Seven typed MCP tools expose the workflow to outside agents; approving a plan is deliberately not one of them. Agent tokens are stored only as hashes, shown once, revocable, and resolved to their organizer on every call.
+### Verified behavior and limits
 
-Every payment is a command with one identity:
+**Fresh public sandbox rehearsal, November 10:** both merchant flows completed through their actual PayPal SDK buttons, popup approvals and native callbacks. Tents captured $500; catering authorized $900. A real outside Node MCP client requested catering payment before delivery and received `ESCALATE / HELD`, citing `synthetic-dossier-5`. The paid total stayed $500 and there was no catering capture command. The simulated venue's receipt then permitted the $900 capture. Repeated MCP milestone requests returned the same capture, with five original payment commands and $1,400 still paid. The actual AG Studio analyst explained the earlier hold and separated the later successful payment. The temporary token was revoked and rejected with HTTP 401 afterward.
 
-- It is recorded before it is sent, carries a `PayPal-Request-Id`, and is checked against PayPal's answer.
-- An unclear answer, such as a timeout or a 5xx, becomes *unknown* rather than failed, and is settled by reading PayPal, never by sending again.
+**Proof limits for that run:** the original signed envelope was not returned by the public venue UI, so the fresh live replay is of the milestone request. Exact receipt replay has separate fresh fixture and historical sandbox proof. The exported application record chain verified; a current native-journal attestation and the deployed source revision were not exposed to this reviewer. A separate refund attempt stopped at a loading PayPal frame without creating an order or capture. Its unpaid plan was cancelled and released. No new settled sandbox refund is claimed.
 
-## How we used PayPal and AI
+**Historical sandbox evidence:** October 28/31 records show test-money captures, an early hold, a matching simulated venue receipt and unchanged totals after receipt replay. The published October 31 video shows the native checkout and delivery/capture journey; it does not visibly demonstrate an outside MCP call or receipt replay. Some separate historical rehearsals used PayPal-provided approval URLs and the ordinary application callback; their records explicitly qualify native popup coverage. The November 3 catering renewal has a new authorization ID and a successful stored result, re-read from the public sandbox on November 10.
 
-**PayPal**
+**November 10 review checks:** 179 Java tests, nine hosted browser cases, REST/MCP and network-isolation checks passed. New pending-outcome tests separate gateway permission from provider settlement. A fresh isolated database/native-journal restore retained the original payment identities and the $1,400 replay total. Native SDK component tests use a stand-in SDK and simulated provider.
 
-- **JavaScript SDK Buttons**, with a separate `data-namespace` per merchant, so each seller gets its own buyer approval on the same page.
-- **Orders v2**: `CAPTURE` intent for tents and `AUTHORIZE` for catering, the seller as payee, and a `PayPal-Request-Id` on every write.
-- **Payments v2**: capture the catering authorization after the receipt verifies; **reauthorize** it once the 3-day honor period has passed; on cancellation, **void** it and **refund** the tents capture. A renewal must come back as a new authorization, and a refund must link back to the capture it returns.
-- **Log in with PayPal** through SwarmPay's own sandbox app: the authorization-code exchange and the identity profile create the organizer account.
-- **Webhooks**, signature-verified for each seller. A notification only prompts a read of PayPal; it never sets payment state on its own.
-- **PayPal Java Server SDK 2.4.0** for every payment call, with bounded timeouts and retries disabled.
+**Actual AI/catalog evaluation:** six Azure/Channel3 scenarios and four invalid-input cases passed without approving a plan or sending a payment. More guests and a higher-service request changed the selected offers. Rain versus dry weather kept the same affordable pair where both conditions were covered. The actual AG Studio answer cited the matching held request and dossier and distinguished a later completed capture.
 
-**AI**
+**Current public access:** anonymous HTTPS/assets/authentication checks pass. The dedicated judge buyer signs in through PayPal to an empty workspace and ledger; the owner-visible submitted entry's private testing field contains those working credentials. An anonymous clone of public `master` completed setup, doctor, Docker build/start and REST/MCP smoke. The prepared 2:45 replacement video and review gallery are separate from the existing published video and public deployment.
 
-- **Azure OpenAI `gpt-6-astra`** through the Responses API, in three roles:
-  - typed intent extraction
-  - a sourcing choice limited by schema to the catalog's offer IDs
-  - a risk and milestone review
+Rentals, catering and the venue are simulated. AgentSafe currently uses a **local test authority**; hosted Decionis enforcement is a separate unfinished integration. A signature authenticates the venue's statement, not physical delivery. Authorization is distinct from payment, and the flow is not escrow. Full USD amounts and one catering milestone are supported; partial delivery, cancellation fees, partial refunds and additional currencies need agreed merchant rules. Automatic cancellation is limited to before the event while catering is unpaid, and its budget remains reserved through uncertainty.
 
-  Each role uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Catalog prices, never model output, set the amounts.
-- **An authenticated MCP server** (Spring AI) for outside agents. Its payment request goes through AgentSafe like any other.
-- **The AG Studio agent team**: AG's five built-in agents build and edit the dashboard, and SwarmPay's custom AgentSafe analyst explains payment decisions from the payment rules and the ledger. No agent holds a payment tool, and the browser never holds a model key.
+### What we learned
 
-## Sponsor tools
+Payment permission and payment completion are separate facts. A gateway can permit an attempt whose provider outcome is still pending. The same settlement rule must drive the ledger, timeline, dashboard and analyst.
 
-- **AG Grid: a spend dashboard on AG Studio.**
-  - **The dashboard:** the **Payments** page opens on an AG Studio dashboard in SwarmPay's own theme. It shows tiles for paid, held until delivery, refunded and agent requests stopped; a donut of what each merchant was paid; payments by day; and every payment step.
-  - **Custom widgets:** two SwarmPay widgets read through Studio's data engine, so its filters apply to them. A **budget guardrail** draws each plan's paid, held and approved-but-unpaid amounts against its budget. **AgentSafe's decisions** lists every held or blocked request with its dossier ID.
-  - **Studio Agent Framework:** **Ask the agents** runs AG's five built-in agents plus SwarmPay's **AgentSafe analyst**, a custom agent the lead hands "why" questions to. It reads two custom tools (SwarmPay's payment rules and the ledger's AgentSafe decisions) and has no tool that can move money.
-  - **The model route:** Studio's adapter calls SwarmPay's server, which holds the Azure key, fixes the deployment, keeps only Studio's function tools, disables storage, caps the output and streams the answer back.
-  - **The ledger:** the **Ledger** tab keeps an AG Grid Community grid of every payment and agent request, with search, filters, CSV export, and a total that counts only completed captures, less refunds.
-- **Bryntum: when each merchant is paid.**
-  - **The layout:** a Bryntum Scheduler on each plan has one row per merchant and one for the event, with bars at the recorded times.
-  - **Shaded windows:** the venue's delivery window, and PayPal's 3-day honor period for each catering authorization, so an organizer sees when the funds are actually guaranteed.
-  - **Renewals:** when delivery falls after that period, a dashed marker shows where SwarmPay will renew the hold; then the renewal and its fresh honor period appear.
-  - **Cancellation, tooltips and range:** a cancellation shows the refund and the released hold. Tooltips name AgentSafe's decision, the dossier and the PayPal reference. Plans weeks ahead get day ticks sized to fit, on a phone too.
-- **Channel3: tents to buy.**
-  - **Search:** when the organizer chooses **Buy tents**, the server searches Channel3 for in-stock pop-up canopies, adding "waterproof" when rain is forecast. The price ceiling per tent leaves room in the budget for catering.
-  - **Choice:** SwarmPay keeps each product's lowest in-stock US-dollar offer, and the Sourcing Agent chooses only among those IDs. It reads the offer count and Channel3's rating, so the agent can weigh value and reviews.
-  - **On the plan:** the plan names the product, the store and the number of offers compared, with a link to the listing marked as an affiliate link.
-  - **Safety:** the search runs on the server through the egress proxy and fails closed if Channel3 can't be reached. In the sandbox, SwarmPay's tents merchant is paid at the listed price; no order is placed with the store.
-- **APIMatic: an API described, generated, and built with.**
-  - **The description:** an OpenAPI 3.1 document describes all 33 REST operations, with their session and CSRF requirements. A CI test compares it with the Spring controllers' routes, so it can't drift.
-  - **Generated output:** the APIMatic CLI validates it and generates a TypeScript SDK and an API docs portal.
-  - **The Context Plugin:** we used APIMatic's PayPal Context Plugin in Claude Code to build the reauthorization and refund code against PayPal Java Server SDK 2.4.0. Following its `java-*` skills, we confirmed signatures in the SDK sources, unwrapped `ApiResponse`, and kept typed refusals apart from transport failures.
-- **Render: your own copy.** A **Deploy to Render** button deploys seven services, including PostgreSQL, from a tested Blueprint. Render generates and shares the passwords and service tokens. Render's private network can't enforce SwarmPay's isolation rules, so this copy uses simulated payments and holds no PayPal credentials. CI runs the stack wired exactly as Render wires it.
-- **Postman: playing the agent.** A Postman collection connects to the MCP server with an organizer's agent token. It checks that the agent can't approve a plan, that its early payment request is held, and that nothing more was captured. CI runs it with Newman on every change (21 requests, 27 assertions), and again over HTTPS with the live site's rules.
+A useful AI demonstration needs a changed input and an observable result. A signed record needs a clear statement of what it proves. Neither a model recommendation nor a signature replaces the organizer's consent or a real merchant/venue agreement.
 
-## Verified
+### What's next
 
-**Live demo, PayPal sandbox, October 28, 2026** (real sandbox calls with test money):
-
-- **Tents:** order `23N55770SK1159819`, $500 captured at checkout (capture `9JJ483087H808781G`).
-- **Catering:** order `7F931246DX155571M`, $900 authorized (`76F230656E5431143`) and captured only after the venue's signed receipt (capture `8LX13782L6474070M`).
-- **Agent held:** before delivery, the agent asked to pay catering early. AgentSafe held the request, and no payment was sent.
-- **Replay:** replaying the receipt created no second payment; one capture per seller, $1,400 in total.
-- **Webhooks:** six PayPal webhook notifications passed signature verification.
-- **Sign-in:** a sandbox buyer signed up with PayPal, and the organizer session survived a reload.
-
-**Live demo, October 31, 2026:** the spend dashboard's agents answered on the live site with the AgentSafe analyst, and a catering authorization was left open to test a real renewal after its honor period.
-
-[TODO: after the November rehearsal, list what else was verified live: tents paid through the PayPal buttons; the held answer an agent token got from Postman; the hold renewed after its honor period (authorization `…` renewed as `…`, around November 3); a cancellation refund (refund `…`). Delete any line that was not verified.]
-
-**On every change**, CI runs:
-
-- 173 Java tests, with PostgreSQL through Testcontainers and the PayPal SDK against a local HTTP server.
-- 58 Node tests, AgentSafe's six included.
-- The Postman collection.
-- A rehearsal wired like Render.
-- Five browser journeys on desktop and phone, plus six against an HTTPS rehearsal of the hosted setup.
-
-A scheduled job also checks the live site every six hours until judging ends.
-
-In these runs AgentSafe decides payments with a local test authority, and rentals, catering and the venue are simulated.
-
-[TODO: attach screenshots: a completed plan with its schedule, a PayPal sandbox approval, the spend dashboard with the AgentSafe analyst's answer, and Postman's held answer. Keep the sandbox buyer's email and any Buy tents brand or store out of them.]
-
-## Challenges we ran into
-
-- **Payments whose outcome is unknown.** A PayPal timeout or 5xx may still have moved money, so retrying could pay twice. We record each attempt before sending it, treat an unclear answer as unknown, and settle it by reading PayPal, keeping the budget reserved meanwhile.
-- **Two sellers, one plan.** Escrow and payouts looked like the answer and were the wrong tools: they put SwarmPay in the middle of the money. Authorize-then-capture pays each seller directly, on its own terms. Two button sets on one page needed separate SDK namespaces.
-- **An authorization that runs out of guarantee.** PayPal guarantees an authorization's funds for only three days, so our first version refused catering more than three days out. Reauthorizing once, after the honor period and close to delivery, lifted that limit. The renewal has to come back as a new authorization, and a lost reply is recovered from the order's second authorization with reads alone.
-- **Refunds after a "final" state.** Our payment projection never lets a late reply roll a payment back, and *captured* was final. A refund is the one state allowed after it, and only for a cancelled plan, before the event, in full.
-- **Keeping agents away from money.** A prompt is not a boundary. We closed it in the network: the agents' service reaches only the model host and Channel3, and cannot reach PayPal by name, address or proxy, or the executor even by container IP. A CI check proves it on every change.
-- **Giving the dashboard agents a model without giving them more.** AG Studio's agents run in the browser. Their requests go through our server, which adds the key and strips anything but Studio's own function tools, so no agent can search the web or reach a file store.
-- **A bug only the real sandbox found.** Our session cookie is `SameSite=Strict`, so it doesn't come back on PayPal's cross-site redirect; a short-lived `Lax` cookie carries the sign-in check instead. The first real sign-in still returned signed out, because clearing that cookie replaced the new session cookie. The live run caught it, and a regression test now does.
-- **A product, not a console.** Our first workspace showed every panel at once and spoke in payment terms. We rebuilt it around how people start: describe the event in a sentence, take one next action per step, and read a timeline in plain language.
-
-## Accomplishments that we're proud of
-
-- An agent can ask for a payment and be stopped, in the real PayPal sandbox, with a dossier explaining why. The dashboard's AgentSafe analyst can then explain that decision to the organizer.
-- Two merchants paid directly on different terms from one approval, with no escrow and no money passing through us.
-- Catering booked weeks ahead, inside PayPal's authorization rules, and a cancellation that refunds the tents and voids the hold in one step.
-- Replays, timeouts and restarts produce exactly one payment, and the tests prove it on every change.
-
-## What we learned
-
-- **The safest agent can ask but can't pay.** With the boundary in infrastructure, agent mistakes become harmless instead of merely unlikely.
-- **Authorize-then-capture is a natural fit for milestone commerce.** PayPal already models "hold now, pay on delivery", and reauthorization stretches it to bookings weeks ahead.
-- **"Unknown" is a real payment state.** Designing for it first made timeouts, restarts and replays routine instead of dangerous.
-- **Model output is safe to act on when the schema allows only valid choices.** The model picks offer IDs; code checks them, and catalog prices set the amounts.
-- **Rehearse the real setup, then test live.** An HTTPS rehearsal of the hosted stack caught bugs before they shipped; only a real sandbox sign-in caught the lost session cookie.
-- **Show money the way people ask about it.** "How much did we pay the caterer?" is a filter and a total. "When does the caterer get paid?" is a schedule. "Why was it held?" is a question for an agent that can read the record.
-
-## What's next
-
-- Hosted Decionis enforcement in place of the local test authority, including approval and resume of held payments.
-- Real venue integrations, a dispute process, and merchant cancellation fees with partial refunds.
-- Checkout with the stores that list purchased tents, instead of a sandbox tents merchant.
-- More merchants and multi-milestone contracts, such as contractors paid per signed-off stage, plus OAuth for agent connections.
+Validate the event-operator workflow with real participants and measured before/after effort. Agree merchant cancellation and delivery terms, onboard a real issuer with key rotation/revocation and dispute handling, and verify a provisioned hosted authority contract. Confirm sponsor licenses and operational ownership through judging before relying on those arrangements. Broader procurement remains a future extension.
 
 ## Built with
 
-Java 21 · Spring Boot · Spring AI (MCP) · React · TypeScript · Vite · PostgreSQL · Azure OpenAI (GPT-6 Astra) · PayPal JavaScript SDK · PayPal Orders v2 · PayPal Payments v2 · Log in with PayPal · PayPal webhooks · PayPal Java Server SDK · AgentSafe · AG Grid · AG Studio · Bryntum Scheduler · Channel3 · APIMatic · Render · Postman · Newman · Docker · Azure Kubernetes Service · Playwright · Claude Code
+Java 21 · Spring Boot · Spring AI MCP · React · TypeScript · Vite · PostgreSQL · Azure OpenAI · PayPal JavaScript SDK · PayPal Orders v2 · PayPal Payments v2 · Log in with PayPal · PayPal webhooks · PayPal Java Server SDK · AgentSafe · AG Grid · AG Studio · Bryntum Scheduler · Channel3 · APIMatic · Render · Postman · Newman · Docker · Azure Kubernetes Service · Playwright
 
-## Testing instructions
+## Public links
 
-[TODO: paste privately into Devpost's testing-instructions field; never commit the credentials:
+- [Public source and Apache-2.0 license](https://github.com/ocularminds/swarmpay)
+- [Hosted PayPal sandbox demo](https://swarm.decionis.com)
+- [Published 115-second video](https://www.youtube.com/watch?v=SHIB2tTIrmc)
+- [Existing submitted Devpost entry](https://devpost.com/software/swarmpay-multi-agent-commerce-escrow)
 
-- **PayPal sandbox buyer:** **Continue with PayPal** with it creates the organizer account on https://swarm.decionis.com, and the same buyer approves both merchants' payments in PayPal. It is a sandbox account, not a real PayPal login.
-- **Organizer password:** an alternative to signing up with PayPal.
-- **Event time:** keep the event about an hour ahead; the venue can confirm delivery from two hours before it.
-- **Delivery:** the delivery step is the **Confirm delivery as the venue** button. **Let the agent ask** shows AgentSafe holding an early payment request.
-- **Dashboard:** **Payments** opens the spend dashboard. In **Ask the agents**, choose **Why was it held?**. The **Ledger** tab lists every payment.
-- **Agents:** **Agents** issues a token for Postman's desktop app or any MCP client (see `postman/README.md`). **Buy tents** uses Channel3 listings.
-
-Anyone can run the full simulated journey locally with three commands; see the repository README.]
+Private buyer/organizer credentials and any agent token must never appear in this text, the repository, screenshots or the video.

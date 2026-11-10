@@ -1,0 +1,153 @@
+1
+00:00:00,350 --> 00:00:04,849
+Office and community events involve different suppliers and payment
+terms.
+
+2
+00:00:04,989 --> 00:00:11,505
+SwarmPay lets AI prepare the plan, while your approvals and verified
+delivery evidence control payment.
+
+3
+00:00:13,132 --> 00:00:15,449
+This is a fresh PayPal sandbox run.
+
+4
+00:00:15,589 --> 00:00:21,320
+Azure interpreted thirty guests, five rental tents, rain, and a fifteen
+hundred dollar budget.
+
+5
+00:00:21,460 --> 00:00:24,045
+Its sourced plan totals fourteen hundred dollars.
+
+6
+00:00:24,185 --> 00:00:26,084
+I approve those exact terms.
+
+7
+00:00:29,158 --> 00:00:32,794
+The native PayPal button opens the tents merchant's checkout.
+
+8
+00:00:32,934 --> 00:00:35,489
+I approve five hundred dollars of test money.
+
+9
+00:00:35,629 --> 00:00:39,810
+PayPal captures it, and the application receives the native callback.
+
+10
+00:00:42,404 --> 00:00:45,030
+The caterer has a separate PayPal approval.
+
+11
+00:00:45,170 --> 00:00:49,544
+Nine hundred dollars is authorized, while paid money stays at five
+hundred.
+
+12
+00:00:49,684 --> 00:00:51,959
+An authorization is not escrow.
+
+13
+00:00:55,306 --> 00:00:59,784
+Now an outside Node client connects through the real MCP endpoint.
+
+14
+00:00:59,924 --> 00:01:03,571
+It can read this organizer's plan and request a milestone.
+
+15
+00:01:03,711 --> 00:01:06,656
+Its attempt to grant human consent is refused.
+
+16
+00:01:10,831 --> 00:01:13,670
+The catering request returns ESCALATE and HELD.
+
+17
+00:01:13,810 --> 00:01:16,509
+No verified delivery receipt is attached.
+
+18
+00:01:16,649 --> 00:01:22,344
+The record cites synthetic dossier five, because this demo uses a local
+test authority.
+
+19
+00:01:22,484 --> 00:01:26,707
+The authorization remains intact, and no catering capture is sent.
+
+20
+00:01:29,147 --> 00:01:34,499
+The simulated venue signs delivery facts bound to this event, merchant,
+and quantity.
+
+21
+00:01:34,639 --> 00:01:37,787
+SwarmPay verifies the statement and time window.
+
+22
+00:01:37,927 --> 00:01:40,605
+PayPal then captures nine hundred dollars.
+
+23
+00:01:40,745 --> 00:01:45,865
+A signature authenticates the venue's statement; it does not prove
+physical delivery.
+
+24
+00:01:47,492 --> 00:01:49,478
+I repeat the milestone request.
+
+25
+00:01:49,618 --> 00:01:51,413
+It returns the same capture.
+
+26
+00:01:51,553 --> 00:01:56,907
+Tents and catering still total fourteen hundred dollars, with one
+capture for each merchant.
+
+27
+00:01:57,047 --> 00:02:00,780
+The evidence export verifies its application record chain.
+
+28
+00:02:02,937 --> 00:02:06,243
+I ask AG Studio why the earlier request was held.
+
+29
+00:02:06,383 --> 00:02:13,763
+Its analyst cites dossier five, explains the missing receipt, and
+separates that hold from the later completed capture.
+
+30
+00:02:13,903 --> 00:02:17,189
+The assistant can explain payments, never approve them.
+
+31
+00:02:23,491 --> 00:02:27,460
+The pull requests also prepare the updated interface and gallery.
+
+32
+00:02:27,600 --> 00:02:33,968
+These are local review screenshots; the recorded sandbox flow uses the
+existing public deployment.
+
+33
+00:02:35,595 --> 00:02:38,922
+Try SwarmPay using the private judge instructions.
+
+34
+00:02:39,062 --> 00:02:40,275
+AI plans.
+
+35
+00:02:40,415 --> 00:02:41,469
+You approve.
+
+36
+00:02:41,609 --> 00:02:43,723
+Payment follows verified terms.

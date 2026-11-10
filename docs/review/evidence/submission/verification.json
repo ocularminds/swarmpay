@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-11-10T06:16:35.136760+00:00",
+  "part": "submission",
+  "baseCommit": "f04d97349842d6d3d2b48eb6783f5d664a1e9d34",
+  "sourceSyntax": {
+    "pythonFiles": 3,
+    "nodeMcpClient": true
+  },
+  "localMarkdownLinks": {
+    "files": 12,
+    "links": 134,
+    "missing": 0
+  },
+  "jsonParseAndStoryConsistency": true,
+  "sensitiveValueScan": {
+    "stagedFiles": 50,
+    "privateValues": 27,
+    "findings": 0,
+    "credentialsOrValuesOmitted": true
+  },
+  "reviewInputsExcludedFromStaging": true,
+  "video": {
+    "durationSeconds": 165,
+    "sizeBytes": 7419354,
+    "fastStart": true,
+    "sha256": "715dab597294b752a05cccb568fccfa9804afade45899d5c20734ed2788cc20d",
+    "visualChecks": "Scene previews, PayPal masks, intent/decision hash, capture/replay record, actual analyst, captions and close"
+  },
+  "scope": "Submission scripts, docs, gallery and sanitized evidence; runtime unchanged from the passing technical source. No new deployment or public entry/video replacement."
+}

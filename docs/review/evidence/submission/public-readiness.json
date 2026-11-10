@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-11-10T06:05:18.274975+00:00",
+  "repository": {
+    "url": "https://github.com/ocularminds/swarmpay",
+    "visibility": "public",
+    "license": "Apache-2.0",
+    "defaultBranch": "master",
+    "anonymousCloneCommit": "2898d7a782730ab9463f0ffb99ea319a04bf5ac9",
+    "setupDoctorDockerBuildAndSmokePassed": true,
+    "isolatedCloneTestContainersAndVolumesRemoved": true
+  },
+  "devpost": {
+    "url": "https://devpost.com/software/swarmpay-multi-agent-commerce-escrow",
+    "ownerVisibleName": "SwarmPay",
+    "ownerVisibleStatus": "SUBMITTED",
+    "ownerVisibleCompletion": "5/5 steps done",
+    "privateJudgeCredentialsReadBackAndMatch": true,
+    "formChangedByThisReview": false
+  },
+  "officialRules": {
+    "url": "https://paypalaihackathon.devpost.com/rules",
+    "checkedDate": "2026-11-10",
+    "submissionDeadline": "2026-11-12T20:00:00Z",
+    "deadlineStockholm": "2026-11-12 21:00 Europe/Stockholm",
+    "judgingDates": "December 1\u201315, 2026",
+    "resultsAround": "December 21, 2026",
+    "postDeadlineEdits": "Section 5 restricts changes after submission close, with limited organizer-permitted exceptions; a date does not authorize a rename."
+  },
+  "publicHealth": {
+    "site": "https://swarm.decionis.com",
+    "passed": true,
+    "scope": "Landing/assets, sandbox configuration, anonymous denial, MCP authentication, PayPal sign-in redirect and TLS. Does not expose the deployed commit.",
+    "tlsDaysRemainingReported": 74
+  },
+  "existingVideo": {
+    "url": "https://www.youtube.com/watch?v=SHIB2tTIrmc",
+    "playable": true,
+    "private": false,
+    "metadataDurationSeconds": 115,
+    "recordedDate": "2026-10-31",
+    "originalSha256": "e00311ef39156b3f3e7559fcad6e2b4d05f57d432c828158212292ed5b70aba7",
+    "visualAudit": "Actual payment/held/venue/capture/analyst journey; no visible outside MCP invocation or exact receipt replay."
+  },
+  "preparedVideo": {
+    "filename": "SwarmPay-review-demo-1080p.mp4",
+    "durationSeconds": 165,
+    "sha256": "715dab597294b752a05cccb568fccfa9804afade45899d5c20734ed2788cc20d",
+    "bytes": 7419354,
+    "verification": "../../submission/video/verification.json",
+    "published": false
+  },
+  "privateJudgeCheck": "judge-access.json",
+  "freshSandboxProof": "sandbox-rehearsal.json",
+  "sourceRecordSha256": {
+    "official-rules.html": "2a788455ad2047991d0d7676317a1192490d5edd8928033f8661e6d25667940d",
+    "devpost-entry.html": "06d644d017927292faf001b710ce16fcb92cce6120c64e6846229f8e90578c16",
+    "submission-clone-up.log": "58a9e2658483e60b196749ee58a9055c2f8be849673906a84ccc2a81aeab7fd7",
+    "submission-clone-smoke.log": "ec906ca1b5f9774c0c0d5fdc3a824d491c64b4a597d31b91bc39e5721c57e218",
+    "submission-clone-cleanup.log": "cf4053928d317d272c031a18642a4fe7aedc93d64bac7d0d6bedee6d8f356fd6",
+    "submission-final-health.log": "bf5be194a3633ee952cd445fbb57981aa910b1e41a687b7b7177d369123aec6e"
+  }
+}

@@ -1,0 +1,21 @@
+Office and community events involve different suppliers and payment terms. SwarmPay lets AI prepare the plan, while your approvals and verified delivery evidence control payment.
+
+This is a fresh PayPal sandbox run. Azure interpreted thirty guests, five rental tents, rain, and a fifteen hundred dollar budget. Its sourced plan totals fourteen hundred dollars. I approve those exact terms.
+
+The native PayPal button opens the tents merchant's checkout. I approve five hundred dollars of test money. PayPal captures it, and the application receives the native callback.
+
+The caterer has a separate PayPal approval. Nine hundred dollars is authorized, while paid money stays at five hundred. An authorization is not escrow.
+
+Now an outside Node client connects through the real MCP endpoint. It can read this organizer's plan and request a milestone. Its attempt to grant human consent is refused.
+
+The catering request returns ESCALATE and HELD. No verified delivery receipt is attached. The record cites synthetic dossier five, because this demo uses a local test authority. The authorization remains intact, and no catering capture is sent.
+
+The simulated venue signs delivery facts bound to this event, merchant, and quantity. SwarmPay verifies the statement and time window. PayPal then captures nine hundred dollars. A signature authenticates the venue's statement; it does not prove physical delivery.
+
+I repeat the milestone request. It returns the same capture. Tents and catering still total fourteen hundred dollars, with one capture for each merchant. The evidence export verifies its application record chain.
+
+I ask AG Studio why the earlier request was held. Its analyst cites dossier five, explains the missing receipt, and separates that hold from the later completed capture. The assistant can explain payments, never approve them.
+
+The pull requests also prepare the updated interface and gallery. These are local review screenshots; the recorded sandbox flow uses the existing public deployment.
+
+Try SwarmPay using the private judge instructions. AI plans. You approve. Payment follows verified terms.

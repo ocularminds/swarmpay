@@ -1,17 +1,22 @@
 # SwarmPay
 
-**Give agents a budget. Pay merchants only on agreed terms.**
+**Plan with AI. Pay on your terms.**
 
-An event organizer must pay several merchants on different terms, and handing an AI agent a card puts the whole budget at risk. With SwarmPay, the organizer describes the event, AI agents build a plan across two merchants, and each merchant is paid only on its agreed terms: tents at checkout, catering after a signed venue receipt confirms delivery. The organizer approves the exact plan once; agents never hold payment credentials.
+SwarmPay helps office and community event organizers coordinate tents and catering within one budget. AI turns one brief into a plan. Tents are paid at checkout; catering is authorized and paid after a matching signed venue receipt. **Approve the plan once, then confirm each merchant in PayPal.** Agents can propose and request actions; the payment boundary checks consent, amounts and evidence before execution.
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 | | |
 | --- | --- |
-| **Video** | _TODO: YouTube link_ |
-| **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Describe the event, then **Continue with PayPal** to create your organizer account with a PayPal sandbox buyer. Payments run in the PayPal sandbox with test money; tents to buy come from Channel3 listings, while rentals, catering and the venue are simulated. The sandbox buyer and organizer password logins are in the Devpost private testing instructions. |
+| **Video** | [Watch the 1:55 public sandbox demo](https://www.youtube.com/watch?v=SHIB2tTIrmc) · recorded October 31, 2026 |
+| **Devpost** | [SwarmPay project](https://devpost.com/software/swarmpay-multi-agent-commerce-escrow) · public page shows Submitted to PayPal AI Hackathon, checked November 10 |
+| **Live demo** | [swarm.decionis.com](https://swarm.decionis.com). Describe the event, then **Continue with PayPal** using the dedicated sandbox buyer in Devpost's private testing instructions. That saved login and its clean workspace were verified November 10. Payments use test money; tents to buy come from Channel3 listings, while rentals, catering and the venue are simulated. |
 | **Run locally** | [Three commands](#run-it-locally), no accounts needed |
 | **Your own copy** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ocularminds/swarmpay) with simulated payments, from [`render.yaml`](render.yaml). [What it deploys and costs](docs/render.md) |
+
+The November 10 review is delivered in three parts: [brand and UX](https://github.com/ocularminds/swarmpay/pull/39) (merged), [technical review](https://github.com/ocularminds/swarmpay/pull/40), and [submission materials](docs/review/submission/README.md), including a prepared 2:45 demo and fresh gallery. The [status matrix](docs/review-implementation-status.md) identifies what was implemented, verified or still needs a specific prerequisite. Review screenshots do not establish deployment of those changes. **SwarmPay remains the hackathon identity**; the selected Kintlo commercial kit is [prepared separately](docs/brand/README.md).
+
+The demo uses test money, simulated rental/catering merchants and a simulated venue. AgentSafe uses a local test authority. A signed receipt authenticates that venue's statement; it does not independently prove physical delivery. An authorization is distinct from a completed payment; this flow is not escrow.
 
 ## PayPal capabilities
 
@@ -19,7 +24,7 @@ Only a private executor holds the merchants' PayPal credentials; every payment c
 
 - **JavaScript SDK Buttons**, with a separate `data-namespace` per merchant so each seller gets its own buyer approval ([`PayPalCheckout.tsx`](apps/web/src/PayPalCheckout.tsx)).
 - **Orders v2**: `CAPTURE` intent for tents, `AUTHORIZE` intent for catering, the seller as payee and a `PayPal-Request-Id` on each write.
-- **Payments v2**: capture the catering authorization after the receipt verifies, or void it. **Reauthorize** it after PayPal's 3-day honor period, so catering can be booked up to 27 days ahead and still be paid from a fresh authorization, and **refund** the tents capture when the organizer cancels.
+- **Payments v2**: capture the catering authorization after the receipt verifies, or void it. **Reauthorize** once after the initial 3-day honor period and within 3 days of the event. Before the event and while catering remains unpaid, cancellation requests a full tents **refund** and catering void. Unknown outcomes retain the budget reservation until resolved.
 - **Webhook signature verification** per seller ([`PayPalWebhookVerifier.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalWebhookVerifier.java)).
 - **PayPal Java Server SDK** 2.4.0 for all Orders and Payments calls ([`PayPalPaymentProvider.java`](modules/integrations/src/main/java/com/swarmpay/integrations/PayPalPaymentProvider.java)).
 
@@ -33,18 +38,22 @@ Only a private executor holds the merchants' PayPal credentials; every payment c
 
 AgentSafe decided these payments with a local test authority, not hosted Decionis, and the catalog and venue are simulated. The tents checkout was created through the application API with buyer approval in PayPal; catering used the PayPal buttons end to end. The [release record](infra/azure/releases/2026-10-28.sandbox.json) lists the deployed images and results.
 
+A [fresh November 10 public sandbox rehearsal](docs/review/evidence/submission/sandbox-rehearsal.json) completed both native PayPal popup callbacks: $500 captured for tents, $900 authorized for catering, an outside MCP request held with no catering capture, then $900 captured after the simulated venue receipt. Repeating the MCP milestone request retained the same two captures, five payment commands and $1,400 total. The live analyst cited the correct held dossier and separated the later capture. The temporary agent token was revoked and then refused with HTTP 401. The deployed commit is not exposed, so this is proof of the existing public sandbox, not deployment of the PR stack.
+
+A [November 10 authenticated read](docs/review/evidence/technical/sandbox-history.json) confirms the historical **November 3 sandbox renewal**: authorization `07731015K3449464F` became `97P017464E128624V`, with no capture. Exact signed-receipt replay, pending outcomes and recovery also passed fresh isolated tests and a database/native-journal restore; **179 Java tests and nine hosted browser cases passed**. [Exact results and limits](docs/review/technical-review.md) include current SDK generation and real Azure/Channel3 evaluation. The latest public run replays the payment request, not the original receipt bytes. A separate refund attempt never created a payment because its PayPal frame stayed loading; cancellation released that unpaid plan. A new settled sandbox refund remains unverified.
+
 ## AI
 
 Azure OpenAI `gpt-6-astra` through the Responses API ([`modules/agent-workflows`](modules/agent-workflows)):
 
 - **Intent extraction** turns free text into typed, editable fields (guests, tents, budget in cents, venue, weather, date) and clarifying questions.
-- **Sourcing** chooses one tent and one catering offer through a schema that admits only the catalog's offer IDs; Java checks capacity, dates and budget before a plan exists.
+- **Sourcing** chooses one tent and one catering offer through a schema that admits only the catalog's offer IDs. Java validates the choice and quantities; over-budget drafts remain unapproved and cannot start checkout.
 - **Risk & milestone** review checks the chosen offers against the confirmed event.
-- **Tents to buy** come from [Channel3](https://channel3.ai)'s product data when `CHANNEL3_API_KEY` is set: the server searches in-stock tents that leave room in the budget for catering, and the Sourcing Agent may choose only among those, at Channel3's prices. The plan names the product and where it's listed; the PayPal sandbox tents merchant fills the order and is the seller paid. Without a key, tents are rental-only.
+- **Tents to buy** come from [Channel3](https://channel3.ai)'s product data when `CHANNEL3_API_KEY` is set: the server searches in-stock USD listings within a tent-price ceiling, and the Sourcing Agent chooses among returned offers. The plan links to the listing. The sandbox payment goes to the configured test tents merchant; **no order is placed with the listed retailer**. Without a key, tents are rental-only.
 
 Every call uses a strict JSON schema, is revalidated in Java and fails closed, with no model fallback. Agents get no payment tools; catalog prices set the amounts, and the organizer approves every value. An agent can ask for the catering payment through the MCP `request_milestone_payment` tool, but that request goes through AgentSafe, which holds it until a verified delivery receipt exists.
 
-**See every payment.** **Payments** in the workspace opens a spend dashboard on [AG Studio](https://www.ag-grid.com/studio/): paid, held until delivery, refunded and stopped requests, a budget guardrail per plan and AgentSafe's decisions. With Azure OpenAI, ask its agents about it, including SwarmPay's own AgentSafe analyst, which can explain a hold but cannot pay. The **Ledger** tab lists every payment and agent request ([AG Grid](https://www.ag-grid.com/)): search, filter, a total of what was actually paid for the rows shown, and CSV export. Each plan also shows when each merchant is paid on a schedule ([Bryntum Scheduler](https://bryntum.com/products/scheduler/), trial build): tents at checkout, catering held until the venue's delivery window, and any request AgentSafe held.
+**Understand your payments.** **Payments** opens an [AG Studio](https://www.ag-grid.com/studio/) dashboard with paid, authorized and refunded balances, one budget guardrail per plan and inspectable decisions. The review implementation uses all approved plans for balances and the recent 500 commands plus 500 agent requests for charts and records. The [AG Grid](https://www.ag-grid.com/) **Ledger** has search, CSV export and a filtered total based on completed captures less settled refunds. Unknown and pending results stay separate. The analyst cites request/decision IDs and can explain a payment without making one. A [Bryntum Scheduler](https://bryntum.com/products/scheduler/) timeline distinguishes authorizations, completed payments, planned renewals and held requests. Studio and Scheduler license coverage through judging is an [open prerequisite](docs/submission-checklist.md).
 
 **Bring your own agent.** In the workspace, **Agents** issues a token for your own MCP client. It acts on your plans only, can never approve one, and can be revoked. The [Postman collection](postman/README.md) plays that agent against SwarmPay's MCP server and checks that AgentSafe holds its early payment request; CI runs it on every change.
 
@@ -68,7 +77,8 @@ flowchart LR
     MCP[Authenticated MCP client] --> APP
     APP --> LLM[GPT-6 Astra through Azure OpenAI]
     APP --> GATE[Published AgentSafe gateway]
-    GATE <--> AUTH[Local authority in demo / Decionis in sandbox]
+    GATE <--> AUTH[Local test authority: current demo and sandbox]
+    HOSTED[Hosted Decionis: integration pending] -.-> GATE
     GATE --> EXEC[Private Java payment executor]
     EXEC --> PP[PayPal Orders and Payments]
     VENUE[Separate receipt issuer] --> APP
@@ -98,7 +108,7 @@ To test altered or replayed receipts, sign an exported workflow with `node demo/
 
 The over-budget path is just as short: with a $1,300 budget the plan shows **Over budget by $100** and offers a new plan, never approval or checkout. Records and authority decisions sit under **What happened**.
 
-The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies the source of each assessment. No PayPal charge occurs in demo mode. Quotes last 30 minutes; catering can be authorized up to 27 days before the event, and SwarmPay renews the PayPal hold 3 days before delivery. **Cancel the event**, under **Pause or cancel**, refunds the tents and voids the catering hold before the event starts. Use a new plan when a quote expires.
+The default demo uses synthetic prices, stock, agent responses, venue attestations, authority decisions and payment responses. Azure planning can be enabled independently with `SWARM_AI_PROVIDER=azure`; the UI identifies each assessment's source. No PayPal charge occurs in demo mode. Quotes last 30 minutes. Catering can be authorized up to 27 days before the event; one renewal is eligible after the initial honor period and within 3 days of the event. **Cancel the event** is supported before the event while catering is unpaid; it requests a full tents refund and catering void. Completed catering requires merchant resolution. Use a new plan when a quote expires.
 
 Stop with `docker compose down`; the database, authority journal and key volumes remain. A later `docker compose up -d --wait` restores workflows. Removing volumes destroys those records, so volume deletion is not part of the normal reset procedure. Use **New plan** for another demonstration.
 
@@ -140,6 +150,7 @@ node demo/check-isolation.mjs
 node demo/check-webhook-ingress.mjs
 node demo/check-restart.mjs
 npm --prefix apps/web ci
+npm --prefix apps/web test
 npm --prefix apps/web run build
 cd apps/web
 npx playwright install chromium
@@ -156,7 +167,7 @@ The [CI workflow](.github/workflows/verify.yml) runs the Java, SDK HTTP protocol
 
 `swarm.decionis.com` runs eight dedicated `swarm-pay-*` deployments in the existing `decionis` namespace of the `decionis-aks` cluster, with real Azure AI, PayPal sandbox payments, sign-up with PayPal through SwarmPay's own sandbox app, the simulated venue and a local test authority. Only the `swarm-pay-identity` service holds the PayPal login secret; the agents still have no route to PayPal. Sandbox payments use their own database and evidence volumes; the earlier simulated-payments records are preserved. Hosted access requires `SWARM_PUBLIC_ORIGIN` and `SWARM_SESSION_COOKIE_SECURE=true`, which enforce Host/Origin checks, organizer sign-in and secure cookies and disable the one-click local session. Details are linked rather than repeated here:
 
-- [Azure hosting runbook](docs/azure-hosting.md): CI-bound image releases, the [latest release record](infra/azure/releases/2026-10-28.sponsor-tools.json) with its immutable images (the [sandbox payments record](infra/azure/releases/2026-10-28.sandbox.json) has the payment run, and the [PayPal sign-in record](infra/azure/releases/2026-10-28.paypal-sign-in.json) the sign-up rollout), network policies, TLS, the local HTTPS rehearsal (`node demo/hosted/run.mjs`), the explicit public acceptance check (`demo/check-deployed.mjs`) and rollback limits.
+- [Azure hosting runbook](docs/azure-hosting.md): CI-bound image releases, historical [sponsor-tools](infra/azure/releases/2026-10-28.sponsor-tools.json), [sandbox payment](infra/azure/releases/2026-10-28.sandbox.json) and [PayPal sign-in](infra/azure/releases/2026-10-28.paypal-sign-in.json) records, network policies, TLS, the local HTTPS rehearsal (`node demo/hosted/run.mjs`), explicit public acceptance (`demo/check-deployed.mjs`) and rollback limits. Anonymous health alone does not establish the deployed source revision or a completed checkout.
 - [Hosted AgentSafe endpoints](docs/azure-hosting.md#hosted-agentsafe-endpoints): neither candidate Decionis endpoint is verified as SwarmPay's enforcement gateway yet, so the demo discloses its local test authority.
 - [Security and reliability](docs/security-and-reliability.md): the authority boundary, payment replay protection, evidence limits and hosted web access rules.
 
